@@ -1,0 +1,197 @@
+import React from "react";
+import { Calendar, UserCheck, UserX } from "lucide-react";
+import type { LeaveRequest } from "../../types";
+
+interface LeaveRequestPanelProps {
+  leaveRequests: LeaveRequest[];
+  filter: "ALL" | "Approved" | "Pending HR Review" | "Pending GM Approval" | "Rejected";
+  onFilterChange: (filter: "ALL" | "Approved" | "Pending HR Review" | "Pending GM Approval" | "Rejected") => void;
+  onApprove?: (id: string) => void;
+  onGmApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+}
+
+export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
+  leaveRequests,
+  filter,
+  onFilterChange,
+  onApprove,
+  onGmApprove,
+  onReject,
+}) => {
+  const filtered = leaveRequests.filter((l) => filter === "ALL" || l.status === filter);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-2xl bg-blue-100 text-blue-700">
+            <Calendar className="w-7 h-7" />
+          </div>
+          <div>
+            <h2 className="text-xl font-extrabold text-slate-900">
+              Staff & Guard Leave Tracking Management
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Record and approve Annual, Sick, Emergency, Compassionate, Unpaid, Paternity, Maternity, Compensatory & Study Leave with relief guard assignment and GM final approval.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {(["ALL", "Pending HR Review", "Pending GM Approval", "Approved"] as const).map((f) => {
+            const counts = {
+              ALL: leaveRequests.length,
+              "Pending HR Review": leaveRequests.filter((l) => l.status === "Pending HR Review").length,
+              "Pending GM Approval": leaveRequests.filter((l) => l.status === "Pending GM Approval").length,
+              Approved: leaveRequests.filter((l) => l.status === "Approved").length,
+            };
+            const isActive = filter === f;
+            const colors =
+              f === "ALL"
+                ? isActive ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
+                : f === "Pending GM Approval"
+                ? isActive ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-800 border border-indigo-200"
+                : f === "Pending HR Review"
+                ? isActive ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-800 border border-amber-200"
+                : isActive ? "bg-emerald-700 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200";
+            return (
+              <button
+                key={f}
+                onClick={() => onFilterChange(f)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${colors}`}
+              >
+                {f === "ALL" ? "All" : f} ({counts[f]})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((leave) => (
+          <div
+            key={leave.id}
+            className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 hover:border-blue-300 transition-all"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 font-extrabold text-[10px] rounded-full uppercase tracking-wider">
+                  {leave.leaveType}
+                </span>
+                <h3 className="font-extrabold text-slate-900 text-base mt-1">
+                  {leave.guardName}
+                </h3>
+                <span className="text-xs font-mono font-bold text-slate-500">
+                  {leave.guardCode}
+                </span>
+              </div>
+              <span
+                className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                  leave.status === "Approved"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : leave.status === "Pending GM Approval"
+                    ? "bg-indigo-100 text-indigo-700 animate-pulse"
+                    : leave.status === "Pending HR Review"
+                    ? "bg-amber-100 text-amber-800 animate-pulse"
+                    : leave.status === "Pending Regional Approval"
+                    ? "bg-sky-100 text-sky-800"
+                    : leave.status === "Pending Ops Approval"
+                    ? "bg-orange-100 text-orange-800"
+                    : leave.status === "Rejected"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                {leave.status}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-700">
+                <span className="font-bold text-slate-400">Duration:</span>
+                <span className="font-black text-slate-900">
+                  {leave.startDate} to {leave.endDate} ({leave.durationDays} Days)
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-700">
+                <span className="font-bold text-slate-400">Relief Officer:</span>
+                <span className="font-bold text-blue-700">
+                  {leave.reliefGuardName || "Pending Duty Roster Cover"}
+                </span>
+              </div>
+              <div className="pt-1 text-slate-600 italic">"{leave.reason}"</div>
+              {leave.contactAddress && (
+                <div className="flex justify-between text-slate-700">
+                  <span className="font-bold text-slate-400">Contact Address:</span>
+                  <span className="font-bold text-slate-800">{leave.contactAddress}</span>
+                </div>
+              )}
+              {(leave.entitlement !== undefined || leave.taken !== undefined || leave.balance !== undefined) && (
+                <div className="flex justify-between text-slate-700">
+                  <span className="font-bold text-slate-400">HR Entitlement / Taken / Balance:</span>
+                  <span className="font-bold text-slate-800">
+                    {leave.entitlement ?? "—"} / {leave.taken ?? "—"} / {leave.balance ?? "—"} days
+                  </span>
+                </div>
+              )}
+              {leave.resumptionDate && (
+                <div className="flex justify-between text-slate-700">
+                  <span className="font-bold text-slate-400">Resumption Date:</span>
+                  <span className="font-bold text-slate-800">{leave.resumptionDate}</span>
+                </div>
+              )}
+            </div>
+
+            {leave.status === "Pending HR Review" && onApprove && (
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => onApprove(leave.id)}
+                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>HR Approve → GM</span>
+                </button>
+                {onReject && (
+                  <button
+                    onClick={() => onReject(leave.id)}
+                    className="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl border border-red-200 cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <UserX className="w-3.5 h-3.5" />
+                    <span>Reject</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {leave.status === "Pending GM Approval" && onGmApprove && (
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => onGmApprove(leave.id)}
+                  className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>GM Final Approve</span>
+                </button>
+                {onReject && (
+                  <button
+                    onClick={() => onReject(leave.id)}
+                    className="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl border border-red-200 cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <UserX className="w-3.5 h-3.5" />
+                    <span>Reject</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {leave.approvedBy && (
+              <p className="text-[10px] font-semibold text-slate-400 text-right">
+                Reviewed by: {leave.approvedBy}{leave.gmApprovedBy ? ` · GM: ${leave.gmApprovedBy}` : ""}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};

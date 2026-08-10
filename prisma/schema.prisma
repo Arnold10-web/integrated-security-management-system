@@ -1,0 +1,988 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/* Roles are stored as free-form strings on User.role (validated against the
+   23-role UserRole union in src/types.ts). No UserRole Prisma enum is used —
+   the legacy enum (with Marketing_Supervisor / Assistant_Accountant_1/2) was
+   removed as dead code in the v2.7 doc/system alignment. */
+enum GuardLifecycleStage {
+  ENROLLED
+  HANDED_TO_OPERATIONS
+  IN_TRAINING
+  PASSED_OUT
+  DEPLOYED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String
+  department String
+  region    String?
+  forceNumber String? @unique
+  phone     String?
+  avatarUrl String?
+  lastActive DateTime @default(now())
+  status    String   @default("Active")
+  customPermissions Json?  // Per-user module access overrides: { moduleName: "view" | "full" | "none" }
+  // Time-bound delegation (§5.4): IT Officer grants a temporary elevated role.
+  actingRole      String?  // effective role while acting (resolved at login)
+  actingExpiresAt String?  // ISO date-time; role falls back to base once past this
+  actingGrantedBy String?  // name of the IT Officer who granted it
+  actingGrantedAt String?  // ISO date-time the delegation was granted
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Region {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique
+  description String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  offices   RegionalOffice[]
+}
+
+model RegionalOffice {
+  id                String   @id @default(cuid())
+  regionId          String
+  region            Region   @relation(fields: [regionId], references: [id])
+  code              String   @unique
+  name              String
+  locationCity      String
+  regionalManagerName String
+  phone             String
+  email             String
+  activeGuardsCount Int      @default(0)
+  clientSitesCount  Int      @default(0)
+  armouryVaultStatus String  @default("Fully Operational")
+  vehiclesAssigned  Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Guard {
+  id                String   @id @default(cuid())
+  guardCode         String   @unique
+  fullName          String
+  photoUrl          String?
+  signatureUrl      String?
+  designation       String
+  phone             String
+  nationalId        String
+  tin               String?
+  nssfNo            String?
+  assignedSite      String
+  location          String?
+  bankAccount       String?
+  bankName          String?
+  finishedProbation Boolean  @default(false)
+  status            String   @default("Off Duty")
+  lifecycleStage    GuardLifecycleStage @default(ENROLLED)
+  isDeserter        Boolean  @default(false)
+  desertionDate     String?
+  desertionNotes    String?
+  medicalCleared    Boolean  @default(false)
+  armedQualified    Boolean  @default(false)
+  k9Qualified       Boolean  @default(false)
+  joinDate          String
+  region            String?
+  zone              String?
+  warningLettersCount Int   @default(0)
+  certifications    String[]
+  terminationReason String?
+  terminationDate   String?
+  terminationCategory String?
+  idCardStatus      String?
+  idCardNumber      String?
+  idCardIssuedDate  String?
+  idCardExpiryDate  String?
+  idCardIssuerName  String?
+  idCardIssuerSignatureUrl String?
+  hasSystemAccount  Boolean  @default(false)
+  linkedUserId      String?
+  dateOfBirth       String?
+  gender            String?
+  maritalStatus     String?
+  educationLevel    String?
+  motherName        String?
+  motherPhone       String?
+  fatherName        String?
+  fatherPhone       String?
+  nextOfKinName     String?
+  nextOfKinRelationship String?
+  nextOfKinPhone    String?
+  nextOfKinResidence String?
+  relativesOrReferees String?
+  residenceDistrict String?
+  residenceSubCounty String?
+  residenceParish   String?
+  residenceVillage  String?
+  lc1Chairperson    String?
+  lc1Contact        String?
+  physicalAddress   String?
+  emergencyContactPhone String?
+  surnameAtBirth    String?
+  nationality       String?
+  tribe             String?
+  placeOfBirth      String?
+  lc2Chairperson    String?
+  closeRelatives    String[]
+  neighbours        String[]
+  fatherAlive       Boolean @default(false)
+  fatherResidence   String?
+  bankAccountName   String?
+  bankBranch        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model DisciplinaryAction {
+  id                String   @id @default(cuid())
+  actionCode        String   @unique
+  guardId           String
+  guardName         String
+  guardCode         String
+  actionType        String
+  reason            String
+  severity          String   @default("Medium")
+  status            String   @default("Initiated")
+  initiatedBy       String
+  regionalApprovedBy String?
+  operationsApprovedBy String?
+  hrApprovedBy      String?
+  approvedAt        String?
+  linkedIncidentCode String?
+  linkedComplaintCode String?
+  offenceCategory   String?
+  offence           String?
+  offenceDate       String?
+  offenceTime       String?
+  zone              String?
+  actionTaken       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Complaint {
+  id                String   @id @default(cuid())
+  complaintCode     String   @unique
+  clientName        String
+  siteName          String
+  category          String
+  description       String
+  satisfactionRating Int?
+  status            String   @default("Open")
+  ownedBy           String   @default("Marketing")
+  resolvedBy        String?
+  resolutionNotes   String?
+  referredForInvestigation Boolean @default(false)
+  linkedIncidentCode String?
+  reportedDate      String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ClientSite {
+  id                String   @id @default(cuid())
+  clientName        String
+  siteName          String
+  location          String
+  zone              String
+  dayShiftGuards    Int      @default(0)
+  nightShiftGuards  Int      @default(0)
+  dayShiftArmed     Int      @default(0)
+  nightShiftArmed   Int      @default(0)
+  armedGuardsRequired Int   @default(0)
+  k9Required        Boolean  @default(false)
+  contactPerson     String
+  contactPhone      String
+  slaStatus         String   @default("Compliant")
+  region            String?
+  satisfactionRating Int?
+  deploymentStatus  String   @default("Not Deployed")
+  wonBy             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ArmouryItem {
+  id                String   @id @default(cuid())
+  assetTag          String
+  serialNumber      String
+  category          String
+  name              String
+  caliberOrSpecs    String
+  totalQuantity     Int
+  availableQuantity Int
+  condition         String   @default("Good")
+  assignedToGuardId String?
+  assignedToGuardName String?
+  location          String   @default("Main Vault")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ArmouryLog {
+  id                String   @id @default(cuid())
+  serialNumberLog   String
+  guardId           String
+  guardName         String
+  locationName      String
+  firearmSerialNumber String
+  assetName         String
+  assetTag          String
+  ammoRoundsOut     Int
+  dateOut           String
+  timeOut           String
+  signOutConfirmed  Boolean
+  dateIn            String?
+  timeIn            String?
+  ammoRoundsIn      Int?
+  signInConfirmed   Boolean?
+  substituteReceiver String?
+  armourerInCharge  String
+  status            String   @default("Checked Out")
+  notes             String?
+  createdAt         DateTime @default(now())
+}
+
+model K9Dog {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  breed             String
+  chipNumber        String
+  ageYears          Int
+  status            String   @default("Active Duty")
+  assignedHandlerId String?
+  assignedHandlerName String?
+  kennelNumber      String
+  rabiesVaccineDate String
+  lastVetCheck      String
+  specialization    String
+  currentWeightKg   Float?
+  healthCondition   String?
+  vaccinationStatus String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model K9HealthInspection {
+  id                String   @id @default(cuid())
+  inspectionCode    String   @unique
+  k9Id              String
+  k9Name            String
+  handlerName       String
+  inspectionDate    String
+  weightKg          Float
+  vaccinationStatus String
+  physicalCondition String
+  coatAndSkinCheck  String
+  appetiteAndHydration String
+  temperatureCelsius Float?
+  inspectingOfficer String
+  notes             String?
+  createdAt         DateTime @default(now())
+}
+
+model K9Log {
+  id                String   @id @default(cuid())
+  k9Id              String
+  k9Name            String
+  handlerName       String
+  siteName          String
+  deploymentDate    String
+  shiftType         String
+  trainingScore     String
+  vetNotes          String?
+  createdAt         DateTime @default(now())
+}
+
+model Vehicle {
+  id                String   @id @default(cuid())
+  plateNumber       String   @unique
+  vehicleType       String
+  makeModel         String
+  driverAssigned    String
+  fuelLevelPercentage Int    @default(100)
+  mileageKm         Int      @default(0)
+  status            String   @default("Operational")
+  lastServiceDate   String
+  nextServiceDueKm  Int
+  chassisNumber     String?
+  insuranceExpiryDate String?
+  roadLicenceExpiryDate String?
+  deploymentBranch  String?
+  conditionRating   String?
+  replacementStatus String?
+  gpsTrackerId      String?
+  lifetimeMaintenanceCost Float?
+  serviceIntervalKm Int?
+  lastOilChangeKm   Int?
+  lastOilChangeDate String?
+  oilStatus         String?
+  lastTyreCheckDate String?
+  tyreTreadDepthMm  Float?
+  tyreStatus        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model VehicleTripLog {
+  id                String   @id @default(cuid())
+  tripCode          String   @unique
+  vehicleId         String
+  plateNumber       String
+  driverName        String
+  destination       String
+  purpose           String
+  startMileageKm    Int
+  endMileageKm      Int?
+  distanceKm        Int?
+  departureTime     String
+  arrivalTime       String?
+  status            String   @default("In Transit")
+  authorizedBy      String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model FuelLog {
+  id                String   @id @default(cuid())
+  voucherCode       String   @unique
+  vehicleId         String
+  plateNumber       String
+  driverName        String
+  fuelLitres        Float
+  costUgx           Float
+  mileageAtRefillKm Int
+  fuelType          String
+  stationName       String
+  refillDate        String
+  approvedBy        String?
+  reconciled        Boolean  @default(false)
+  status            String   @default("Pending FM Approval")
+  approvedAt        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model MaintenanceServiceLog {
+  id                String   @id @default(cuid())
+  serviceCode       String   @unique
+  vehicleId         String
+  plateNumber       String
+  serviceType       String
+  description       String
+  mileageAtServiceKm Int
+  serviceDate       String
+  nextDueDate       String
+  costUgx           Float
+  workshopName      String
+  status            String   @default("Scheduled")
+  approvalStatus    String   @default("Pending FM Approval")
+  approvedBy        String?
+  approvedAt        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Driver {
+  id                String   @id @default(cuid())
+  driverCode        String   @unique
+  forceNumber       String?  @unique
+  roleType          String   @default("Driver")
+  fullName          String
+  contactPhone      String?
+  nationalId        String?
+  licenceNumber     String
+  licenceClass      String
+  licenceExpiryDate String
+  assignedVehiclePlate String
+  dutyShift         String
+  safetyScorePct    Float
+  totalTripsCompleted Int
+  trainingBadges    String[]
+  sourceRef         String?
+  approvedBy        String?
+  approvedAt        String?
+  status            String   @default("Pending FM Approval")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model DailyVehicleInspection {
+  id                String   @id @default(cuid())
+  inspectionCode    String   @unique
+  vehicleId         String
+  plateNumber       String
+  inspectorDriver   String
+  inspectionDate    String
+  inspectionTime    String
+  brakesCheck       String
+  tyresCheck        String
+  lightsSirensCheck String
+  oilLevelCheck     String
+  coolantCheck      String
+  batteryCheck      String
+  overallCondition  String
+  defectsNoted      String
+  createdAt         DateTime @default(now())
+}
+
+model FleetBreakdownEmergency {
+  id                String   @id @default(cuid())
+  incidentCode      String   @unique
+  vehicleId         String
+  plateNumber       String
+  driverName        String
+  location          String
+  issueType         String
+  description       String
+  reportedTime      String
+  recoveryAssigned  String
+  backupVehicleDispatched String?
+  status            String   @default("Active Emergency")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Incident {
+  id                String   @id @default(cuid())
+  incidentCode      String   @unique
+  title             String
+  siteName          String
+  reportedByGuard   String
+  incidentDate      String
+  category          String
+  severity          String
+  description       String
+  status            String   @default("Open")
+  evidenceAttached  Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Invoice {
+  id                String    @id @default(cuid())
+  invoiceNumber     String    @unique
+  clientName        String
+  siteName          String
+  date              String
+  dueDate           String
+  amount            Float
+  status            String    @default("Draft")
+  itemsCount        Int       @default(0)
+  approvedBy        String?
+  approvedAt        DateTime?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Reminder {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  invoiceNumber String
+  clientName    String
+  channel       String
+  recipient     String
+  status        String
+  reason        String?
+  message       String
+  triggeredBy   String
+  createdAt     DateTime @default(now())
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String?
+  targetRole String?
+  type       String
+  title      String
+  message    String
+  module     String?
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([targetRole])
+}
+
+model Expense {
+  id                String   @id @default(cuid())
+  category          String
+  description       String
+  amount            Float
+  date              String
+  status            String   @default("Pending")
+  approvedBy        String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model CashierTransaction {
+  id                String    @id @default(cuid())
+  guardName         String
+  guardCode         String
+  type              String
+  amount            Float
+  date              String
+  status            String    @default("Pending Approval")
+  processedBy       String
+  guardId           String?
+  phone             String?
+  signatureUrl      String?
+  notes             String?
+  approvedBy        String?
+  rejectedBy        String?
+  approvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+}
+
+model Lead {
+  id                String   @id @default(cuid())
+  companyName       String
+  contactPerson     String
+  email             String
+  phone             String
+  estimatedValue    Float
+  source            String   @default("Manual")
+  stage             String   @default("New")
+  assignedTo        String
+  ownerId           String?
+  region            String?
+  wonBy             String?
+  lostReason        String?
+  followUpDate      DateTime?
+  lastContactedAt   DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Campaign {
+  id                String   @id @default(cuid())
+  name              String
+  channel           String
+  leadsGenerated    Int      @default(0)
+  budget            Float
+  conversions       Int      @default(0)
+  proposedBy        String?
+  budgetStatus      String   @default("Pending")
+  budgetApprovedBy  String?
+  budgetApprovedAt  String?
+  createdAt         DateTime @default(now())
+}
+
+model DutyRoster {
+  id                String   @id @default(cuid())
+  guardId           String
+  guardName         String
+  siteId            String
+  siteName          String
+  region            String?
+  shiftDate         String
+  shiftType         String
+  status            String   @default("Scheduled")
+  checkInTime       String?
+  checkOutTime      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model SiteDeployment {
+  id                String   @id @default(cuid())
+  deploymentCode    String   @unique
+  siteId            String
+  siteName          String
+  clientName        String
+  guardId           String
+  guardName         String
+  shiftType         String
+  deployedBy        String
+  deployedAt        String
+  status            String   @default("Active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model DeploymentOrder {
+  id                String   @id @default(cuid())
+  orderCode         String   @unique
+  siteId            String
+  siteName          String
+  clientName        String
+  region            String?
+  requiredHeadcount Int
+  shiftType         String
+  targetStartDate   String
+  targetEndDate     String
+  requestedBy       String
+  status            String   @default("Open")
+  assignedGuardIds  String[]
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PatrolInspectionLog {
+  id                String   @id @default(cuid())
+  inspectionCode    String   @unique
+  siteName          String
+  supervisorName    String
+  guardOnDuty       String
+  inspectionTime    String
+  radioCheckStatus  String
+  uniformTurnout    String
+  weaponEquipmentCheck String
+  overallRating     String
+  remarks           String
+  createdAt         DateTime @default(now())
+}
+
+model AdminRequisition {
+  id                String   @id @default(cuid())
+  reqCode           String
+  department        String
+  requestedBy       String
+  itemDescription   String
+  quantity          Int
+  estimatedCostUgx  Float
+  priority          String   @default("Medium")
+  status            String   @default("Pending Approval")
+  dateRequested     String
+  approvedBy        String?
+  approvedAt        String?
+  rejectedBy        String?
+  rejectionReason   String?
+  issuedToGuardId   String?
+  issuedToGuardName String?
+  issuedToGuardCode String?
+  itemUnitCostUgx   Float?
+  issuedDate        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model TrainingCohort {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  startDate         String
+  endDate           String
+  location          String
+  leadInstructor    String
+  totalRecruits     Int      @default(0)
+  passedOutCount    Int      @default(0)
+  status            String   @default("Upcoming Intake")
+  curriculumModules String[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model RecruitTrainee {
+  id                String   @id @default(cuid())
+  traineeCode       String
+  fullName          String
+  nationalIdNumber  String
+  age               Int
+  cohortId          String
+  cohortName        String
+  assignedRegion    String
+  drillScore        Float    @default(0)
+  marksmanshipScore Float    @default(0)
+  theoryScore       Float    @default(0)
+  overallStatus     String   @default("Under Training")
+  assignedForceNumber String?
+  dateGraduated     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model AuditLog {
+  id                String   @id @default(cuid())
+  timestamp         String
+  userName          String
+  userRole          String
+  action            String
+  module            String
+  details           String
+  createdAt         DateTime @default(now())
+}
+
+model ITServer {
+  id                String   @id @default(cuid())
+  name              String
+  ipAddress         String
+  status            String   @default("Operational")
+  cpuUsage          Float    @default(0)
+  memoryUsage       Float    @default(0)
+  uptime            String   @default("0d 0h 0m")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ITSupportTicket {
+  id                String   @id @default(cuid())
+  ticketCode        String   @unique
+  reportedBy        String
+  subject           String
+  priority          String   @default("Medium")
+  status            String   @default("Open")
+  createdDate       String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ITAsset {
+  id                String   @id @default(cuid())
+  assetCode         String   @unique
+  name              String
+  category          String
+  serialNumberOrKey String
+  assignedToPersonOrStation String
+  assignedDepartment String
+  purchaseDate      String
+  warrantyExpiryDate String?
+  valueUgx          Float
+  condition         String   @default("Operational")
+  softwareVersionOrSpecs String?
+  ipAddressOrHost   String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model LeaveRequest {
+  id                String   @id @default(cuid())
+  guardId           String
+  guardName         String
+  guardCode         String
+  leaveType         String
+  startDate         String
+  endDate           String
+  durationDays      Int
+  reason            String
+  reliefGuardName   String?
+  reliefGuardCode   String?
+  appliedDate       String
+  status            String   @default("Pending Regional Approval")
+  approvedBy        String?
+  notes             String?
+  contactAddress    String?
+  entitlement       Int?
+  taken             Int?
+  balance           Int?
+  resumptionDate    String?
+  gmApprovedBy      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Workflow {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  description       String?
+  module            String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  steps             WorkflowStep[]
+}
+
+model WorkflowStep {
+  id                String   @id @default(cuid())
+  workflowId        String
+  workflow          Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepOrder         Int
+  name              String
+  approverRole      String
+  escalationHours   Int?
+  createdAt         DateTime @default(now())
+}
+
+model Approval {
+  id                String   @id @default(cuid())
+  workflowId        String
+  workflowCode      String
+  referenceType     String
+  referenceId       String
+  currentStep       Int      @default(1)
+  totalSteps        Int      @default(1)
+  status            String   @default("Pending")
+  requestedBy       String
+  requestedByName   String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  actions           ApprovalAction[]
+}
+
+model ApprovalAction {
+  id                String   @id @default(cuid())
+  approvalId        String
+  approval          Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  stepOrder         Int
+  actorRole         String
+  actorName         String?
+  action            String?
+  comment           String?
+  actedAt           DateTime?
+  createdAt         DateTime @default(now())
+}
+
+model Document {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  category          String
+  referenceType     String
+  referenceId       String
+  mimeType          String
+  fileSize          Int
+  filePath          String
+  uploadedBy        String
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model JobPosting {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  title             String
+  department        String
+  location          String
+  description       String
+  requirements      String
+  positionsCount    Int      @default(1)
+  salaryRange       String?
+  status            String   @default("Open")
+  postedDate        String
+  closesDate        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  candidates        Candidate[]
+}
+
+model Candidate {
+  id                String   @id @default(cuid())
+  jobPostingId      String
+  jobPosting        JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  fullName          String
+  email             String
+  phone             String
+  resumePath        String?
+  coverLetter       String?
+  source            String?
+  roleType          String?
+  licenceNumber     String?
+  licenceClass      String?
+  licenceExpiryDate String?
+  nationalId        String?
+  status            String   @default("New")
+  appliedDate       String
+  interviewDate     String?
+  interviewScore    Float?
+  notes             String?
+  gender            String?
+  age               String?
+  address           String?
+  expectedSalary    Float?
+  availability      String?
+  education         String?
+  certifications    String?
+  yearsExperience   Int?
+  employerHistory   String?
+  reasonForLeaving  String?
+  interviewScores   Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PerformanceReview {
+  id                String   @id @default(cuid())
+  guardId           String
+  guardName         String
+  guardCode         String
+  reviewPeriod      String
+  reviewType        String
+  evaluatorName     String
+  evaluationDate    String
+  disciplineScore   Float
+  punctualityScore  Float
+  clientRatingScore Float
+  appearanceScore   Float
+  incidentHandlingScore Float
+  overallRating     String
+  recommendation    String
+  comments          String?
+  keyStrengths      String?
+  growthAreas       String?
+  developmentGoals  String?
+  status            String   @default("Draft")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model CustomRoleDefinition {
+  id                String   @id @default(cuid())
+  roleName          String   @unique
+  department        String
+  description       String?
+  allowedModules    String[]
+  assignedRegions   String[]
+  createdBy         String
+  isSystemDefault   Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Contract {
+  id                String   @id @default(cuid())
+  contractCode      String   @unique
+  title             String
+  contractType      String
+  partyName         String
+  category          String
+  startDate         String
+  endDate           String
+  valueUgx          Int?
+  status            String   @default("Active")
+  documentRef       String?
+  managedBy         String?
+  region            String?
+  autoRenew         Boolean  @default(false)
+  paymentTerms      String?
+  billingCycle      String?
+  slaTerms          String?
+  notes             String?
+  preparedBy        String?
+  issuedBy          String?
+  approvedBy        String?
+  approvedAt        String?
+  approvalStep      String?
+  relatedGuardCode  String?
+  relatedSiteName   String?
+  voidReason        String?
+  siteSurvey        String?
+  siteSurveyBy      String?
+  siteSurveyAt      String?
+  createdBy         String?
+  scanPages         Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([endDate])
+}
