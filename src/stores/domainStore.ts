@@ -284,6 +284,7 @@ interface DomainState {
   // Leave
   addLeaveRequest: (r: Omit<LeaveRequest, "id">) => void;
   updateLeaveRequest: (id: string, updates: Partial<LeaveRequest>) => void;
+  regionalApproveLeave: (id: string) => void;
   opsApproveLeave: (id: string) => void;
   hrApproveLeave: (id: string, verification?: { entitlement?: number; taken?: number; balance?: number; resumptionDate?: string }) => void;
   gmApproveLeave: (id: string) => void;
@@ -1687,7 +1688,14 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     notif("info", "Leave Updated", `Leave request ${id} updated`, "HR");
   },
 
-  opsApproveLeave: (id) => {
+   regionalApproveLeave: (id) => {
+     set((s) => ({ leaveRequests: s.leaveRequests.map((lr) => (lr.id === id ? { ...lr, status: "Pending Ops Approval" } : lr)) }));
+     syncApi("put", `/leave-requests/${id}/approve`, {});
+     audit("Leave Regional Approved", `Regional Manager approved leave request ${id}`, "Operations");
+     notif("success", "Regional Approved", `Leave request ${id} forwarded to Operations`, "Operations");
+   },
+
+   opsApproveLeave: (id) => {
     set((s) => ({ leaveRequests: s.leaveRequests.map((lr) => (lr.id === id ? { ...lr, status: "Pending HR Review" } : lr)) }));
     syncApi("put", `/leave-requests/${id}/ops-approve`, {});
     audit("Leave Ops Approved", `Operations approved leave request ${id}`, "Operations");

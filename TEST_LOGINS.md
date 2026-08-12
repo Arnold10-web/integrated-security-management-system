@@ -71,10 +71,10 @@ App URL: `http://localhost:3000` (start with `npm run dev`)
 
 ## Quick Test Scenarios
 
-**Client contract approval chain (Marketing → Ops → Finance → GM):**
+**Client contract approval chain (Marketing → Finance → GM for ≥100M):**
 1. Login as **Patricia Akello** (Sales and Marketing Supervisor) → create a new Client Contract → it becomes `Draft` at step BD.
-2. Login as **Ivan Ssebana** (Business Development Manager) → approve BD step → moves to Operations.
-3. Login as **Emma Muwonge** (Ops Manager) → approve → moves to Finance.
+2. Login as **Ivan Ssebana** (Business Development Manager) → approve BD step → moves to Finance.
+3. Supporting step (not an approval): login as **Emma Muwonge** (Ops Manager) → record a site survey on the contract. Ops Manager/RM approves nothing and voids nothing — site-survey contribution only.
 4. Login as **David Ssenyonga** (Finance Manager) → approve → `Active` (values < 100M finish here; ≥ 100M UGX go to GM next).
 5. For high-value contracts (≥ 100M): login as **Sarah Akello** (GM) → final approve → `Active`.
 6. Login as **Agnes Nantege** (Records Officer) → archive any contract.

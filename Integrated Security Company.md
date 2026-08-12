@@ -302,7 +302,7 @@ Operations Manager (Department Head) — overall head, owns deployment, attendan
 ├── Armorer — armoury vault issue/return, chain of custody, ballistic accountability
 ├── K9 Unit Lead (K9 Supervisor) — canine unit command, handler pairing, health and deployment
 │   └── K9 Handler(s) — field handler paired with assigned canine
-├── Fleet Manager — patrol fleet, drivers, fuel, maintenance; reports into Operations; works with Fleet module
+├── Fleet Manager — patrol fleet, drivers, fuel, maintenance; reports into Operations; works with Transport module
 └── Training Officer — training academy cohorts, pass-out, and operational readiness
 ```
 
@@ -321,7 +321,7 @@ Operations responsibilities:
 - K9 unit operations,
 - training school management.
 
-### 7.4b Investigations Department (Independent)
+### 7.4b Investigations Department
 
 The Investigations Department is organizationally independent — it is **not** under Operations, though it shares information with Operations:
 
@@ -436,11 +436,11 @@ The architecture below reflects what is currently implemented in code.
 | K9HealthInspection | K9 Veterinary | k9Id, weightKg, vaccinationStatus, physicalCondition, temperatureCelsius |
 | K9Log | K9 Deployment | k9Id, siteName, shiftType, trainingScore |
 | Vehicle | Fleet | plateNumber (unique), vehicleType, makeModel, fuelLevel, mileage, insuranceExpiry, chassisNumber, gpsTrackerId |
-| VehicleTripLog | Fleet | tripCode (unique), vehicleId, plateNumber, driverName, destination, purpose, start/endMileageKm, distanceKm, departure/arrivalTime, status (In Transit/Completed), authorizedBy |
-| FuelLog | Fleet | voucherCode (unique), vehicleId, plateNumber, driverName, fuelLitres, costUgx, mileageAtRefillKm, fuelType, stationName, status (Pending FM Approval/Approved), reconciled |
-| MaintenanceServiceLog | Fleet | serviceCode (unique), vehicleId, plateNumber, serviceType, mileageAtServiceKm, nextDueDate, costUgx, workshopName, approvalStatus |
-| DailyVehicleInspection | Fleet | inspectionCode (unique), vehicleId, plateNumber, inspectorDriver, inspectionDate/Time, brakes/tyres/lights/oil/coolant/battery checks, overallCondition, defectsNoted |
-| FleetBreakdownEmergency | Fleet | incidentCode (unique), vehicleId, plateNumber, driverName, location, issueType, reportedTime, recoveryAssigned, status (Active Emergency/Resolved) |
+| VehicleTripLog | Fleet / Transport | tripCode (unique), vehicleId, plateNumber, driverName, destination, purpose, start/endMileageKm, distanceKm, departure/arrivalTime, status (In Transit/Completed), authorizedBy |
+| FuelLog | Fleet / Transport | voucherCode (unique), vehicleId, plateNumber, driverName, fuelLitres, costUgx, mileageAtRefillKm, fuelType, stationName, status (Pending FM Approval/Approved), reconciled |
+| MaintenanceServiceLog | Fleet / Transport | serviceCode (unique), vehicleId, plateNumber, serviceType, mileageAtServiceKm, nextDueDate, costUgx, workshopName, approvalStatus |
+| DailyVehicleInspection | Fleet / Transport | inspectionCode (unique), vehicleId, plateNumber, inspectorDriver, inspectionDate/Time, brakes/tyres/lights/oil/coolant/battery checks, overallCondition, defectsNoted |
+| FleetBreakdownEmergency | Fleet / Transport | incidentCode (unique), vehicleId, plateNumber, driverName, location, issueType, reportedTime, recoveryAssigned, status (Active Emergency/Resolved) |
 | Incident | Incidents | incidentCode (unique), title, siteName, category, severity, status, evidenceAttached |
 | Invoice | Finance | invoiceNumber (unique), clientName, amount, dueDate, status (Pending/Paid/Overdue) |
 | Expense | Finance | category, description, amount, approvedBy, status |
@@ -493,7 +493,7 @@ Centralized state management eliminating prop drilling:
 
 | Store | Responsibility |
 |---|---|
-| **authStore.ts** (227 lines) | currentUser, users, customRoles, login/logout (mock + API), role switching, session persistence, idle timeout, welcome banner, onboarding modal |
+| **authStore.ts** (227 lines) | currentUser, users, customRoles, login/logout (mock + API), role switching, session persistence, idle timeout, welcome banner, walkthrough modal |
 | **domainStore.ts** (~720 lines) | 24+ entity arrays with full CRUD methods — guards, sites, armoury, k9s, vehicles, incidents, rosters, invoices, expenses, cashier transactions, leads, campaigns, IT assets, patrol inspections, admin requisitions, training cohorts, recruit trainees, regional offices, leave requests, workflows, approvals, documents, job postings, candidates, performance reviews |
 | **auditStore.ts** (28 lines) | Audit log array with addLog() |
 
@@ -512,7 +512,7 @@ All stores cross-call each other for integrated audit logging (every mutation re
 | /clients | Client & Sites CRM | /clients | CRM |
 | /finance | Finance & Cashier | /finance | Finance |
 | /marketing | Marketing & Sales | /marketing | Marketing |
-| /fleet | Fleet & Logistics | /fleet | Fleet |
+| /transport | Transport & Logistics | /transport | Transport |
 | /administration | Administrations | /administration | Admin |
 | /it | Information Technology | /it | IT Admin |
 | /guard-portal | Guard Portal | /guard-portal | Operations |
@@ -523,7 +523,7 @@ All stores cross-call each other for integrated audit logging (every mutation re
 | /performance-reviews | Performance Reviews | /performance-reviews | HR |
 | /login | Login | /login | — |
 
-Navigation sidebar is role-filtered via `getAllowedModuleIds()`. AppShell wraps authenticated routes with header, sidebar, idle timeout, and onboarding.
+Navigation sidebar is role-filtered via `getAllowedModuleIds()`. AppShell wraps authenticated routes with header, sidebar, idle timeout, and walkthrough.
 
 ### 8.6 UI Component Architecture (Atomic Design)
 
@@ -531,7 +531,7 @@ Views are decomposed using Atomic Design:
 
 - **atoms/** (5): StatusBadge, SearchInput, FilterButton, ActionButton, GuardAvatar
 - **molecules/** (3): TabBar, Modal, DataTable
-- **organisms/** (~70): Extracted tables, modals, panels, cards, grids covering Armoury, Fleet, K9, Guards, IT, Finance, Operations, Training, Marketing, Client Sites, Administration, Cashier
+- **organisms/** (~70): Extracted tables, modals, panels, cards, grids covering Armoury, Fleet, K9, Guards, IT, Finance, Operations, Training, Marketing, Client Sites, Transport, Administration, Cashier
 - **views/** (18): Page-level components (DashboardView, OperationsView, GuardsHRView, FinanceView, etc.) — all under 320 lines
 - **layout/** (2): AppShell, index
 - **ui/** (3): SystemWalkthroughModal, RegionsPanel, OrgHierarchyPanel
@@ -541,7 +541,7 @@ Views are decomposed using Atomic Design:
 
 - **Authentication**: JWT tokens (24h expiry) issued by Express; bcryptjs password hashing; Bearer token injection in frontend API client
 - **Server-Side RBAC**: `requireModuleAccess(moduleName)` middleware on every protected route with MODULE_PERMISSIONS map; each route endpoint validates role against module
-- **Read-endpoint gating (v2.7)**: every list endpoint is role-gated — contracts (`requireAnyRole` allowlist: GM, Director, HR Manager/Assistant, Records Officer, BDM, SMS, Ops Manager, Regional Manager, Finance Manager, Internal Auditor, IT Officer), leave-requests (HR/Ops/Regional/Guard-Officer with region & self-scoping), vehicles (fleet), k9s/k9-logs (k9s), armoury/armoury-logs (armoury), audit-logs (IT Officer/Internal Auditor/GM/Director), regions (any module holder), workflows/approvals (workflow), job-postings (recruitment), performance-reviews (performance), custom-roles (it), analytics/summary (directorate), auth/users (it)
+- **Read-endpoint gating (v2.7)**: every list endpoint is role-gated — contracts (`requireAnyRole` allowlist: GM, Director, HR Manager/Assistant, Records Officer, BDM, SMS, Ops Manager, Regional Manager, Finance Manager, Internal Auditor, IT Officer), leave-requests (HR/Ops/Regional/Guard-Officer with region & self-scoping), vehicles (transport), k9s/k9-logs (k9s), armoury/armoury-logs (armoury), audit-logs (IT Officer/Internal Auditor/GM/Director), regions (any module holder), workflows/approvals (workflow), job-postings (recruitment), performance-reviews (performance), custom-roles (it), analytics/summary (directorate), auth/users (it)
 - **Account provisioning (v2.7)**: `POST /api/auth/register` is IT-Officer-only (`requireModuleAccess("it", "full")`), no longer returns a token, and audits a "User Created" event in the IT Admin module — self-registration is not permitted
 - **Input Validation**: Zod schemas on all API endpoints (login, guards, sites, incidents, vehicles, invoices, expenses, leads)
 - **HTML Sanitization**: DOMPurify installed for frontend input cleaning
@@ -560,7 +560,7 @@ Views are decomposed using Atomic Design:
 | Operations | **DONE** | Shift scheduling, attendance, incident logging, patrol inspections |
 | Administrative & Asset Management | **DONE** | Admin requisitions, uniform/shoe/equipment inventory |
 | Cashier & Petty Cash | **DONE** | Advances, food, rent, loans, refunds, cash transactions |
-| Fleet | **DONE** | Vehicle records, driver allocation, fuel, maintenance, insurance |
+| Transport & Fleet | **DONE** | Vehicle records, driver allocation, fuel, maintenance, insurance |
 | Client & Site CRM | **DONE** | Client profiles, site locations, guard allocations, SLA tracking |
 | Complaint & Incident Management | **DONE** | Incident logging, evidence, severity, resolution tracking |
 | Marketing & Sales | **DONE** | Lead pipeline, campaign tracking, social media management |
@@ -584,8 +584,7 @@ Views are decomposed using Atomic Design:
 | Deployment Orders (Ops → RM fill) | **DONE** | Operations issues a deployment order (`ORD-YYYY-NNN`); Regional Manager fills it from their region's guard pool (region-gated) and builds the roster |
 | Fleet Licence Approvals (v2.6) | **DONE** | Driver/Rider licence details captured at recruitment (HR) → `Pending FM Approval` → Fleet Manager approves → `Active Duty` with approved-by/at; licence-expiry CRITICAL/soon alerts on the Fleet register |
 | Contract Scans & Template (v2.6) | **DONE** | Multi-page contract scan manager (add page, thumbnail list, reorder up/down, delete, persisted `scanPages`); printable contract template with autoprint |
-| ID Camera + Holder Signature (v2.6) | **DONE** | Records Officer captures the ID holder's photo via web/phone camera (or upload) and the holder's signature on a signature pad before issuance; both persisted on the guard record |
-| ID Issuer Signature + CR80 Print Export (v2.7) | **DONE** | Records Officer signs as the issuer (persisted `idCardIssuerName` / `idCardIssuerSignatureUrl`); camera upgraded to portrait 800×1000 with device selection (phone-as-webcam via USB/DroidCam/Camo), face-guide oval and lighting hints; **Print Settings + export** produces a print-ready CR80 card PNG at 300 DPI (1012×638px) for the card printer's vendor software, with a setup guide and affordable printer recommendations; IT retains **read-only verification** of issued cards |
+| ID Camera + Holder Signature (v2.6) | **DONE** | Records Officer captures the ID holder's photo via web camera (or upload) and the holder's signature on a signature pad before issuance; both persisted on the guard record |
 
 ### 8.9 Phase 2 — Planned Modules
 
@@ -691,7 +690,7 @@ Transition rights: HR roles move `ENROLLED → HANDED_TO_OPERATIONS`; Operations
 
 **Deployment orders (Order → Regional Manager fill, v2.6).** The Operations Manager issues a deployment order for a client site (`ORD-YYYY-NNN`) specifying the required headcount, shift type, start/end dates and region. Only the **Operations Manager** can issue an order; only a **Regional Manager** can fill it (`PUT /api/deployment-orders/:id/assign`), and only from guards in the matching region whose lifecycle stage is not yet `DEPLOYED`. A filled order assigns guards and promotes them to `DEPLOYED`. Sites remain **view-only for Operations**; they are created only by Marketing/Sales (Business Development Manager, or a Sales and Marketing Supervisor from a `Closed Won` lead).
 
-### 9.6 Fleet Department
+### 9.6 Transport Department
 Track:
 
 - drivers and riders
@@ -1082,7 +1081,7 @@ The project modules include, at minimum:
 - Finance
 - Administration
 - Cashier
-- Fleet
+- Transport
 - Client & Site Management
 - Complaint & Incident Management
 - Reports & Analytics
@@ -1209,7 +1208,7 @@ A role can hold different access levels in different modules, and the level in a
 
 | Role | Primary Duties in System | Module Access |
 |---|---|---|
-| General Manager | Reviews company-wide KPIs, revenue, guard deployment, complaints, incident trends; gives final approval on high-value/escalated items (large expenses, contract changes **including client contracts ≥ 100M UGX**, policy exceptions, **final leave approval after HR forwards — v2.8**); cannot bypass Finance/HR data entry | Directorate: Full (dashboard); Reports: Full (view+export); Finance, HR, Operations, Marketing, Client CRM, Fleet, Administration, IT, Recruitment, Performance Reviews: View; **Contracts: Approve (GM step, ≥ 100M only), void**; Workflow: Approve (top-level steps only); **Leave Requests: GM Final Approve (last step)**; Documents: View |
+| General Manager | Reviews company-wide KPIs, revenue, guard deployment, complaints, incident trends; gives final approval on high-value/escalated items (large expenses, contract changes **including client contracts ≥ 100M UGX**, policy exceptions, **final leave approval after HR forwards — v2.8**); cannot bypass Finance/HR data entry | Directorate: Full (dashboard); Reports: Full (view+export); Finance, HR, Operations, Marketing, Client CRM, Transport, Administration, IT, Recruitment, Performance Reviews: View; **Contracts: Approve (GM step, ≥ 100M only), void**; Workflow: Approve (top-level steps only); **Leave Requests: GM Final Approve (last step)**; Documents: View |
 | Director(s) | Strategic review, exception escalations, KPI review; does not process day-to-day transactions | Same as General Manager but View only on Workflow approvals unless explicitly delegated |
 
 ### 28.4 Human Resource Department
@@ -1218,7 +1217,7 @@ A role can hold different access levels in different modules, and the level in a
 |---|---|---|
 | HR Manager | Owns guard/employee master records, contracts, disciplinary actions, transfers; final sign-off on Performance Reviews; HR review step on Leave Requests (after Regional Manager & Operations; forwards to General Manager for final approval — v2.8); reviews payroll-prep inputs fed from Cashier and Administration | HR: Full; **Contracts: issues and voids staff contracts (final sign-off)**; Leave Requests: Approve (HR step → Pending GM Approval); Performance Reviews: Full; Recruitment: Full; Documents (HR category): Full; Cashier, Administration inventory: View (payroll-prep inputs only) |
 | HR Assistant | Data entry and updates to guard/employee records; **performs the HR leave review step alongside the HR Manager (forwards to General Manager — v2.8)**; **runs recruitment with HR Manager — job postings and candidate pipeline are HR-owned (v2.6)** | HR: Create+Edit (no delete); **Contracts: prepares staff contract Drafts**; Leave Requests: Create+Edit and HR review step (HR Manager / HR Assistant); Recruitment: Full (create/run postings + candidates); Documents (HR category): Create+Edit |
-| Records Officer | Maintains personnel file integrity, archives documents, ensures completeness of employee files; **owns the central contract vault — archives contracts only (no edit, no void, no delete)**; **owns the Identity Cards module — issues staff ID cards (IDC number + expiry), captures the ID holder's photo (web/phone camera or upload) and the holder's signature on screen, signs as the issuer, and prepares the card for the CR80 printer (v2.7)** | HR: View, plus Create+Edit limited to document/archival/ID-issuance fields (`idCardStatus`, `idCardNumber`, `idCardIssuedDate`, `idCardExpiryDate`, `idCardIssuerName`, `idCardIssuerSignatureUrl`, `photoUrl`, `signatureUrl`); **Identity Cards: Full**; **Contracts: View all + Archive only**; Documents (HR category): Full |
+| Records Officer | Maintains personnel file integrity, archives documents, ensures completeness of employee files; **owns the central contract vault — archives contracts only (no edit, no void, no delete)**; **issues staff ID cards (IDC number + expiry) — moved from IT**; **captures the ID holder's photo (web camera/upload) and the holder's signature (signature pad) before issuance (v2.6)** | HR: View, plus Create+Edit limited to document/archival/ID-issuance fields (`idCardStatus`, `idCardNumber`, `idCardIssuedDate`, `idCardExpiryDate`, `photoUrl`, `signatureUrl`); **Contracts: View all + Archive only**; Documents (HR category): Full |
 
 ### 28.5 Marketing Department
 
@@ -1237,7 +1236,7 @@ A role can hold different access levels in different modules, and the level in a
 | Armorer | Owns the armoury vault: item issue/return, chain of custody, ballistic accountability | Armoury (Items + Logs): Full |
 | K9 Unit Lead (K9 Supervisor) | Owns canine unit: dog records, health inspections, handler pairing, deployment | K9 (all sub-modules): Full |
 | K9 Handler | Logs deployment for their assigned canine, views health records | K9 Logs (own dog): Create+Edit; K9 Health Inspections: View |
-| Fleet Manager | Owns Fleet module: vehicles, drivers, fuel, maintenance, insurance tracking; **approves pending driver licences (`Pending FM Approval` → `Active Duty`, v2.6); monitors driver licence-expiry status** | Fleet: Full; reports summary into Operations Manager view |
+| Fleet Manager | Owns Transport & Fleet module: vehicles, drivers, fuel, maintenance, insurance tracking; **approves pending driver licences (`Pending FM Approval` → `Active Duty`, v2.6); monitors driver licence-expiry status** | Transport: Full; reports summary into Operations Manager view |
 | Investigations Officer | Owns incident investigation lifecycle: evidence, escalation, resolution tracking; **initiates disciplinary actions (IO → Regional Manager → Ops Manager → HR Manager finalize); receives complaints referred for investigation (linked to incidents)** | Incidents: Full (up to resolution); escalates unresolved/high-severity cases to Operations Manager for Approve; Disciplinary: Create/Initiate; Complaints: Refer-for-investigation |
 | Training Officer | Owns Training School: cohorts, recruit tracking, graduation/pass-out | Training School: Full |
 
@@ -1543,18 +1542,3 @@ Per client feedback, this release (a) fixed the wrong-dashboard-on-login edge ca
 
 **Validation**
 - `npm run lint` clean, `npx tsc --noEmit` clean, **83/83 vitest** passes, `vite build` succeeds, and `esbuild` server bundle succeeds.
-
-### 30.15 v3.0 — Identity Card Issuance & Onboarding Polish
-
-Per user direction, completed the ID-issuance handoff to the Records Officer and polished the onboarding experience:
-
-- **Identity Cards module is now Records-Officer-owned with a read-only IT verification view**: `IdentityCardsPage` lives under `/identity-cards`; the Records Officer gets the full `IdCardsTab` with a Pending Issuance queue, the issuance modal (`GuardIdModal`), and the **Print Settings + export flow**; the IT Officer sees a **read-only registry** (`IdCardsRegistry` — search, status filter, and per-card details including issuer + ID photo/signature) and can no longer edit. The `it` module tab no longer offers an `id_cards` sub-tab (previously a dead link).
-- **ID issuance modal (`GuardIdModal`) upgraded**:
-  - **Issuer signature pad** — the Records Officer signs on screen before issuing; persisted as `idCardIssuerName` + `idCardIssuerSignatureUrl` (UI state keyed `sig_issuer`).
-  - **Photo camera v2** — portrait 800×1000 capture for card-print quality, **device selector** (choose front/back webcam, or a phone-as-webcam USB/software source like DroidCam or Camo), face-guide oval + framing hints, error handling for missing/denied cameras, upload fallback.
-  - **Print Settings + export**: a new settings panel (holiday/casual name + role toggles, the `PRINT_MODE` CR80 choice) drives a live card preview; **Export Card** renders the card to a **print-ready CR80 PNG at 300 DPI (1012×638px)** (photo snapped into its own canvas to avoid browser cross-origin taint), auto-named `<forceNumber>-id-card.png` and downloadable for the card printer's vendor software — no dedicated printer driver needed. Includes an inline setup guide + affordable printer recommendations.
-  - Issuance still **requires** the holder's photo and signature and the issuer's signature; when a missing camera (or mid-session loss) blocks capture, the save guard now shows the reason and scrolls to the required field.
-  - The resulting front-card preview now renders the ID photo from the captured image (not a placeholder).
-- **Walkthrough → Onboarding**: all remaining "walkthrough" UI strings retitled to onboarding in `SystemWalkthroughModal.tsx` ("Welcome to your onboarding", "Don't show onboarding automatically on login", Skip) and `UserTable.tsx` (Tour tooltip); the onboarding content reordered to lead with Identity Cards for the Records Officer.
-- **Constitution updated** (§9.2, §28.4, §8.8): Records Officer owns ID issuance with issuer-signature + CR80 export; IT is reduced to read-only verification of issued cards; ID field allowlist now includes `idCardIssuerName`/`idCardIssuerSignatureUrl`.
-- **Validation**: `npm run lint` clean, `vite build` succeeds.

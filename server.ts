@@ -18,7 +18,7 @@ dotenv.config();
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error("FATAL: JWT_SECRET environment variable is required");
@@ -369,6 +369,7 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "General Manager": "view",
     "Director": "view",
     "IT Officer": "view",
+    "Guard Officer": "view",
   },
   guards: {
     "HR Manager": "full",
@@ -380,6 +381,7 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "General Manager": "view",
     "Director": "view",
     "IT Officer": "view",
+    "Training Officer": "view",
   },
   sites: {
     "Business Development Manager": "full",
@@ -388,6 +390,7 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "General Manager": "view",
     "Director": "view",
     "IT Officer": "view",
+    "Guard Officer": "view",
   },
   armoury: {
     "Armorer": "full",
@@ -438,9 +441,6 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "Sales and Marketing Supervisor": "full",
     "Operations Manager": "view",
     "Regional Manager": "view",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   k9s: {
     "K9 Supervisor": "full",
@@ -462,34 +462,23 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "Records Officer": "full",
     "HR Manager": "view",
     "HR Assistant": "view",
-    "IT Officer": "view",
-    "General Manager": "view",
-    "Director": "view",
   },
   marketing: {
     "Business Development Manager": "full",
     "Sales and Marketing Supervisor": "full",
     "Finance Manager": "view",
     "Operations Manager": "view",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   administration: {
     "Administrative Officer": "full",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   it: {
     "IT Officer": "full",
-    "General Manager": "view",
-    "Director": "view",
   },
   finance: {
     "Finance Manager": "full",
     "Accountant": "full",
-    "Assistant Accountant": "full",
+    "Assistant Accountant": "view",
     "Cashier": "full",
     "Internal Auditor": "view",
     "General Manager": "view",
@@ -500,24 +489,15 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "Fleet Manager": "full",
     "Operations Manager": "view",
     "Regional Manager": "view",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   roster: {
     "Regional Manager": "full",
     "Operations Manager": "full",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   patrol: {
     "Operations Manager": "full",
     "Regional Manager": "full",
     "Guard Officer": "full",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   requisitions: {
     "Administrative Officer": "full",
@@ -534,19 +514,13 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "HR Assistant": "full",
     "Operations Manager": "view",
     "Records Officer": "view",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   recruitment: {
     "HR Manager": "full",
     "HR Assistant": "full",
     "Records Officer": "view",
-    "Operations Manager": "full",
+    "Operations Manager": "view",
     "Regional Manager": "view",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   performance: {
     "HR Manager": "full",
@@ -577,9 +551,6 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "Sales and Marketing Supervisor": "full",
     "Finance Manager": "view",
     "Operations Manager": "view",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   complaints: {
     "Business Development Manager": "full",
@@ -605,13 +576,21 @@ const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLevel>>> =
     "Operations Manager": "full",
     "Regional Manager": "full",
     "Business Development Manager": "view",
-    "General Manager": "view",
-    "Director": "view",
-    "IT Officer": "view",
   },
   directorate: {
     "General Manager": "full",
-    "Director": "full",
+    "Director": "view",
+  },
+  leave: {
+    "Guard Officer": "view",
+    "Regional Manager": "view",
+    "Operations Manager": "view",
+    "HR Manager": "full",
+    "HR Assistant": "full",
+    "General Manager": "view",
+    "Director": "view",
+    "IT Officer": "view",
+    "Internal Auditor": "view",
   },
 };
 
@@ -639,6 +618,7 @@ const SERVER_MODULE_TO_CLIENT: Record<string, string> = {
   recruitment: "recruitment",
   performance: "performance_reviews",
   disciplinary: "hr",
+  leave: "hr",
   identity: "identity",
   marketing: "marketing",
   campaigns: "marketing",
@@ -649,6 +629,41 @@ const SERVER_MODULE_TO_CLIENT: Record<string, string> = {
   documents: "documents",
   fleet: "fleet",
   directorate: "dashboard",
+};
+
+/* Internal module name → user-facing display name (QA-15). */
+const MODULE_DISPLAY_NAMES: Record<string, string> = {
+  guards: "Guard Records",
+  operations: "Operations",
+  sites: "Client Sites",
+  armoury: "Armoury",
+  incidents: "Incidents",
+  vehicles: "Fleet",
+  invoices: "Invoices",
+  expenses: "Expenses",
+  leads: "Sales Leads",
+  k9s: "K9 Management",
+  hr: "Human Resources",
+  identity: "Identity Cards",
+  marketing: "Marketing",
+  campaigns: "Campaigns",
+  administration: "Administration",
+  it: "IT Systems",
+  finance: "Finance",
+  fleet: "Fleet",
+  roster: "Duty Rosters",
+  patrol: "Patrol Inspections",
+  requisitions: "Requisitions",
+  recruitment: "Recruitment",
+  training: "Training",
+  performance: "Performance Reviews",
+  workflow: "Workflow",
+  documents: "Documents",
+  complaints: "Complaints",
+  disciplinary: "Disciplinary Actions",
+  deployments: "Deployments",
+  directorate: "Directorate",
+  leave: "Leave Requests",
 };
 
 function moduleAccessLevel(moduleName: string, role: string): AccessLevel | undefined {
@@ -685,11 +700,11 @@ function requireModuleAccess(moduleName: string, minLevel: AccessLevel = "view")
     }
     const level = await effectiveModuleAccess(moduleName, user);
     if (!level) {
-      res.status(403).json({ error: `Access denied: ${user.role} cannot access ${moduleName}` });
+      res.status(403).json({ error: `Access denied: ${user.role} cannot access ${MODULE_DISPLAY_NAMES[moduleName] || moduleName}` });
       return;
     }
     if (minLevel === "full" && level !== "full") {
-      res.status(403).json({ error: `Access denied: ${user.role} has read-only access to ${moduleName}` });
+      res.status(403).json({ error: `Access denied: ${user.role} has read-only access to ${MODULE_DISPLAY_NAMES[moduleName] || moduleName}` });
       return;
     }
     next();
@@ -721,7 +736,7 @@ const requireAnyModuleAccess = (...modules: string[]) => {
     const levels = await Promise.all(modules.map((m) => effectiveModuleAccess(m, user)));
     const allowed = levels.some((l) => l);
     if (!allowed) {
-      res.status(403).json({ error: `Access denied: ${user.role} has no access to any of: ${modules.join(", ")}` });
+      res.status(403).json({ error: `Access denied: ${user.role} has no access to any of: ${modules.map((m) => MODULE_DISPLAY_NAMES[m] || m).join(", ")}` });
       return;
     }
     next();
@@ -789,6 +804,10 @@ app.post("/api/auth/login", async (req, res) => {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
     res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
+  if (!VALID_USER_ROLES.includes(user.role as (typeof VALID_USER_ROLES)[number])) {
+    res.status(403).json({ error: "This account type cannot sign in directly" });
     return;
   }
   const effectiveRole = effectiveRoleFor(user);
@@ -1626,7 +1645,7 @@ app.put("/api/contracts/:id", authenticateToken, async (req, res) => {
   }
   const disallowed = Object.keys(parsed.data).filter((k) => !allowedFields.includes(k));
   if (disallowed.length > 0) {
-    res.status(403).json({ error: `Access denied: field(s) not editable by ${actorRole}: ${disallowed.join(", ")}` });
+    res.status(403).json({ error: "You don't have permission to perform this action" });
     return;
   }
   const updated = await prisma.contract.update({ where: { id }, data: parsed.data });
@@ -1798,10 +1817,38 @@ app.put("/api/invoices/:id/approve", authenticateToken, async (req, res) => {
     res.status(400).json({ error: "Only a Draft invoice can be approved for sending" });
     return;
   }
+  const overThreshold = existing.amount >= 100_000_000;
   const approver = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
   const invoice = await prisma.invoice.update({
     where: { id },
-    data: { status: "Pending", approvedBy: approver?.name ?? "Finance Manager", approvedAt: new Date(), sentAt: new Date() },
+    data: overThreshold
+      ? { status: "Pending GM Approval", approvedBy: approver?.name ?? "Finance Manager", approvedAt: new Date() }
+      : { status: "Pending", approvedBy: approver?.name ?? "Finance Manager", approvedAt: new Date(), sentAt: new Date() },
+  });
+  res.json(invoice);
+});
+
+/* High-value invoices (≥100M UGX) require GM final approval (mirrors expense model). */
+app.put("/api/invoices/:id/gm-approve", authenticateToken, async (req, res) => {
+  const user = (req as any).user as JwtPayload | undefined;
+  if (!user || user.role !== "General Manager") {
+    res.status(403).json({ error: "Only the General Manager can give final approval on high-value invoices" });
+    return;
+  }
+  const { id } = req.params;
+  const existing = await prisma.invoice.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Invoice not found" });
+    return;
+  }
+  if (existing.status !== "Pending GM Approval") {
+    res.status(400).json({ error: "Only an invoice pending GM approval can be finalized" });
+    return;
+  }
+  const actorName = (await contractActorName(req)) || user.role;
+  const invoice = await prisma.invoice.update({
+    where: { id },
+    data: { status: "Pending", approvedBy: actorName, approvedAt: new Date(), sentAt: new Date() },
   });
   res.json(invoice);
 });
@@ -1822,7 +1869,7 @@ app.put("/api/invoices/:id", authenticateToken, requireModuleAccess("invoices", 
     res.status(400).json({ error: "An invoice cannot be reverted to Draft" });
     return;
   }
-  if ((status === "Paid" || status === "Overdue") && existing.status === "Draft") {
+  if ((status === "Paid" || status === "Overdue") && (existing.status === "Draft" || existing.status === "Pending GM Approval")) {
     res.status(400).json({ error: "A Draft invoice must be approved before it can be marked Paid or Overdue" });
     return;
   }
@@ -2865,17 +2912,32 @@ app.delete("/api/it-assets/:id", authenticateToken, requireModuleAccess("it", "f
 const K9_KEYS = ["name", "breed", "chipNumber", "ageYears", "status", "assignedHandlerId", "assignedHandlerName", "kennelNumber", "rabiesVaccineDate", "lastVetCheck", "specialization", "currentWeightKg", "healthCondition", "vaccinationStatus"];
 
 app.post("/api/k9s", authenticateToken, requireModuleAccess("k9s", "full"), async (req, res) => {
+  const k9User = (req as any).user as JwtPayload | undefined;
+  if (k9User?.role !== "K9 Supervisor") {
+    res.status(403).json({ error: "Only the K9 Supervisor can manage K9 dog records" });
+    return;
+  }
   const code = `K9-2026-${String((await prisma.k9Dog.count()) + 1).padStart(2, "0")}`;
   const row = await prisma.k9Dog.create({ data: { ...whitelistFields(req.body, K9_KEYS), code } as any });
   res.status(201).json(row);
 });
 
 app.put("/api/k9s/:id", authenticateToken, requireModuleAccess("k9s", "full"), async (req, res) => {
+  const k9User = (req as any).user as JwtPayload | undefined;
+  if (k9User?.role !== "K9 Supervisor") {
+    res.status(403).json({ error: "Only the K9 Supervisor can manage K9 dog records" });
+    return;
+  }
   const row = await prisma.k9Dog.update({ where: { id: req.params.id }, data: whitelistFields(req.body, K9_KEYS) as any });
   res.json(row);
 });
 
 app.delete("/api/k9s/:id", authenticateToken, requireModuleAccess("k9s", "full"), async (req, res) => {
+  const k9User = (req as any).user as JwtPayload | undefined;
+  if (k9User?.role !== "K9 Supervisor") {
+    res.status(403).json({ error: "Only the K9 Supervisor can manage K9 dog records" });
+    return;
+  }
   await prisma.k9Dog.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 });
@@ -3090,7 +3152,7 @@ app.delete("/api/regions/:id", authenticateToken, requireModuleAccess("it", "ful
 
 /* ─────────────── CRUD: Leave Requests ─────────────── */
 
-app.get("/api/leave-requests", authenticateToken, requireAnyRole("Guard Officer", "Regional Manager", "Operations Manager", "HR Manager", "HR Assistant"), async (req, res) => {
+app.get("/api/leave-requests", authenticateToken, requireModuleAccess("leave"), async (req, res) => {
   const user = (req as any).user as JwtPayload;
   const requests = await prisma.leaveRequest.findMany({ orderBy: { createdAt: "desc" } });
   if (isRegionalManager(user)) {
@@ -3243,7 +3305,7 @@ app.put("/api/leave-requests/:id/hr-approve", authenticateToken, requireModuleAc
 app.put("/api/leave-requests/:id/gm-approve", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const user = (req as any).user as JwtPayload | undefined;
-  if (!user || (user.role !== "General Manager" && user.role !== "Director")) {
+  if (!user || user.role !== "General Manager") {
     res.status(403).json({ error: "Only the General Manager can give the final leave approval" });
     return;
   }

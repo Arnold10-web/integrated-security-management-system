@@ -68,6 +68,26 @@ beforeAll(async () => {
   }
 });
 
+afterAll(async () => {
+  // Remove any RBAC test data created during this run so no test/seed records
+  // (e.g. RBAC-TEST-SITE client sites) leak into the shared dev database and
+  // render on real dashboards. Mirrors the beforeAll cleanup above.
+  await prisma.deploymentOrder.deleteMany({ where: { notes: { startsWith: "RBAC" } } });
+  const rbacCandidates = await prisma.candidate.findMany({ where: { nationalId: { startsWith: "NIN-RBAC" } }, select: { id: true } });
+  await prisma.driver.deleteMany({ where: { sourceRef: { in: rbacCandidates.map((c) => c.id) } } });
+  await prisma.candidate.deleteMany({ where: { nationalId: { startsWith: "NIN-RBAC" } } });
+  await prisma.jobPosting.deleteMany({ where: { code: { startsWith: "RBAC-JOB" } } });
+  await prisma.lead.deleteMany({ where: { companyName: { startsWith: "RBAC" } } });
+  await prisma.clientSite.deleteMany({ where: { siteName: { startsWith: "RBAC" } } });
+  await prisma.contract.deleteMany({ where: { contractCode: { startsWith: "RBAC" } } });
+  await prisma.invoice.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
+  await prisma.reminder.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
+  await prisma.cashierTransaction.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
+  await prisma.incident.deleteMany({ where: { title: { startsWith: "RBAC" } } });
+  await prisma.notification.deleteMany({ where: { title: { startsWith: "RBAC" } } });
+  await prisma.siteDeployment.deleteMany({ where: { siteName: { startsWith: "RBAC" } } });
+});
+
 function token(role: string, name?: string): string {
   const t = name ? tokens.get(`${role}|${name}`) : [...tokens.entries()].find(([k]) => k.startsWith(`${role}|`))?.[1];
   if (!t) throw new Error(`No token for ${role}${name ? " " + name : ""}`);

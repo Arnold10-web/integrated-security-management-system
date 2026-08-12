@@ -370,7 +370,7 @@ export const DisciplinaryPanel: React.FC = () => {
                 {a.status === "Pending Regional Approval" && isOps && (
                   <button className={btn("success", true)} onClick={() => opsApproveDisciplinary(a.id)}>Ops Approve</button>
                 )}
-                {a.status === "Pending Ops Approval" && isHR && (
+                {a.status === "Pending HR Approval" && isHR && (
                   <button className={btn("success", true)} onClick={() => hrApproveDisciplinary(a.id)}>HR Finalize</button>
                 )}
                 {a.status !== "Finalized" && a.status !== "Rejected" && (isRegional || isOps || isHR) && (

@@ -210,11 +210,14 @@ async function main() {
     { clientName: "Gulu Sugar Corporation", region: "Gulu", siteName: "Gulu Sugar Corp Estate", location: "Lokung Road, Gulu City", zone: "Northern District", dayShiftGuards: 6, nightShiftGuards: 4, armedGuardsRequired: 3, k9Required: false, contactPerson: "Betty Auma", contactPhone: "+256-700-210987", slaStatus: "Compliant" },
   ];
   for (const s of siteData) {
+    const dayShiftArmed = Math.min(s.armedGuardsRequired, Math.round((s.armedGuardsRequired * s.dayShiftGuards) / Math.max(s.dayShiftGuards + s.nightShiftGuards, 1)));
+    const nightShiftArmed = s.armedGuardsRequired - dayShiftArmed;
+    const payload = { ...s, dayShiftArmed, nightShiftArmed };
     const existing = await prisma.clientSite.findFirst({ where: { siteName: s.siteName } });
     if (existing) {
-      await prisma.clientSite.update({ where: { id: existing.id }, data: s });
+      await prisma.clientSite.update({ where: { id: existing.id }, data: payload });
     } else {
-      await prisma.clientSite.create({ data: s });
+      await prisma.clientSite.create({ data: payload });
     }
   }
 

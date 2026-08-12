@@ -74,9 +74,7 @@ export const DirectoratePage: React.FC = () => {
         }}
         armoury={domain.armoury}
         k9s={domain.k9s}
-        leaveRequests={domain.leaveRequests}
         invoices={domain.invoices}
-        performanceReviews={domain.performanceReviews}
       />
     </div>
   );
@@ -225,8 +223,10 @@ export const HRPage: React.FC = () => {
       performanceReviews={domain.performanceReviews}
       onAddLeaveRequest={domain.addLeaveRequest}
       onUpdateLeaveRequest={domain.updateLeaveRequest}
-      onHrApproveLeave={domain.hrApproveLeave}
-      onGmApproveLeave={domain.gmApproveLeave}
+       onHrApproveLeave={domain.hrApproveLeave}
+       onGmApproveLeave={domain.gmApproveLeave}
+       onRegionalApproveLeave={domain.regionalApproveLeave}
+       onOpsApproveLeave={domain.opsApproveLeave}
       onDeleteLeaveRequest={domain.deleteLeaveRequest}
       contracts={domain.contracts}
       onAddContract={domain.addContract}

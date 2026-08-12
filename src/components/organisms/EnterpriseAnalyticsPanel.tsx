@@ -1,42 +1,29 @@
 import React from "react";
 import {
-  Users, DollarSign, AlertTriangle, CalendarRange, BarChart3, Layers, ShieldCheck,
+  BarChart3, Layers, ShieldCheck,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { Guard, ClientSite, Incident, Invoice, LeaveRequest, PerformanceReviewRecord } from "../../types";
+import { Guard, ClientSite, Invoice } from "../../types";
 
 interface EnterpriseAnalyticsPanelProps {
   guards: Guard[];
   sites: ClientSite[];
-  incidents: Incident[];
   invoices: Invoice[];
-  leaveRequests: LeaveRequest[];
-  performanceReviews: PerformanceReviewRecord[];
 }
 
 export const EnterpriseAnalyticsPanel: React.FC<EnterpriseAnalyticsPanelProps> = ({
   guards,
   sites,
-  incidents,
   invoices,
-  leaveRequests,
-  performanceReviews,
 }) => {
   const totalGuards = guards.length;
-  const activeGuards = guards.filter((g) => g.status === "On Duty").length;
-  const openIncidents = incidents.filter((i) => i.status !== "Resolved").length;
-  const criticalIncidents = incidents.filter((i) => i.severity === "Critical" && i.status !== "Resolved").length;
-  const pendingLeave = leaveRequests.filter((r) => r.status === "Pending HR Review" || r.status === "Pending Regional Approval").length;
-  const totalRevenue = invoices.reduce((s, i) => s + i.amount, 0);
-  const paidRevenue = invoices.filter((i) => i.status === "Paid").reduce((s, i) => s + i.amount, 0);
-  const revenueCollectionPct = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
 
   const rankData = (["Guard", "K9 Handler", "Armorer", "Site In-Charge", "Inspector"] as const).map((rank) => ({
     rank,
     value: guards.filter((g) => g.designation === rank).length,
-  }));
+  })).filter((d) => d.value > 0);
   const rankColors: Record<string, string> = {
     "Guard": "#0ea5e9", "K9 Handler": "#8b5cf6", "Armorer": "#f59e0b", "Site In-Charge": "#06b6d4", "Inspector": "#7c3aed",
   };
@@ -56,50 +43,6 @@ export const EnterpriseAnalyticsPanel: React.FC<EnterpriseAnalyticsPanelProps> =
         <div className="flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-indigo-600" />
           <h3 className="text-base font-black text-slate-900">Enterprise Analytics & Trends</h3>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 space-y-2">
-          <div className="flex items-center gap-2 text-blue-700 text-xs font-bold"><Users className="w-4 h-4" /><span>Guard Strength</span></div>
-          <div className="text-2xl font-black text-slate-900">{totalGuards}</div>
-          <div className="text-[10px] text-slate-500">
-            <span className="text-emerald-600 font-bold">{activeGuards} on duty</span>
-            <span className="mx-1">•</span>
-            <span className="text-amber-600 font-bold">{guards.filter((g) => g.status === "On Leave").length} on leave</span>
-          </div>
-          <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-600 rounded-full" style={{ width: `${(activeGuards / Math.max(totalGuards, 1)) * 100}%` }} />
-          </div>
-        </div>
-        <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100 space-y-2">
-          <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold"><DollarSign className="w-4 h-4" /><span>Revenue Collection</span></div>
-          <div className="text-2xl font-black text-slate-900">{revenueCollectionPct}%</div>
-          <div className="text-[10px] text-slate-500">
-            <span className="font-bold">UGX {paidRevenue.toLocaleString()} collected</span>
-            <span className="mx-1">of</span>
-            <span className="text-amber-600 font-bold">UGX {totalRevenue.toLocaleString()}</span>
-          </div>
-          <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${revenueCollectionPct}%` }} />
-          </div>
-        </div>
-        <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border border-amber-100 space-y-2">
-          <div className="flex items-center gap-2 text-amber-700 text-xs font-bold"><AlertTriangle className="w-4 h-4" /><span>Incidents</span></div>
-          <div className="text-2xl font-black text-slate-900">{incidents.length}</div>
-          <div className="text-[10px] text-slate-500">
-            <span className="text-rose-600 font-bold">{openIncidents} open</span>
-            <span className="mx-1">•</span>
-            <span className="font-bold">{criticalIncidents} critical</span>
-          </div>
-        </div>
-        <div className="p-4 bg-gradient-to-br from-purple-50 to-fuchsia-50 rounded-2xl border border-purple-100 space-y-2">
-          <div className="flex items-center gap-2 text-purple-700 text-xs font-bold"><CalendarRange className="w-4 h-4" /><span>Leave & Reviews</span></div>
-          <div className="text-2xl font-black text-slate-900">{pendingLeave}</div>
-          <div className="text-[10px] text-slate-500">
-            <span className="text-blue-600 font-bold">{pendingLeave} pending leave</span>
-            <span className="mx-1">•</span>
-            <span className="text-purple-600 font-bold">{performanceReviews.length} reviews completed</span>
-          </div>
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

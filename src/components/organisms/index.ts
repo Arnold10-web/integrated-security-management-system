@@ -57,6 +57,7 @@ export { AddTraineeModal } from "./AddTraineeModal";
 export { PassOutModal } from "./PassOutModal";
 export { DepartmentHealthCardGrid } from "./DepartmentHealthCardGrid";
 export { DashboardKpiCards } from "./DashboardKpiCards";
+export { ConsolidatedDashboardMetrics } from "./ConsolidatedDashboardMetrics";
 export { EnterpriseAnalyticsPanel } from "./EnterpriseAnalyticsPanel";
 export { ExecutiveAlertsStrip } from "./ExecutiveAlertsStrip";
 export { DepartmentDirectoryGrid } from "./DepartmentDirectoryGrid";

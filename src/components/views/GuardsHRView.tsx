@@ -10,9 +10,9 @@ import { Guard, UserRole, ContractRecord, HRRemittanceRecord, LeaveRequest, Staf
 import { initialContractRecords, initialHRRemittanceRecords } from "../../data/mockData";
 import { HR_STAFF_ROLES, HR_APPROVER_ROLES, EXECUTIVE_ROLES, GUARD_APPRAISAL_ROLES } from "../../services/rbacService";
 
-interface Props { guards: Guard[]; activeRole?: UserRole; onAddGuard: (g: Omit<Guard, "id">) => void; onUpdateGuard?: (id: string, updates: Partial<Guard>) => void; onMoveLifecycle?: (id: string, updates: Partial<Guard>) => void; onIssueWarning?: (guard: Guard) => void; leaveRequests: LeaveRequest[]; performanceReviews: PerformanceReviewRecord[]; onAddLeaveRequest?: (r: Omit<LeaveRequest, "id">) => void; onUpdateLeaveRequest?: (id: string, updates: Partial<LeaveRequest>) => void; onHrApproveLeave?: (id: string, verification?: { entitlement?: number; taken?: number; balance?: number; resumptionDate?: string }) => void; onGmApproveLeave?: (id: string) => void; onDeleteLeaveRequest?: (id: string) => void; contracts: ContractRecord[]; onAddContract?: (c: Omit<ContractRecord, "id">) => void; onUpdateContract?: (id: string, updates: Partial<ContractRecord>) => void; onIssueContract?: (id: string) => void; onArchiveContract?: (id: string) => void; onVoidContract?: (id: string, reason: string) => void; onAdvanceApproval?: (id: string) => void; onArchiveGuard?: (id: string) => void; }
+interface Props { guards: Guard[]; activeRole?: UserRole; onAddGuard: (g: Omit<Guard, "id">) => void; onUpdateGuard?: (id: string, updates: Partial<Guard>) => void; onMoveLifecycle?: (id: string, updates: Partial<Guard>) => void; onIssueWarning?: (guard: Guard) => void; leaveRequests: LeaveRequest[]; performanceReviews: PerformanceReviewRecord[]; onAddLeaveRequest?: (r: Omit<LeaveRequest, "id">) => void;   onUpdateLeaveRequest?: (id: string, updates: Partial<LeaveRequest>) => void; onHrApproveLeave?: (id: string, verification?: { entitlement?: number; taken?: number; balance?: number; resumptionDate?: string }) => void; onGmApproveLeave?: (id: string) => void; onRegionalApproveLeave?: (id: string) => void; onOpsApproveLeave?: (id: string) => void; onDeleteLeaveRequest?: (id: string) => void; contracts: ContractRecord[]; onAddContract?: (c: Omit<ContractRecord, "id">) => void; onUpdateContract?: (id: string, updates: Partial<ContractRecord>) => void; onIssueContract?: (id: string) => void; onArchiveContract?: (id: string) => void; onVoidContract?: (id: string, reason: string) => void; onAdvanceApproval?: (id: string) => void; onArchiveGuard?: (id: string) => void; }
 
-export const GuardsHRView: React.FC<Props> = ({ guards, activeRole, onAddGuard, onMoveLifecycle, leaveRequests, performanceReviews, onAddLeaveRequest, onUpdateLeaveRequest, onHrApproveLeave, onGmApproveLeave, contracts: contractsProp, onAddContract, onUpdateContract, onIssueContract, onArchiveContract, onVoidContract, onAdvanceApproval, onIssueWarning, onArchiveGuard }) => {
+export const GuardsHRView: React.FC<Props> = ({ guards, activeRole, onAddGuard, onMoveLifecycle, leaveRequests, performanceReviews, onAddLeaveRequest,   onUpdateLeaveRequest, onHrApproveLeave, onGmApproveLeave, onRegionalApproveLeave, onOpsApproveLeave, contracts: contractsProp, onAddContract, onUpdateContract, onIssueContract, onArchiveContract, onVoidContract, onAdvanceApproval, onIssueWarning, onArchiveGuard }) => {
   const gf = useGuardForm(onAddGuard, guards.map((g) => g.guardCode));
 
   const ENROLL_ROLES: UserRole[] = HR_STAFF_ROLES;
@@ -36,7 +36,7 @@ export const GuardsHRView: React.FC<Props> = ({ guards, activeRole, onAddGuard, 
   const [cycle, setCycle] = useState("July 2026");
 
   const [leaves, setLeaves] = useState<LeaveRequest[]>(leaveRequests);
-  const [lf, setLf] = useState<"ALL"|"Approved"|"Pending HR Review"|"Pending GM Approval"|"Rejected">("ALL");
+  const [lf, setLf] = useState<"ALL" | "Pending Regional Approval" | "Pending Ops Approval" | "Pending HR Review" | "Pending GM Approval" | "Approved" | "Rejected">("ALL");
   const [showLeave, setShowLeave] = useState(false);
   const [lGuardId, setLGuardId] = useState(""); const [lType, setLType] = useState<LeaveRequest["leaveType"]>("Annual Leave");
   const [lStart, setLStart] = useState(""); const [lEnd, setLEnd] = useState(""); const [lDur, setLDur] = useState(14);
@@ -157,6 +157,16 @@ export const GuardsHRView: React.FC<Props> = ({ guards, activeRole, onAddGuard, 
     onHrApproveLeave?.(id);
     onUpdateLeaveRequest?.(id, { status: "Pending GM Approval", approvedBy: activeRole || "HR Manager" });
   };
+  const regionalApproveL = (id: string) => {
+    setLeaves(leaves.map((l) => l.id === id ? { ...l, status: "Pending Ops Approval" as const, approvedBy: activeRole || "Regional Manager" } : l));
+    onRegionalApproveLeave?.(id);
+    onUpdateLeaveRequest?.(id, { status: "Pending Ops Approval", approvedBy: activeRole || "Regional Manager" });
+  };
+  const opsApproveL = (id: string) => {
+    setLeaves(leaves.map((l) => l.id === id ? { ...l, status: "Pending HR Review" as const, approvedBy: activeRole || "Operations Manager" } : l));
+    onOpsApproveLeave?.(id);
+    onUpdateLeaveRequest?.(id, { status: "Pending HR Review", approvedBy: activeRole || "Operations Manager" });
+  };
   const gmApproveL = (id: string) => {
     setLeaves(leaves.map((l) => l.id === id ? { ...l, status: "Approved" as const, approvedBy: activeRole || "General Manager", gmApprovedBy: activeRole || "General Manager" } : l));
     onGmApproveLeave?.(id);
@@ -214,7 +224,7 @@ export const GuardsHRView: React.FC<Props> = ({ guards, activeRole, onAddGuard, 
       {tab === "leave" && (
         <div className="space-y-3">
           {activeRole && ENROLL_ROLES.includes(activeRole) && <button onClick={() => setShowLeave(true)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"><Calendar className="w-4 h-4" />Log Leave</button>}
-          <LeaveRequestPanel leaveRequests={fls} filter={lf} onFilterChange={setLf} onApprove={activeRole && APPROVE_LEAVE_ROLES.includes(activeRole) ? approveL : undefined} onGmApprove={activeRole && GM_APPROVE_LEAVE_ROLES.includes(activeRole) ? gmApproveL : undefined} onReject={activeRole && [...APPROVE_LEAVE_ROLES, ...GM_APPROVE_LEAVE_ROLES].includes(activeRole) ? rejectL : undefined} />
+           <LeaveRequestPanel leaveRequests={fls} filter={lf} onFilterChange={setLf} onRegionalApprove={activeRole === "Regional Manager" ? regionalApproveL : undefined} onOpsApprove={activeRole === "Operations Manager" ? opsApproveL : undefined} onApprove={activeRole && APPROVE_LEAVE_ROLES.includes(activeRole) ? approveL : undefined} onGmApprove={activeRole && GM_APPROVE_LEAVE_ROLES.includes(activeRole) ? gmApproveL : undefined} onReject={activeRole && [...APPROVE_LEAVE_ROLES, ...GM_APPROVE_LEAVE_ROLES, "Regional Manager", "Operations Manager"].includes(activeRole) ? rejectL : undefined} />
         </div>
       )}
       {tab === "appraisals" && <StaffAppraisalPanel appraisals={apprs} searchTerm={apSearch} onSearchChange={setApSearch} periodFilter={apPeriodF} onPeriodFilterChange={setApPeriodF} ratingFilter={apRateF} onRatingFilterChange={setApRateF} onViewReport={activeRole && APPRAISAL_ROLES.includes(activeRole) ? (a) => setSelAppr(a) : undefined} onAddNew={activeRole && APPRAISAL_ROLES.includes(activeRole) ? () => setShowAppr(true) : undefined} />}

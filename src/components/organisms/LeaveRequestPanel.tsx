@@ -2,12 +2,16 @@ import React from "react";
 import { Calendar, UserCheck, UserX } from "lucide-react";
 import type { LeaveRequest } from "../../types";
 
+type LeaveFilter = "ALL" | "Pending Regional Approval" | "Pending Ops Approval" | "Pending HR Review" | "Pending GM Approval" | "Approved" | "Rejected";
+
 interface LeaveRequestPanelProps {
   leaveRequests: LeaveRequest[];
-  filter: "ALL" | "Approved" | "Pending HR Review" | "Pending GM Approval" | "Rejected";
-  onFilterChange: (filter: "ALL" | "Approved" | "Pending HR Review" | "Pending GM Approval" | "Rejected") => void;
+  filter: LeaveFilter;
+  onFilterChange: (filter: LeaveFilter) => void;
   onApprove?: (id: string) => void;
   onGmApprove?: (id: string) => void;
+  onRegionalApprove?: (id: string) => void;
+  onOpsApprove?: (id: string) => void;
   onReject?: (id: string) => void;
 }
 
@@ -17,9 +21,33 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
   onFilterChange,
   onApprove,
   onGmApprove,
+  onRegionalApprove,
+  onOpsApprove,
   onReject,
 }) => {
   const filtered = leaveRequests.filter((l) => filter === "ALL" || l.status === filter);
+
+  const statusCounts: Record<LeaveFilter, number> = {
+    ALL: leaveRequests.length,
+    "Pending Regional Approval": leaveRequests.filter((l) => l.status === "Pending Regional Approval").length,
+    "Pending Ops Approval": leaveRequests.filter((l) => l.status === "Pending Ops Approval").length,
+    "Pending HR Review": leaveRequests.filter((l) => l.status === "Pending HR Review").length,
+    "Pending GM Approval": leaveRequests.filter((l) => l.status === "Pending GM Approval").length,
+    Approved: leaveRequests.filter((l) => l.status === "Approved").length,
+    Rejected: leaveRequests.filter((l) => l.status === "Rejected").length,
+  };
+
+  const filterColors: Record<LeaveFilter, string> = {
+    ALL: "bg-slate-900 text-white",
+    "Pending Regional Approval": "bg-sky-600 text-white",
+    "Pending Ops Approval": "bg-orange-600 text-white",
+    "Pending HR Review": "bg-amber-600 text-white",
+    "Pending GM Approval": "bg-indigo-600 text-white",
+    Approved: "bg-emerald-700 text-white",
+    Rejected: "bg-red-700 text-white",
+  };
+
+  const filters: LeaveFilter[] = ["ALL", "Pending Regional Approval", "Pending Ops Approval", "Pending HR Review", "Pending GM Approval", "Approved", "Rejected"];
 
   return (
     <div className="space-y-6">
@@ -37,30 +65,31 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {(["ALL", "Pending HR Review", "Pending GM Approval", "Approved"] as const).map((f) => {
-            const counts = {
-              ALL: leaveRequests.length,
-              "Pending HR Review": leaveRequests.filter((l) => l.status === "Pending HR Review").length,
-              "Pending GM Approval": leaveRequests.filter((l) => l.status === "Pending GM Approval").length,
-              Approved: leaveRequests.filter((l) => l.status === "Approved").length,
-            };
+        <div className="flex items-center gap-2 flex-wrap">
+          {filters.map((f) => {
             const isActive = filter === f;
-            const colors =
-              f === "ALL"
-                ? isActive ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
-                : f === "Pending GM Approval"
-                ? isActive ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-800 border border-indigo-200"
-                : f === "Pending HR Review"
-                ? isActive ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-800 border border-amber-200"
-                : isActive ? "bg-emerald-700 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200";
+            const colors = isActive
+              ? filterColors[f]
+              : f === "ALL"
+                ? "bg-slate-100 text-slate-600"
+                : f === "Pending Regional Approval"
+                  ? "bg-sky-50 text-sky-800 border border-sky-200"
+                  : f === "Pending Ops Approval"
+                    ? "bg-orange-50 text-orange-800 border border-orange-200"
+                    : f === "Pending HR Review"
+                      ? "bg-amber-50 text-amber-800 border border-amber-200"
+                      : f === "Pending GM Approval"
+                        ? "bg-indigo-50 text-indigo-800 border border-indigo-200"
+                        : f === "Approved"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-red-50 text-red-800 border border-red-200";
             return (
               <button
                 key={f}
                 onClick={() => onFilterChange(f)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${colors}`}
               >
-                {f === "ALL" ? "All" : f} ({counts[f]})
+                {f === "ALL" ? "All" : f} ({statusCounts[f]})
               </button>
             );
           })}
@@ -141,6 +170,48 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
                 </div>
               )}
             </div>
+
+            {leave.status === "Pending Regional Approval" && onRegionalApprove && (
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => onRegionalApprove(leave.id)}
+                  className="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>RMA Approve → Ops</span>
+                </button>
+                {onReject && (
+                  <button
+                    onClick={() => onReject(leave.id)}
+                    className="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl border border-red-200 cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <UserX className="w-3.5 h-3.5" />
+                    <span>Reject</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {leave.status === "Pending Ops Approval" && onOpsApprove && (
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => onOpsApprove(leave.id)}
+                  className="flex-1 py-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>OM Approve → HR</span>
+                </button>
+                {onReject && (
+                  <button
+                    onClick={() => onReject(leave.id)}
+                    className="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl border border-red-200 cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <UserX className="w-3.5 h-3.5" />
+                    <span>Reject</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {leave.status === "Pending HR Review" && onApprove && (
               <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
