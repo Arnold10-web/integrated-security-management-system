@@ -73,12 +73,13 @@ For each row: attempt the task and confirm the system enforces the expected boun
 | Operations Manager | Try to add a weapon to the Armoury | Should be blocked |
 | Operations Manager | Try to create a Fleet/vehicle record | Should be blocked |
 | Operations Manager | Try to perform HR CRUD (e.g. edit a guard's HR record directly) | Should be blocked |
-| Operations Manager | Record a site survey on a contract (the only contract action available) | Allowed — OM/RM contribute supporting site-survey info only; no Approve/Reject/Void on contracts |
-| Operations Manager | Approve/Reject/Void a contract | Should be blocked — no approval step exists for OM; only the GM approves/voids (realignment doc §2.2) |
+| Operations Manager | Approve/Reject/Void a contract at the Operations validation step | Allowed |
 | Regional Manager | Delegate shift scheduling to an Inspector | Allowed |
 | Regional Manager | Delegate a leave-request approval to an Inspector | Should be blocked — RM must handle first approval personally |
-| Inspector (rank, NOT a login role) | Confirm "Inspector" exists only as a Guard designation — no user accounts/role exist (realignment doc §2.4) | Model check only: no login flow exists, so the patrol-inspection and leave-approval spot checks above cannot be UI-tested; do not attempt |
-| Site In-Charge (rank, NOT a login role) | Confirm "Site In-Charge" exists only as a Guard designation — no user accounts/role exist (realignment doc §2.5) | Model check only: no login flow exists, so the site-scoped spot checks above cannot be UI-tested; do not attempt |
+| Inspector | Submit a patrol inspection record directly | Allowed |
+| Inspector | Approve a leave request or disciplinary action | Should be blocked |
+| Site In-Charge | View/manage attendance and incidents for their own site | Allowed |
+| Site In-Charge | View or act on another site's data | Should be blocked |
 | IT Officer | Grant a temporary "acting" privilege (e.g. HR Assistant acting as HR Manager) | Allowed, and should be clearly time-bound/revocable |
 | HR Assistant | Prepare/document a disciplinary case | Allowed |
 | HR Assistant | Finalize a disciplinary case | Should be blocked — HR Manager only |
@@ -94,9 +95,9 @@ For each row: attempt the task and confirm the system enforces the expected boun
 | Cashier | Disburse without Finance Manager approval | Should be blocked |
 | Finance Manager | Review/approve every invoice and expense regardless of amount | Allowed |
 | Internal Auditor | Access financial records for periodic review | Allowed (read access) |
-| Investigations Officer (Henry Kiyingi) | Pick up and handle any case | Allowed — confirm no senior/lead gating exists in the UI |
-| Sales and Marketing Supervisor (Patricia Akello) | Receive and view an overdue-invoice notification | Notification appears; the supervisor cannot edit the invoice itself |
-| Sales and Marketing Supervisor (Patricia Akello) | Receive a website-submitted client complaint and escalate to Investigations | Allowed |
+| Investigations Officer (either of the two) | Pick up and handle any case | Allowed — confirm no senior/lead gating exists in the UI |
+| Marketing | Receive and view an overdue-invoice notification | Notification appears; Marketing cannot edit the invoice itself |
+| Marketing | Receive a website-submitted client complaint and escalate to Investigations | Allowed |
 
 ---
 
