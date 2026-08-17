@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "bun",
+  "steps": {
+    "install": {
+      "inputs": ["package.json", "bun.lock", "bun.lockb"],
+      "commands": [
+        { "cmd": "bun install" }
+      ]
+    },
+    "build": {
+      "inputs": ["."],
+      "commands": [
+        { "cmd": "bunx prisma generate" },
+        { "cmd": "bun run build" }
+      ]
+    }
+  }
+}
