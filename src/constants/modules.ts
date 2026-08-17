@@ -165,14 +165,6 @@ export const APP_MODULES: AppModule[] = [
     group: "hr",
   },
   {
-    id: "clients",
-    path: "/clients",
-    label: "Client & Sites CRM",
-    department: "CRM",
-    icon: Building,
-    group: "marketing",
-  },
-  {
     id: "finance",
     path: "/finance",
     label: "Overview",
@@ -235,6 +227,14 @@ export const APP_MODULES: AppModule[] = [
     label: "Campaigns",
     department: "Marketing",
     icon: BarChart3,
+    group: "marketing",
+  },
+  {
+    id: "clients",
+    path: "/clients",
+    label: "Client & Sites CRM",
+    department: "CRM",
+    icon: Building,
     group: "marketing",
   },
   {

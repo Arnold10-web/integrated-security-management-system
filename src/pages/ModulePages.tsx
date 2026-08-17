@@ -493,27 +493,40 @@ export const FinanceCashierPage: React.FC = () => <FinanceViewWithTab initialTab
 export const FinanceContractsFinancePage: React.FC = () => <FinanceViewWithTab initialTab="contracts" />;
 
 export const MarketingPage: React.FC = () => {
+  const activeRole = useActiveRole();
   const domain = useDomainStore();
   return (
     <div className="space-y-6">
       <MarketingWorkspaceStrip />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CampaignBudgetPanel />
-        <ComplaintsPanel />
-      </div>
-      <GuardAvailabilityByRegion />
+      <MarketingView
+        activeRole={activeRole}
+        leads={domain.leads}
+        campaigns={domain.campaigns}
+        onAddLead={domain.addLead}
+        onUpdateLead={domain.updateLead}
+        onDeleteLead={domain.deleteLead}
+        onReassignLead={domain.reassignLead}
+        onUpdateCampaign={domain.updateCampaign}
+        onDeleteCampaign={domain.deleteCampaign}
+        collections={domain.collections}
+        onSendReminder={domain.sendReminder}
+        contracts={domain.contracts}
+        onAddContract={domain.addContract}
+        onUpdateContract={domain.updateContract}
+        onAdvanceApproval={domain.advanceContractApproval}
+        onVoidContract={domain.voidContract}
+      />
     </div>
   );
 };
 
-function MarketingViewWithTab({ initialTab }: { initialTab?: string }) {
+function MarketingViewWithTab({ initialTab }: { initialTab?: "pipeline" | "campaigns" }) {
   const activeRole = useActiveRole();
   const domain = useDomainStore();
-  // For pipeline / campaigns dedicated pages we render MarketingView but filtered via initialTab hint
-  // MarketingView currently renders all sections; dedicated pages will hide non-relevant sections via CSS and top-nav
   return (
     <MarketingView
       activeRole={activeRole}
+      initialTab={initialTab}
       leads={domain.leads}
       campaigns={domain.campaigns}
       onAddLead={domain.addLead}

@@ -46,6 +46,7 @@ interface MarketingViewProps {
   onVoidContract?: (id: string, reason: string) => void;
   collections?: Invoice[];
   onSendReminder?: (invoiceId: string, recipient?: string) => void;
+  initialTab?: "pipeline" | "campaigns";
 }
 
 export const MarketingView: React.FC<MarketingViewProps> = ({
@@ -65,6 +66,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
   onVoidContract,
   collections,
   onSendReminder,
+  initialTab,
 }) => {
   const canManageMarketing = MARKETING_ROLES.includes(activeRole);
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -222,6 +224,8 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
         </div>
       </div>
 
+      {(!initialTab || initialTab === "pipeline") && (
+        <>
       {/* Site Survey — must precede contract drafting; requested by Marketing, completed by Operations */}
       <SiteSurveysPanel />
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-start gap-3">
@@ -233,8 +237,11 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           </p>
         </div>
       </div>
+        </>
+      )}
 
       {/* KPI Overview */}
+      {!initialTab && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
@@ -272,8 +279,10 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           <span className="text-[10px] text-slate-400 font-medium">Tracked by source & owner</span>
         </div>
       </div>
+      )}
 
       {/* Lead Pipeline Funnel Stages — owner-based pipeline */}
+      {(!initialTab || initialTab === "pipeline") && (
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
@@ -467,8 +476,10 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           <div className="text-center py-6 text-slate-400 italic text-xs">No follow-ups scheduled in the next 7 days. Use the Follow-up button on any open lead to plan outreach.</div>
         )}
       </div>
+      )}
 
       {/* Social Media & Marketing Campaigns Table */}
+      {(!initialTab || initialTab === "campaigns") && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-800">Social Media & Campaign Analytics</h3>
@@ -616,7 +627,12 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           </div>
         )}
       </div>
+      )}
+      {(!initialTab || initialTab === "campaigns") && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 text-[10px] text-slate-500 font-semibold">Dedicated page — use top navigation to switch between Pipeline and Campaigns.</div>
+      )}
 
+      {(!initialTab || initialTab === "pipeline") && (
       {/* Marketing-Led Collections & Payment Reminders */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -683,7 +699,10 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           </table>
         </div>
       </div>
-
+      )}
+      {(!initialTab || initialTab === "campaigns") && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 text-[10px] text-slate-500 font-semibold">Dedicated page — use top navigation to switch between Pipeline and Campaigns.</div>
+      )}
       {/* Client Contracts & Approvals */}
       <ClientContractsView
         contracts={contracts ?? []}
