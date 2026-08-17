@@ -63,9 +63,7 @@ export const FleetManagerWorkspaceView: React.FC<FleetManagerWorkspaceViewProps>
         </div>
       </div>
 
-      {pendingTransport.length > 0 && (
-        <TransportInbox pending={pendingTransport} vehicles={vehicles} drivers={drivers} onAct={onAct} />
-      )}
+      <TransportInbox pending={pendingTransport} vehicles={vehicles} drivers={drivers} onAct={onAct} />
 
       {pendingDrivers.length > 0 && (
         <section className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">

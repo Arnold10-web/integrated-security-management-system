@@ -400,6 +400,10 @@ export const FleetView: React.FC<FleetViewWithTabProps> = ({
 
       {!initialTab && <FleetAlertsPanel alerts={fleetAlerts} filter={fleetAlertFilter} onFilterChange={setFleetAlertFilter} collapsed={isAlertsCollapsed} onToggleCollapse={() => setIsAlertsCollapsed(!isAlertsCollapsed)} onDismiss={(id) => setDismissedFleetAlertIds((prev) => [...prev, id])} />}
 
+      {!initialTab && activeRole === "Fleet Manager" && onActTransportRequest && (
+        <TransportInbox pending={transportRequests.filter((t) => t.status === "Pending Fleet")} vehicles={vehicles} drivers={drivers} onAct={onActTransportRequest} />
+      )}
+
       {initialTab && <FleetSearchBar activeTab={activeTab} searchTerm={searchTerm} onSearchChange={setSearchTerm}
         canAdd={(["trips", "fuel", "maintenance"].includes(activeTab) ? canLogFleet : canEditVehicles)}
         onAddClick={() => {
