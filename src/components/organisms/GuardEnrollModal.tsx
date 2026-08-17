@@ -81,7 +81,7 @@ export const GuardEnrollModal: React.FC<GuardEnrollModalProps> = ({ form, setFor
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <InputField label="Force Number" value={form.guardCode} onChange={(v) => setForm({ guardCode: v })} required />
+                <InputField label="Force Number" value={form.forceNumber} onChange={(v) => setForm({ forceNumber: v })} required />
                 <InputField label="Full Name" value={form.fullName} onChange={(v) => setForm({ fullName: v })} required />
                 <SelectField label="Designation" value={form.designation} onChange={(v) => setForm({ designation: v as GuardFormState["designation"] })}
                   options={["Guard", "Site In-Charge", "Inspector", "K9 Handler", "Armorer"]} />

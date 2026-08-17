@@ -1,5 +1,5 @@
 import { api, setAccessToken, getAccessToken } from "./apiClient";
-import type { User } from "../types";
+import type { ActingPrivilegeRequest, User } from "../types";
 
 export interface LoginResponse {
   token: string;
@@ -59,16 +59,36 @@ export async function updateUserApi(
   return api.put<User>(`/auth/users/${userId}`, updates);
 }
 
-export async function grantActingPrivilegeApi(
-  userId: string,
-  actingRole: string,
-  expiresAt: string
-): Promise<User> {
-  return api.put<User>(`/auth/users/${userId}/acting`, { actingRole, expiresAt });
+export async function issueStaffIdApi(userId: string, idCardNumber: string): Promise<User> {
+  return api.put<User>(`/auth/users/${userId}/issue-id`, { idCardNumber });
 }
 
 export async function revokeActingPrivilegeApi(userId: string): Promise<User> {
   return api.delete<User>(`/auth/users/${userId}/acting`);
+}
+
+/* §11 — HR-initiated acting-privilege requests, executed by the IT Officer. */
+export interface ActingRequestInput {
+  targetUserId: string;
+  actingRole: string;
+  expiresAt: string;
+  reason: string;
+}
+
+export async function createActingRequestApi(input: ActingRequestInput): Promise<ActingPrivilegeRequest> {
+  return api.post<ActingPrivilegeRequest>("/auth/acting-requests", input);
+}
+
+export async function fetchActingRequestsApi(): Promise<ActingPrivilegeRequest[]> {
+  return api.get<ActingPrivilegeRequest[]>("/auth/acting-requests");
+}
+
+export async function executeActingRequestApi(requestId: string): Promise<User> {
+  return api.put<User>(`/auth/acting-requests/${requestId}/execute`);
+}
+
+export async function denyActingRequestApi(requestId: string): Promise<ActingPrivilegeRequest> {
+  return api.put<ActingPrivilegeRequest>(`/auth/acting-requests/${requestId}/deny`);
 }
 
 export function logoutApi(): void {

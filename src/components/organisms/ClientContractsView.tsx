@@ -15,8 +15,6 @@ interface ClientContractsViewProps {
 }
 
 const stepLabel: Record<string, string> = {
-  BD: "Awaiting Business Development Approval",
-  Finance: "Awaiting Finance Validation",
   GM: "Awaiting GM Approval",
   Done: "Approved",
 };
@@ -163,15 +161,8 @@ export const ClientContractsView: React.FC<ClientContractsViewProps> = ({
 
   const editByRole = (c: ContractRecord) => {
     if (!activeRole || !onUpdateContract) return;
-    if (activeRole === "Finance Manager") {
-      const v = window.prompt("Update contract value (UGX):", String(c.valueUgx ?? ""));
-      if (v !== null && !isNaN(Number(v))) {
-        onUpdateContract(c.id, { valueUgx: Number(v) });
-      }
-    } else {
-      const v = window.prompt("Update SLA scope:", c.slaTerms || "");
-      if (v !== null) onUpdateContract(c.id, { slaTerms: v });
-    }
+    const v = window.prompt("Update SLA scope:", c.slaTerms || "");
+    if (v !== null) onUpdateContract(c.id, { slaTerms: v });
   };
 
   const handleSiteSurvey = (c: ContractRecord) => {
@@ -229,7 +220,7 @@ export const ClientContractsView: React.FC<ClientContractsViewProps> = ({
 
             {c.contractType === "Client Contract" && c.status === "Draft" && (
               <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5 text-[9px] font-bold text-indigo-800">
-                {stepLabel[c.approvalStep ?? "BD"] ?? c.approvalStep}
+                {stepLabel[c.approvalStep ?? "GM"] ?? c.approvalStep}
               </div>
             )}
 

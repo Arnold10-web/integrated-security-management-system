@@ -359,7 +359,7 @@ export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
                   >
                     {guards.map((g) => (
                       <option key={g.id} value={g.fullName}>
-                        {g.fullName} ({g.guardCode})
+                        {g.fullName} ({g.forceNumber})
                       </option>
                     ))}
                   </select>

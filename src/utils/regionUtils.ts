@@ -48,7 +48,7 @@ export function resolveOrderRegion(order: DeploymentOrder): string | undefined {
 }
 
 export function resolveLeaveRegion(leave: LeaveRequest, guards: Guard[], sites: ClientSite[]): string | undefined {
-  const guard = guards.find((g) => g.id === leave.guardId || g.guardCode === leave.guardCode);
+  const guard = guards.find((g) => g.id === leave.guardId || g.forceNumber === leave.forceNumber);
   return guard ? resolveGuardRegion(guard, sites) : undefined;
 }
 
@@ -57,7 +57,7 @@ export function resolveDisciplinaryRegion(
   guards: Guard[],
   sites: ClientSite[]
 ): string | undefined {
-  const guard = guards.find((g) => g.id === action.guardId || g.guardCode === action.guardCode);
+  const guard = guards.find((g) => g.id === action.guardId || g.forceNumber === action.forceNumber);
   return guard ? resolveGuardRegion(guard, sites) : undefined;
 }
 

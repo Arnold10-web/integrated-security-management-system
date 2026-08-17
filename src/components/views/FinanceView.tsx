@@ -31,7 +31,11 @@ interface FinanceViewProps {
   onVoidContract?: (id: string, reason: string) => void;
 }
 
-export const FinanceView: React.FC<FinanceViewProps> = ({
+interface FinanceViewWithTabProps extends FinanceViewProps {
+  initialTab?: "invoices" | "expenses" | "cashier" | "contracts";
+}
+
+export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
   invoices,
   expenses,
   cashierTxns,
@@ -48,8 +52,10 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   onUpdateContract,
   onAdvanceApproval,
   onVoidContract,
+  initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<"invoices" | "expenses" | "cashier" | "contracts">("invoices");
+  const [activeTab, setActiveTab] = useState<"invoices" | "expenses" | "cashier" | "contracts">(initialTab ?? "invoices");
+  React.useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showCashierModal, setShowCashierModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -91,7 +97,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-black uppercase tracking-wider border border-emerald-500/30">
-              Finance & Cashier Department
+              Finance Department
             </span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white">Financial Accounting, Client Invoicing & Cashier Ledger</h1>
@@ -123,6 +129,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
         </div>
       </div>
 
+      {!initialTab && (
+      <>
       {/* Financial Overview Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -223,8 +231,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Sub-tab Switcher */}
+      </>)}
+      {!initialTab && (
+      <>{/* Sub-tab Switcher */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
         <button
           onClick={() => setActiveTab("invoices")}
@@ -299,6 +308,33 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
           onVoidContract={onVoidContract}
         />
       )}
+      </>)}
+      {initialTab && (
+        <>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${activeTab}…`} className="w-full p-2.5 pl-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none" />
+      </div>
+      {activeTab === "invoices" && (
+        <InvoicesTable invoices={filteredInvoices} activeRole={activeRole} onUpdateInvoice={onUpdateInvoice} onDeleteInvoice={onDeleteInvoice} onApproveInvoice={onApproveInvoice} />
+      )}
+      {activeTab === "expenses" && <ExpensesTable expenses={filteredExpenses} activeRole={activeRole} onDeleteExpense={onDeleteExpense} />}
+      {activeTab === "cashier" && (
+        <CashierTransactionsTable transactions={cashierTxns} activeRole={activeRole} onApprove={onApproveCashierTxn} onReject={onRejectCashierTxn} />
+      )}
+      {activeTab === "contracts" && (
+        <ClientContractsView
+          contracts={contracts ?? []}
+          activeRole={activeRole}
+          title="Client Contracts — Finance Validation"
+          onUpdateContract={onUpdateContract}
+          onAdvanceApproval={onAdvanceApproval}
+          onVoidContract={onVoidContract}
+        />
+      )}
+        </>
+      )}
+      {initialTab && <div className="text-[10px] text-slate-400 font-semibold pt-2 border-t border-slate-100">Dedicated page — use top navigation to switch between Invoices, Expenses, Cashier and Contracts.</div>}
 
       <CreateInvoiceModal show={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} onSubmit={onAddInvoice} />
       <CashierDisbursementModal show={showCashierModal} onClose={() => setShowCashierModal(false)} onSubmit={onDisburseAdvance} />

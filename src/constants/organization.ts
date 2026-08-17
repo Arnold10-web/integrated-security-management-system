@@ -11,6 +11,7 @@ export type DepartmentCode =
   | "hr"
   | "marketing"
   | "operations"
+  | "fleet"
   | "investigations"
   | "finance"
   | "administration"
@@ -38,8 +39,10 @@ export interface DepartmentDefinition {
   primaryModules: string[];
   headRole: UserRole;
   structure: OrgRoleNode[];
-  /** Optional field promotion ladder shown under the org chart. */
+  /** Rank ladder (Guard → Site In-Charge → Inspector → Regional Manager). */
   fieldLadder?: FieldRankNode[];
+  /** Preferred name — alias for fieldLadder kept for backward compat. */
+  rankLadder?: FieldRankNode[];
   notes?: string;
 }
 
@@ -74,12 +77,13 @@ export const DIRECTORATE: DepartmentDefinition = {
  *   ├── Regional Managers
  *   ├── Armorers
  *   ├── Canine Unit (K9 Supervisor / Handlers)
- *   ├── Fleet Manager
  *   └── Training Officer
  *
  * Supporting field roles (Guard Officer, etc.) sit under Regional Managers
  * for deployment execution.
  *
+ * NOTE: Fleet is an INDEPENDENT department (see FLEET) — the Fleet Manager
+ * is no longer a direct report of the Operations Manager.
  * NOTE: Investigations is an INDEPENDENT department (see INVESTIGATIONS).
  * It is not under Operations — it only shares incident/complaint information
  * with Operations for escalation and approval purposes.
@@ -87,14 +91,14 @@ export const DIRECTORATE: DepartmentDefinition = {
 export const OPERATIONS: DepartmentDefinition = {
   code: "operations",
   name: "Operations Department",
-  primaryModules: ["operations", "fleet"],
+  primaryModules: ["operations"],
   headRole: "Operations Manager",
   structure: [
     {
       role: "Operations Manager",
       title: "Operations Manager (Department Head)",
       description:
-        "Overall head of Operations. Owns deployment, attendance, shifts, armoury, canine unit, and fleet coordination.",
+        "Overall head of Operations. Owns deployment, attendance, shifts, armoury, and canine unit.",
     },
     {
       role: "Regional Manager",
@@ -113,12 +117,6 @@ export const OPERATIONS: DepartmentDefinition = {
       title: "Canine Unit Lead",
       reportsTo: "Operations Manager",
       description: "Canine unit supervision, handler pairing, health and deployment certification.",
-    },
-    {
-      role: "Fleet Manager",
-      title: "Fleet Manager",
-      reportsTo: "Operations Manager",
-      description: "Patrol fleet, drivers, fuel, maintenance — reports into Operations; works with the Fleet module.",
     },
     {
       role: "K9 Handler",
@@ -140,6 +138,8 @@ export const OPERATIONS: DepartmentDefinition = {
     },
   ],
   fieldLadder: [
+
+
     {
       rank: "Guard",
       description: "Front-line security officer rostered to a client site post.",
@@ -163,7 +163,28 @@ export const OPERATIONS: DepartmentDefinition = {
     },
   ],
   notes:
-    "Fleet Manager reports to Operations Manager organizationally, while the Fleet module remains the operational workspace for vehicles. Armorers are not limited to a single post — the system supports as many as needed across regions and office locations. Investigations is a separate department (see INVESTIGATIONS). Field rank ladder (Guard → Site In-Charge → Inspector → Regional Manager) reflects the supervision chain encoded on Guard records via designation and zone.",
+    "Fleet is an independent department (see FLEET) — the Fleet Manager reports directly to the Directorate, not to Operations. Armorers are not limited to a single post — the system supports as many as needed across regions and office locations. Investigations is a separate department (see INVESTIGATIONS). Field rank ladder (Guard → Site In-Charge → Inspector → Regional Manager) reflects the supervision chain encoded on Guard records via designation and zone.",
+};
+
+/**
+ * Fleet department (independent — was previously nested under Operations).
+ * Owns vehicles, trips, fuel logs, maintenance, drivers, inspections and
+ * breakdowns; reports directly to the Directorate.
+ */
+export const FLEET: DepartmentDefinition = {
+  code: "fleet",
+  name: "Fleet Department",
+  primaryModules: ["fleet"],
+  headRole: "Fleet Manager",
+  structure: [
+    {
+      role: "Fleet Manager",
+      title: "Fleet Manager (Department Head)",
+      description: "Owns the vehicle & motorcycle register, fuel, maintenance, inspections, driver/rider roster, and transport request approval.",
+    },
+  ],
+  notes:
+    "Fleet is an independent top-level department. The Fleet Manager reports directly to the Directorate — not to the Operations Manager.",
 };
 
 /**
@@ -259,6 +280,7 @@ export const IT: DepartmentDefinition = {
 export const ALL_DEPARTMENTS: DepartmentDefinition[] = [
   DIRECTORATE,
   OPERATIONS,
+  FLEET,
   INVESTIGATIONS,
   HR,
   MARKETING,

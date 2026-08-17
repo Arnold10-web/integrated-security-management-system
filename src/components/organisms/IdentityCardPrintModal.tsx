@@ -1,16 +1,82 @@
 import React, { useState } from "react";
 import { CheckCircle2, AlertTriangle, Printer, Camera, PenLine, FileDown, Info, UserCheck } from "lucide-react";
 import { saveAs } from "file-saver";
-import type { Guard } from "../../types";
+import { jsPDF } from "jspdf";
+import type { Guard, User } from "../../types";
 import { SignaturePad } from "./SignaturePad";
 import { IdCaptureCamera } from "./IdCaptureCamera";
 import { CompanyLogo } from "../ui/CompanyLogo";
+import { LOGO_PATH, LEGAL_COMPANY_NAME, COMPANY_RETURN_LOCATION, COMPANY_CONTACT } from "../../constants/branding";
+
+export type IdCardKind = "guard-paper" | "staff-plastic";
+
+/** Normalized card subject shared by guards (paper ID) and staff (plastic ID). */
+export interface IdCardSubject {
+  id: string;
+  kind: IdCardKind;
+  fullName: string;
+  forceNumber: string;
+  designation: string;
+  subLine: string;
+  nationalId?: string;
+  photoUrl?: string;
+  signatureUrl?: string;
+  idCardStatus?: string;
+  idCardNumber?: string;
+  idCardIssuedDate?: string;
+  idCardExpiryDate?: string;
+  idCardIssuerName?: string;
+  idCardIssuerSignatureUrl?: string;
+}
+
+export function guardToIdSubject(guard: Guard): IdCardSubject {
+  return {
+    id: guard.id,
+    kind: "guard-paper",
+    fullName: guard.fullName,
+    forceNumber: guard.forceNumber,
+    designation: guard.designation,
+    subLine: guard.assignedSite,
+    nationalId: guard.nationalId,
+    photoUrl: guard.photoUrl,
+    signatureUrl: guard.signatureUrl,
+    idCardStatus: guard.idCardStatus,
+    idCardNumber: guard.idCardNumber,
+    idCardIssuedDate: guard.idCardIssuedDate,
+    idCardExpiryDate: guard.idCardExpiryDate,
+    idCardIssuerName: guard.idCardIssuerName,
+    idCardIssuerSignatureUrl: guard.idCardIssuerSignatureUrl,
+  };
+}
+
+export function userToIdSubject(user: User): IdCardSubject {
+  return {
+    id: user.id,
+    kind: "staff-plastic",
+    fullName: user.name,
+    forceNumber: user.forceNumber ?? "—",
+    designation: user.role,
+    subLine: user.department,
+    nationalId: undefined,
+    photoUrl: user.photoUrl,
+    signatureUrl: user.signatureUrl,
+    idCardStatus: user.idCardStatus,
+    idCardNumber: user.idCardNumber,
+    idCardIssuedDate: user.idCardIssuedDate,
+    idCardExpiryDate: user.idCardExpiryDate,
+    idCardIssuerName: user.idCardIssuerName,
+    idCardIssuerSignatureUrl: user.idCardIssuerSignatureUrl,
+  };
+}
 
 interface IdentityCardPrintModalProps {
   show: boolean;
-  guard: Guard | null;
+  guard?: Guard | null;
+  staff?: User | null;
   onClose: () => void;
   onUpdateGuard?: (guardId: string, updates: Partial<Guard>) => void;
+  onUpdateUser?: (userId: string, updates: Partial<User>) => void;
+  onIssueStaffId?: (userId: string, idCardNumber: string) => void;
   /** When true (IT verification), the modal is view/verify only — no capture, issuance, or printing. */
   readOnly?: boolean;
   /** Display name of the signing officer (Records Officer who issues the card). */
@@ -20,38 +86,64 @@ interface IdentityCardPrintModalProps {
 const CR80_W = 1012; // 85.6mm @ 300 DPI
 const CR80_H = 638; // 54mm @ 300 DPI
 
-export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ show, guard, onClose, onUpdateGuard, readOnly = false, issuerName }) => {
+export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ show, guard, staff, onClose, onUpdateGuard, onUpdateUser, onIssueStaffId, readOnly = false, issuerName }) => {
+  const subject: IdCardSubject | null = staff ? userToIdSubject(staff) : guard ? guardToIdSubject(guard) : null;
   const [photo, setPhoto] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
   const [issuerSignature, setIssuerSignature] = useState<string | null>(null);
   const [showCapture, setShowCapture] = useState(false);
   const [printerName, setPrinterName] = useState("");
-  const [cardSides, setCardSides] = useState<"Single" | "Dual">("Single");
+  const [cardSides, setCardSides] = useState<"Single" | "Dual">("Dual");
   const [copies, setCopies] = useState(1);
   const [showPrintHelp, setShowPrintHelp] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [previewSide, setPreviewSide] = useState<"front" | "back">("front");
 
-  if (!show || !guard) return null;
+  if (!show || !subject) return null;
 
-  const effectivePhoto = photo ?? guard.photoUrl;
-  const effectiveSignature = signature ?? guard.signatureUrl;
-  const effectiveIssuerSignature = issuerSignature ?? guard.idCardIssuerSignatureUrl ?? null;
-  const effectiveIssuerName = issuerName ?? guard.idCardIssuerName ?? "Records Officer";
-  const isIssued = guard.idCardStatus === "Issued & Active";
+  const kind = subject.kind;
+  const isPaper = kind === "guard-paper";
+  const effectivePhoto = photo ?? subject.photoUrl;
+  const effectiveSignature = signature ?? subject.signatureUrl;
+  const effectiveIssuerSignature = issuerSignature ?? subject.idCardIssuerSignatureUrl ?? null;
+  const effectiveIssuerName = issuerName ?? subject.idCardIssuerName ?? "Records Officer";
+  const isIssued = subject.idCardStatus === "Issued & Active";
+  const cardTitle = isPaper ? "Official Guard Paper Identity Card" : "Official Staff PVC Identity Card";
 
   const issue = () => {
-    if (onUpdateGuard && issuerName) {
+    if (subject.kind === "staff-plastic") {
+      if (onIssueStaffId && onUpdateUser) {
+        const today = new Date().toISOString().split("T")[0];
+        const exp = new Date();
+        exp.setFullYear(exp.getFullYear() + 3);
+        const expStr = exp.toISOString().split("T")[0];
+        const cardNum = `ID-UG-2026-${subject.forceNumber.replace(/\D/g, "") || String(Math.floor(1000 + Math.random() * 9000))}`;
+        onIssueStaffId(subject.id, cardNum);
+        onUpdateUser(subject.id, {
+          idCardStatus: "Issued & Active",
+          idCardNumber: cardNum,
+          idCardIssuedDate: today,
+          idCardExpiryDate: expStr,
+          idCardIssuerName: effectiveIssuerName,
+          ...(photo ? { photoUrl: photo } : {}),
+          ...(signature ? { signatureUrl: signature } : {}),
+          ...(issuerSignature ? { idCardIssuerSignatureUrl: issuerSignature } : {}),
+        });
+      }
+      return;
+    }
+    if (onUpdateGuard) {
       const today = new Date().toISOString().split("T")[0];
       const exp = new Date();
-      exp.setFullYear(exp.getFullYear() + 2);
+      exp.setFullYear(exp.getFullYear() + 3);
       const expStr = exp.toISOString().split("T")[0];
-      const cardNum = `ID-UG-2026-${guard.guardCode.replace(/\D/g, "") || String(Math.floor(1000 + Math.random() * 9000))}`;
-      onUpdateGuard(guard.id, {
+      const cardNum = `ID-UG-2026-${subject.forceNumber.replace(/\D/g, "") || String(Math.floor(1000 + Math.random() * 9000))}`;
+      onUpdateGuard(subject.id, {
         idCardStatus: "Issued & Active",
         idCardNumber: cardNum,
         idCardIssuedDate: today,
         idCardExpiryDate: expStr,
-        idCardIssuerName: issuerName,
+        idCardIssuerName: effectiveIssuerName,
         ...(photo ? { photoUrl: photo } : {}),
         ...(signature ? { signatureUrl: signature } : {}),
         ...(issuerSignature ? { idCardIssuerSignatureUrl: issuerSignature } : {}),
@@ -92,22 +184,27 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
     ctx.lineWidth = 3;
     ctx.strokeRect(6, 6, W - 12, H - 12);
 
-    const [photoImg, holderSigImg, issuerSigImg] = await Promise.all([
+    const [photoImg, holderSigImg, issuerSigImg, logoImg] = await Promise.all([
       loadImage(effectivePhoto),
       loadImage(effectiveSignature),
       loadImage(effectiveIssuerSignature),
+      loadImage(LOGO_PATH),
     ]);
 
     const padX = 34;
     const padY = 30;
 
+    if (logoImg) {
+      ctx.drawImage(logoImg, padX, padY - 18, 56, 56);
+    }
+
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 30px 'Arial Black', Arial, sans-serif";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText("INTEGRATED SECURITY COMPANY LTD", padX, padY + 26);
+    ctx.fillText("INTEGRATED SECURITY COMPANY LTD", padX + (logoImg ? 66 : 0), padY + 26);
     ctx.fillStyle = "#22d3ee";
     ctx.font = "bold 17px Arial, sans-serif";
-    ctx.fillText("LICENSED PRIVATE SECURITY ORGANIZATION", padX, padY + 50);
+    ctx.fillText("LICENSED PRIVATE SECURITY ORGANIZATION", padX + (logoImg ? 66 : 0), padY + 50);
 
     const badgeX = W - 190;
     ctx.fillStyle = "#fbbf24";
@@ -117,7 +214,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
     ctx.fillStyle = "#020617";
     ctx.font = "bold 19px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("OFFICIAL ID", badgeX + 75, padY + 26);
+    ctx.fillText(isPaper ? "GUARD ID" : "STAFF ID", badgeX + 75, padY + 26);
     ctx.textAlign = "left";
 
     const dividerY = padY + 72;
@@ -161,23 +258,23 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
     label("Force / Registration No.", photoY + 22);
     ctx.fillStyle = "#22d3ee";
     ctx.font = "bold 25px 'Courier New', monospace";
-    ctx.fillText(guard.guardCode, fieldsX, photoY + 52);
+    ctx.fillText(subject.forceNumber, fieldsX, photoY + 52);
 
     label("Full Names", photoY + 86);
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 25px Arial, sans-serif";
-    ctx.fillText(guard.fullName.toUpperCase().slice(0, 32), fieldsX, photoY + 116);
+    ctx.fillText(subject.fullName.toUpperCase().slice(0, 32), fieldsX, photoY + 116);
 
     const rowY = photoY + 150;
     const colW = fieldW / 2;
-    label("Designation", rowY);
+    label(isPaper ? "Designation" : "Role", rowY);
     ctx.fillStyle = "#fbbf24";
     ctx.font = "bold 21px Arial, sans-serif";
-    ctx.fillText(guard.designation.slice(0, 22), fieldsX, rowY + 30);
-    label("NIN No.", fieldsX + colW);
+    ctx.fillText(subject.designation.slice(0, 22), fieldsX, rowY + 30);
+    label(isPaper ? "NIN No." : "Department", fieldsX + colW);
     ctx.fillStyle = "#e2e8f0";
     ctx.font = "bold 19px 'Courier New', monospace";
-    ctx.fillText(guard.nationalId.slice(0, 18), fieldsX + colW, rowY + 30);
+    ctx.fillText((isPaper ? subject.nationalId : subject.subLine)?.slice(0, 18) ?? "—", fieldsX + colW, rowY + 30);
 
     let bottomY = rowY + 62;
     if (holderSigImg) {
@@ -200,9 +297,9 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
     const footY = H - 44;
     ctx.fillStyle = "rgba(226,232,240,0.85)";
     ctx.font = "bold 15px Arial, sans-serif";
-    ctx.fillText(`ISSUED: ${guard.idCardIssuedDate || new Date().toISOString().split("T")[0]}`, padX, footY);
+    ctx.fillText(`ISSUED: ${subject.idCardIssuedDate || new Date().toISOString().split("T")[0]}`, padX, footY);
     ctx.fillStyle = "#fbbf24";
-    ctx.fillText(`EXPIRY: ${guard.idCardExpiryDate || ""}`, padX + 220, footY);
+    ctx.fillText(`EXPIRY: ${subject.idCardExpiryDate || ""}`, padX + 220, footY);
 
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 17px 'Courier New', monospace";
@@ -211,14 +308,111 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
     return canvas;
   };
 
+  const drawCardBackToCanvas = async (): Promise<HTMLCanvasElement> => {
+    const canvas = document.createElement("canvas");
+    canvas.width = CR80_W;
+    canvas.height = CR80_H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas unavailable");
+
+    const W = CR80_W;
+    const H = CR80_H;
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(6, 6, W - 12, H - 12);
+
+    const [logoImg] = await Promise.all([loadImage(LOGO_PATH)]);
+
+    const padX = 40;
+    const padY = 34;
+
+    if (logoImg) {
+      ctx.drawImage(logoImg, padX, padY - 10, 54, 54);
+    }
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 26px 'Arial Black', Arial, sans-serif";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("INTEGRATED SECURITY COMPANY LTD", padX + (logoImg ? 66 : 0), padY + 22);
+    ctx.fillStyle = "#0e7490";
+    ctx.font = "bold 15px Arial, sans-serif";
+    ctx.fillText("OFFICIAL PERSONNEL IDENTITY CARD — IF FOUND, PLEASE RETURN", padX + (logoImg ? 66 : 0), padY + 46);
+
+    ctx.strokeStyle = "#0e7490";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(padX, padY + 64, W - padX * 2, 150);
+
+    ctx.fillStyle = "#0e7490";
+    ctx.font = "bold 15px Arial, sans-serif";
+    ctx.fillText("RETURN TO (RECORDS OFFICE)", padX + 16, padY + 96);
+
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "bold 21px Arial, sans-serif";
+    ctx.fillText(COMPANY_RETURN_LOCATION, padX + 16, padY + 132);
+    ctx.fillStyle = "#334155";
+    ctx.font = "bold 17px 'Courier New', monospace";
+    ctx.fillText(COMPANY_CONTACT, padX + 16, padY + 166);
+
+    ctx.fillStyle = "#475569";
+    ctx.font = "bold 14px Arial, sans-serif";
+    const note = [
+      "This card remains the property of the Company and is valid only while the holder",
+      "is employed. It must be returned to the Records Office on separation, expiry, or",
+      "request of an authorised officer. Anyone finding it should hand it to any security",
+      "officer or return it to the address above.",
+    ];
+    note.forEach((line, i) => {
+      ctx.fillText(line, padX, padY + 250 + i * 22);
+    });
+
+    const footY = H - 40;
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 15px 'Courier New', monospace";
+    ctx.fillText(`CARD NO: ${subject.idCardNumber || "—"}`, padX, footY);
+    ctx.fillStyle = "#0e7490";
+    ctx.fillText(`ISSUED: ${subject.idCardIssuedDate || ""}  ·  EXPIRY: ${subject.idCardExpiryDate || ""}`, padX + 300, footY);
+
+    return canvas;
+  };
+
   const exportPrintReady = async () => {
     try {
-      const canvas = await drawCardToCanvas();
-      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
-      if (!blob) throw new Error("render failed");
-      const filename = `${guard.guardCode.replace(/[^a-zA-Z0-9]/g, "")}-identity-card-CR80-300dpi.png`;
-      saveAs(blob, filename);
-      setExportStatus(`Print-ready card exported: ${filename}${printerName ? ` → ${printerName}` : ""}`);
+      const frontCanvas = await drawCardToCanvas();
+      const backCanvas = await drawCardBackToCanvas();
+      const base = subject.forceNumber.replace(/[^a-zA-Z0-9]/g, "");
+      if (isPaper) {
+        const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: [85.6, 54] });
+        pdf.addImage(frontCanvas.toDataURL("image/png"), "PNG", 0, 0, 85.6, 54);
+        if (cardSides === "Dual") {
+          pdf.addPage([85.6, 54], "landscape");
+          pdf.addImage(backCanvas.toDataURL("image/png"), "PNG", 0, 0, 85.6, 54);
+        }
+        for (let i = 1; i < copies; i += 1) {
+          pdf.addPage([85.6, 54], "landscape");
+          pdf.addImage(frontCanvas.toDataURL("image/png"), "PNG", 0, 0, 85.6, 54);
+          if (cardSides === "Dual") {
+            pdf.addPage([85.6, 54], "landscape");
+            pdf.addImage(backCanvas.toDataURL("image/png"), "PNG", 0, 0, 85.6, 54);
+          }
+        }
+        const filename = `${base}-identity-card-${cardSides.toLowerCase()}-sided-${copies}-copies.pdf`;
+        pdf.save(filename);
+        setExportStatus(`Guard paper ID exported as PDF: ${filename}${printerName ? ` → ${printerName}` : ""}`);
+      } else {
+        const filenameFront = `${base}-identity-card-front-CR80-300dpi.png`;
+        const blob: Blob | null = await new Promise((resolve) => frontCanvas.toBlob((b) => resolve(b), "image/png"));
+        if (!blob) throw new Error("render failed");
+        saveAs(blob, filenameFront);
+        if (cardSides === "Dual") {
+          const blobBack: Blob | null = await new Promise((resolve) => backCanvas.toBlob((b) => resolve(b), "image/png"));
+          if (blobBack) saveAs(blobBack, `${base}-identity-card-back-CR80-300dpi.png`);
+        }
+        setExportStatus(`Staff PVC card exported as PNG: ${filenameFront}${cardSides === "Dual" ? " + back side" : ""}${printerName ? ` → ${printerName}` : ""}`);
+      }
       setTimeout(() => setExportStatus(null), 6000);
     } catch {
       setExportStatus("Export failed — please try again.");
@@ -226,6 +420,120 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
   };
 
   const printReady = effectivePhoto && effectiveSignature && effectiveIssuerSignature;
+
+  const previewCard = (side: "front" | "back") => {
+    if (side === "back") {
+      return (
+        <div className="relative w-full max-w-md mx-auto aspect-[1.586] rounded-2xl bg-slate-50 text-slate-900 p-4 shadow-xl border-2 border-slate-300 overflow-hidden flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-300 pb-2">
+            <div className="flex items-center gap-2">
+              <CompanyLogo imgClassName="w-6 h-6 object-contain rounded-md" iconClassName="w-4 h-4" />
+              <div>
+                <span className="font-black text-[10px] tracking-wider block leading-tight">INTEGRATED SECURITY COMPANY LTD</span>
+                <span className="text-[7px] text-cyan-700 font-bold block tracking-tight">OFFICIAL PERSONNEL IDENTITY CARD</span>
+              </div>
+            </div>
+          </div>
+          <div className="border-2 border-cyan-700 rounded-lg px-2 py-1.5 my-2">
+            <span className="text-[7px] font-black uppercase text-cyan-800 block">Return to (Records Office)</span>
+            <span className="text-[9px] font-extrabold block leading-tight">{COMPANY_RETURN_LOCATION}</span>
+            <span className="text-[8px] font-mono text-slate-600 block">{COMPANY_CONTACT}</span>
+          </div>
+          <p className="text-[7px] text-slate-600 font-semibold leading-snug">
+            This card remains the property of the Company and is valid only while the holder is employed. It must be
+            returned to the Records Office on separation, expiry, or request of an authorised officer.
+          </p>
+          <div className="flex items-center justify-between border-t border-slate-300 pt-1.5 text-[7px]">
+            <span className="font-mono font-black text-slate-700">CARD NO: {subject.idCardNumber || "—"}</span>
+            <span className="font-bold text-slate-500">ISSUED: {subject.idCardIssuedDate || "—"} · EXPIRY: {subject.idCardExpiryDate || "—"}</span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="relative w-full max-w-md mx-auto aspect-[1.586] rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 text-white p-4 shadow-xl border-2 border-amber-400/80 overflow-hidden flex flex-col justify-between">
+        <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="flex items-center justify-between border-b border-slate-700/80 pb-2 relative z-10">
+          <div className="flex items-center gap-2">
+            <CompanyLogo imgClassName="w-7 h-7 object-contain rounded-md" iconClassName="w-4 h-4" />
+            <div>
+              <span className="font-black text-xs tracking-wider text-white block leading-tight">
+                INTEGRATED SECURITY COMPANY LTD
+              </span>
+              <span className="text-[8px] text-cyan-300 font-bold block tracking-tight">
+                LICENSED PRIVATE SECURITY ORGANIZATION
+              </span>
+            </div>
+          </div>
+          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 border border-amber-300">
+            {isPaper ? "GUARD ID" : "STAFF ID"}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-12 gap-3 items-center my-auto relative z-10">
+          <div className="col-span-4 flex flex-col items-center">
+            <div className="w-20 h-24 rounded-xl bg-slate-800 overflow-hidden border-2 border-cyan-400 shadow-md flex items-center justify-center">
+              {effectivePhoto ? (
+                <img src={effectivePhoto} alt={subject.fullName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xl font-black text-white">{subject.fullName.substring(0, 2).toUpperCase()}</span>
+              )}
+            </div>
+            <span className="text-[7px] text-cyan-400 font-mono mt-1 tracking-tight">VERIFIED PHOTO</span>
+          </div>
+
+          <div className="col-span-8 space-y-1">
+            <div>
+              <span className="text-[7px] text-slate-400 uppercase font-bold block">FORCE / REGISTRATION NO.</span>
+              <span className="text-xs font-black text-cyan-300 font-mono bg-slate-800/80 px-2 py-0.5 rounded border border-cyan-500/30 inline-block">
+                {subject.forceNumber}
+              </span>
+            </div>
+            <div>
+              <span className="text-[7px] text-slate-400 uppercase font-bold block">FULL NAMES</span>
+              <span className="text-xs font-black text-white block leading-tight uppercase">{subject.fullName}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1 pt-0.5">
+              <div>
+                <span className="text-[7px] text-slate-400 uppercase font-bold block">{isPaper ? "DESIGNATION" : "ROLE"}</span>
+                <span className="text-[10px] font-bold text-amber-300 block">{subject.designation}</span>
+              </div>
+              <div>
+                <span className="text-[7px] text-slate-400 uppercase font-bold block">{isPaper ? "NIN NO." : "DEPARTMENT"}</span>
+                <span className="text-[9px] font-mono font-bold text-slate-200 block">{(isPaper ? subject.nationalId : subject.subLine) || "—"}</span>
+              </div>
+            </div>
+            {effectiveSignature && (
+              <div>
+                <span className="text-[7px] text-slate-400 uppercase font-bold block">HOLDER SIGNATURE</span>
+                <img src={effectiveSignature} alt="Holder signature" className="h-6 bg-white rounded-sm mt-0.5" />
+              </div>
+            )}
+            {effectiveIssuerSignature && (
+              <div className="pt-0.5">
+                <span className="text-[7px] text-slate-400 uppercase font-bold block">ISSUED BY {effectiveIssuerName.toUpperCase()} (RECORDS OFFICER)</span>
+                <img src={effectiveIssuerSignature} alt="Issuer signature" className="h-5 bg-white rounded-sm mt-0.5" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-slate-700/80 pt-1.5 relative z-10 text-[8px]">
+          <div>
+            <span className="text-slate-400 block font-bold">ISSUED: <strong className="text-white">{subject.idCardIssuedDate || "—"}</strong></span>
+          </div>
+          <div>
+            <span className="text-slate-400 block font-bold">EXPIRY: <strong className="text-amber-300">{subject.idCardExpiryDate || "—"}</strong></span>
+          </div>
+          <div className="bg-white px-1 py-0.5 rounded flex items-center gap-0.5">
+            <span className="font-mono text-[7px] text-slate-900 font-black">||| | |||| | |||</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs">
@@ -237,7 +545,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
               {readOnly ? "IT DEPARTMENT • ID VERIFICATION" : "RECORDS OFFICE • ID MODULE"}
             </span>
             <h3 className="text-lg font-black text-slate-900 mt-1">
-              Official High-Security PVC Identity Card
+              {cardTitle}
             </h3>
           </div>
           <button onClick={onClose}
@@ -247,98 +555,33 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black uppercase text-slate-500 tracking-wider">
-              Live Identity Card Preview (PVC CR80 Format)
+              Live Identity Card Preview ({isPaper ? "Paper ID" : "PVC CR80 Format"})
             </span>
             <span className={`px-2 py-0.5 text-[10px] font-black rounded-full uppercase ${
               isIssued
                 ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                 : "bg-amber-100 text-amber-900 border border-amber-300"
             }`}>
-              Status: {guard.idCardStatus || "Pending Records Issuance"}
+              Status: {subject.idCardStatus || "Pending Records Issuance"}
             </span>
           </div>
 
-          <div className="relative w-full max-w-md mx-auto aspect-[1.586] rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 text-white p-4 shadow-xl border-2 border-amber-400/80 overflow-hidden flex flex-col justify-between">
-            <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
-            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-
-            <div className="flex items-center justify-between border-b border-slate-700/80 pb-2 relative z-10">
-              <div className="flex items-center gap-2">
-                <CompanyLogo imgClassName="w-7 h-7 object-contain rounded-md" iconClassName="w-4 h-4" />
-                <div>
-                  <span className="font-black text-xs tracking-wider text-white block leading-tight">
-                    INTEGRATED SECURITY COMPANY LTD
-                  </span>
-                  <span className="text-[8px] text-cyan-300 font-bold block tracking-tight">
-                    LICENSED PRIVATE SECURITY ORGANIZATION
-                  </span>
-                </div>
-              </div>
-              <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 border border-amber-300">
-                OFFICIAL ID
-              </span>
-            </div>
-
-            <div className="grid grid-cols-12 gap-3 items-center my-auto relative z-10">
-              <div className="col-span-4 flex flex-col items-center">
-                <div className="w-20 h-24 rounded-xl bg-slate-800 overflow-hidden border-2 border-cyan-400 shadow-md flex items-center justify-center">
-                  {effectivePhoto ? (
-                    <img src={effectivePhoto} alt={guard.fullName} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-xl font-black text-white">{guard.fullName.substring(0, 2).toUpperCase()}</span>
-                  )}
-                </div>
-                <span className="text-[7px] text-cyan-400 font-mono mt-1 tracking-tight">VERIFIED PHOTO</span>
-              </div>
-
-              <div className="col-span-8 space-y-1">
-                <div>
-                  <span className="text-[7px] text-slate-400 uppercase font-bold block">FORCE / REGISTRATION NO.</span>
-                  <span className="text-xs font-black text-cyan-300 font-mono bg-slate-800/80 px-2 py-0.5 rounded border border-cyan-500/30 inline-block">
-                    {guard.guardCode}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[7px] text-slate-400 uppercase font-bold block">FULL NAMES</span>
-                  <span className="text-xs font-black text-white block leading-tight uppercase">{guard.fullName}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-1 pt-0.5">
-                  <div>
-                    <span className="text-[7px] text-slate-400 uppercase font-bold block">DESIGNATION</span>
-                    <span className="text-[10px] font-bold text-amber-300 block">{guard.designation}</span>
-                  </div>
-                  <div>
-                    <span className="text-[7px] text-slate-400 uppercase font-bold block">NIN NO.</span>
-                    <span className="text-[9px] font-mono font-bold text-slate-200 block">{guard.nationalId}</span>
-                  </div>
-                </div>
-                {effectiveSignature && (
-                  <div>
-                    <span className="text-[7px] text-slate-400 uppercase font-bold block">HOLDER SIGNATURE</span>
-                    <img src={effectiveSignature} alt="Holder signature" className="h-6 bg-white rounded-sm mt-0.5" />
-                  </div>
-                )}
-                {effectiveIssuerSignature && (
-                  <div className="pt-0.5">
-                    <span className="text-[7px] text-slate-400 uppercase font-bold block">ISSUED BY {effectiveIssuerName.toUpperCase()} (RECORDS OFFICER)</span>
-                    <img src={effectiveIssuerSignature} alt="Issuer signature" className="h-5 bg-white rounded-sm mt-0.5" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-slate-700/80 pt-1.5 relative z-10 text-[8px]">
-              <div>
-                <span className="text-slate-400 block font-bold">ISSUED: <strong className="text-white">{guard.idCardIssuedDate || "2026-07-28"}</strong></span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold">EXPIRY: <strong className="text-amber-300">{guard.idCardExpiryDate || "2028-07-28"}</strong></span>
-              </div>
-              <div className="bg-white px-1 py-0.5 rounded flex items-center gap-0.5">
-                <span className="font-mono text-[7px] text-slate-900 font-black">||| | |||| | |||</span>
-              </div>
-            </div>
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => setPreviewSide("front")}
+              className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${previewSide === "front" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            >
+              Front
+            </button>
+            <button
+              onClick={() => setPreviewSide("back")}
+              className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${previewSide === "back" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            >
+              Back (Return Details)
+            </button>
           </div>
+
+          {previewCard(previewSide)}
         </div>
 
         {readOnly ? (
@@ -350,24 +593,24 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
             <dl className="grid sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-white p-3 rounded-xl border border-slate-200">
                 <dt className="text-[10px] uppercase font-black text-slate-500">Card Number</dt>
-                <dd className="font-mono font-extrabold text-slate-900 mt-0.5">{guard.idCardNumber || "Not issued yet"}</dd>
+                <dd className="font-mono font-extrabold text-slate-900 mt-0.5">{subject.idCardNumber || "Not issued yet"}</dd>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200">
                 <dt className="text-[10px] uppercase font-black text-slate-500">Status</dt>
-                <dd className="font-bold text-slate-900 mt-0.5">{guard.idCardStatus || "Pending Records Issuance"}</dd>
+                <dd className="font-bold text-slate-900 mt-0.5">{subject.idCardStatus || "Pending Records Issuance"}</dd>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200">
                 <dt className="text-[10px] uppercase font-black text-slate-500">Issued On</dt>
-                <dd className="font-bold text-slate-900 mt-0.5">{guard.idCardIssuedDate || "—"}</dd>
+                <dd className="font-bold text-slate-900 mt-0.5">{subject.idCardIssuedDate || "—"}</dd>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200">
                 <dt className="text-[10px] uppercase font-black text-slate-500">Expires On</dt>
-                <dd className="font-bold text-slate-900 mt-0.5">{guard.idCardExpiryDate || "—"}</dd>
+                <dd className="font-bold text-slate-900 mt-0.5">{subject.idCardExpiryDate || "—"}</dd>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200 sm:col-span-2">
                 <dt className="text-[10px] uppercase font-black text-slate-500">Issued By (Records Officer)</dt>
                 <dd className="font-bold text-slate-900 mt-0.5">
-                  {guard.idCardIssuerName || "—"} {guard.idCardIssuerSignatureUrl && "· Signature verified on file"}
+                  {subject.idCardIssuerName || "—"} {subject.idCardIssuerSignatureUrl && "· Signature verified on file"}
                 </dd>
               </div>
             </dl>
@@ -394,8 +637,8 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
               )}
               {showCapture && (
                 <div className="grid md:grid-cols-2 gap-5">
-                  <IdCaptureCamera onCapture={setPhoto} initial={guard.photoUrl} />
-                  <SignaturePad onChange={setSignature} initial={guard.signatureUrl} holderName={guard.fullName} />
+                  <IdCaptureCamera onCapture={setPhoto} initial={subject.photoUrl} />
+                  <SignaturePad onChange={setSignature} initial={subject.signatureUrl} holderName={subject.fullName} />
                 </div>
               )}
             </div>
@@ -405,7 +648,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
                 <PenLine className="w-4 h-4 text-amber-500" />
                 Issuer Signature — {issuerName || "Records Officer"}
               </h4>
-              <SignaturePad onChange={setIssuerSignature} initial={guard.idCardIssuerSignatureUrl} holderName={issuerName || "Records Officer (Issuer)"} />
+              <SignaturePad onChange={setIssuerSignature} initial={subject.idCardIssuerSignatureUrl} holderName={issuerName || "Records Officer (Issuer)"} />
               <p className="text-[10px] text-slate-500 font-semibold">
                 The issuing Records Officer signs here to authorize the card. This signature is printed on the card and stored for verification.
               </p>
@@ -413,7 +656,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
               <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                IT Identity Card Management Actions
+                {isPaper ? "Guard Paper ID — Issue & Export" : "Staff PVC ID — Issue & Export"}
               </h4>
               <div className="flex flex-wrap gap-2">
                 {!isIssued ? (
@@ -424,13 +667,15 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
                     className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Approve & Issue Official Identity Card</span>
+                    <span>Approve & Issue Official {isPaper ? "Paper" : "Identity"} Card (3-Year Validity)</span>
                   </button>
                 ) : (
                   <button
                     onClick={() => {
-                      if (onUpdateGuard) {
-                        onUpdateGuard(guard.id, { idCardStatus: "Revoked" });
+                      if (subject.kind === "staff-plastic" && onUpdateUser) {
+                        onUpdateUser(subject.id, { idCardStatus: "Revoked" });
+                      } else if (onUpdateGuard) {
+                        onUpdateGuard(subject.id, { idCardStatus: "Revoked" });
                       }
                     }}
                     className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
@@ -461,7 +706,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
                       className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     >
                       <option value="Single">Single-sided</option>
-                      <option value="Dual">Dual-sided</option>
+                      <option value="Dual">Dual-sided (front + back)</option>
                     </select>
                   </label>
                   <label className="block">
@@ -482,7 +727,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
                     className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
                   >
                     <FileDown className="w-4 h-4 text-cyan-400" />
-                    <span>Prepare {cardSides.toLowerCase()}-sided × {copies} for Printer</span>
+                    <span>{isPaper ? "Export Paper ID (PDF)" : "Prepare Card for Printer (PNG)"}</span>
                   </button>
                   <button
                     onClick={() => setShowPrintHelp(true)}
@@ -499,7 +744,9 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
                 )}
                 <p className="text-[10px] text-slate-500 font-semibold flex items-start gap-1.5">
                   <Info className="w-3.5 h-3.5 text-cyan-500 shrink-0 mt-0.5" />
-                  Browsers cannot drive ID card printers directly. This exports a print-ready CR80 card image at 300 DPI which the card printer's vendor software (e.g. Magicard / Fargo driver) prints onto blank PVC cards.
+                  {isPaper
+                    ? "Guard IDs are paper documents — exported as a CR80-sized PDF (with the return-details back side) you can print on standard paper or card stock."
+                    : "Staff IDs are PVC cards. Browsers cannot drive ID card printers directly, so this exports a print-ready CR80 card image at 300 DPI which the card printer's vendor software (e.g. Magicard / Fargo driver) prints onto blank PVC cards."}
                 </p>
               </div>
             </div>
@@ -511,16 +758,27 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">PVC Card Printing Setup Guide</h4>
+                <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                  {isPaper ? "Guard Paper ID Printing Guide" : "PVC Card Printing Setup Guide"}
+                </h4>
                 <button onClick={() => setShowPrintHelp(false)} className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer p-1">✕</button>
               </div>
-              <ol className="space-y-2 text-xs text-slate-700 font-medium">
-                <li className="flex gap-2"><span className="font-black text-cyan-700">1.</span> Install the card printer's vendor driver & software (Magicard / Fargo / Evolis).</li>
-                <li className="flex gap-2"><span className="font-black text-cyan-700">2.</span> Load blank CR80 PVC cards into the printer input tray and install the correct YMCKO ribbon panel.</li>
-                <li className="flex gap-2"><span className="font-black text-cyan-700">3.</span> Click "Prepare ... for Printer" to export the print-ready 300 DPI card image (PNG).</li>
-                <li className="flex gap-2"><span className="font-black text-cyan-700">4.</span> Open the exported PNG in the vendor software and print {cardSides.toLowerCase()}-sided at actual size (85.6 × 54 mm).</li>
-                <li className="flex gap-2"><span className="font-black text-cyan-700">5.</span> Set copies to {copies} and run the print job. Keep the cleaning kit handy between card batches.</li>
-              </ol>
+              {isPaper ? (
+                <ol className="space-y-2 text-xs text-slate-700 font-medium">
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">1.</span> Capture the holder's photo, holder signature and issuer signature.</li>
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">2.</span> Issue the card — the issue date is today and expiry is automatically 3 years out.</li>
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">3.</span> Click "Export Paper ID (PDF)" to produce a CR80 PDF (front + return-details back side).</li>
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">4.</span> Print on A4 card stock at actual size, cut out, and laminate for durability.</li>
+                </ol>
+              ) : (
+                <ol className="space-y-2 text-xs text-slate-700 font-medium">
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">1.</span> Install the card printer's vendor driver & software (Magicard / Fargo / Evolis).</li>
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">2.</span> Load blank CR80 PVC cards into the printer input tray and install the correct YMCKO ribbon panel.</li>
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">3.</span> Click "Prepare Card for Printer (PNG)" to export the print-ready 300 DPI card image(s).</li>
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">4.</span> Open the exported PNG in the vendor software and print {cardSides.toLowerCase()}-sided at actual size (85.6 × 54 mm).</li>
+                  <li className="flex gap-2"><span className="font-black text-cyan-700">5.</span> Set copies to {copies} and run the print job. Keep the cleaning kit handy between card batches.</li>
+                </ol>
+              )}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-900 font-semibold">
                 <strong>Affordable printers (under $1,000):</strong> Magicard Enduro 3E (~$750–850), Fargo DTC1250e (~$600–700), Fargo DTC4250e (~$850–950), Evolis Elypso (~$800–950). Consumables: YMCKO ribbon (~$30–50 per ~200 cards) + CR80 blank cards.
               </div>

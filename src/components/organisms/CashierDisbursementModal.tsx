@@ -9,7 +9,7 @@ interface CashierDisbursementModalProps {
 
 export const CashierDisbursementModal: React.FC<CashierDisbursementModalProps> = ({ show, onClose, onSubmit }) => {
   const [guardName, setGuardName] = useState("");
-  const [guardCode, setGuardCode] = useState("");
+  const [forceNumber, setGuardCode] = useState("");
   const [txnType, setTxnType] = useState<CashierTransaction["type"]>("Salary Advance");
   const [advanceAmount, setAdvanceAmount] = useState<number>(100000);
   const [phone, setPhone] = useState("");
@@ -31,12 +31,12 @@ export const CashierDisbursementModal: React.FC<CashierDisbursementModalProps> =
     if (!guardName) return;
     onSubmit({
       guardName,
-      guardCode: guardCode || "SG-2024-001",
+      forceNumber: forceNumber || "SG-2024-001",
       type: txnType,
       amount: advanceAmount,
       date: new Date().toISOString().substring(0, 10),
       status: "Pending Approval",
-      processedBy: "Finance & Cashier Desk",
+      processedBy: "Finance Desk",
       phone: phone || undefined,
       signatureUrl: signature || undefined,
       notes: notes || undefined,

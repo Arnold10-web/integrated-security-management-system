@@ -494,11 +494,9 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
                       cmp.budgetStatus === "Approved"
                         ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                        : cmp.budgetStatus === "Pending GM Approval"
-                        ? "bg-purple-100 text-purple-800 border border-purple-300"
                         : "bg-amber-100 text-amber-800 border border-amber-300"
                     }`}>
-                      {cmp.budgetStatus ?? "Pending Finance Approval"}
+                      {cmp.budgetStatus ?? "Pending Approval"}
                     </span>
                   </td>
                   <td className="p-3.5">

@@ -28,7 +28,7 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
   });
 
   const filtered = reviews.filter((r) => {
-    const s = r.guardName.toLowerCase().includes(search.toLowerCase()) || r.guardCode.toLowerCase().includes(search.toLowerCase());
+    const s = r.guardName.toLowerCase().includes(search.toLowerCase()) || r.forceNumber.toLowerCase().includes(search.toLowerCase());
     const p = filterPeriod === "ALL" || r.reviewPeriod === filterPeriod;
     const st = filterStatus === "ALL" || r.status === filterStatus;
     return s && p && st;
@@ -92,7 +92,7 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
     const scores = { d: form.disciplineScore, p: form.punctualityScore, c: form.clientRatingScore, a: form.appearanceScore, i: form.incidentHandlingScore };
     const avg = (scores.d + scores.p + scores.c + scores.a + scores.i) / 5;
     const payload = {
-      guardId: form.guardId, guardName: guard.fullName, guardCode: guard.guardCode,
+      guardId: form.guardId, guardName: guard.fullName, forceNumber: guard.forceNumber,
       reviewPeriod: form.reviewPeriod, reviewType: form.reviewType,
       evaluatorName: form.evaluatorName, evaluationDate: form.evaluationDate,
       disciplineScore: form.disciplineScore, punctualityScore: form.punctualityScore,
@@ -176,7 +176,7 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
                     </div>
                     <div>
                       <div className="text-sm font-black text-slate-900">{r.guardName}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{r.guardCode}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{r.forceNumber}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -235,7 +235,7 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
                   <select required value={form.guardId} onChange={(e) => setForm({ ...form, guardId: e.target.value })}
                     className="w-full p-2.5 border border-slate-300 rounded-xl outline-none bg-white font-semibold">
                     <option value="">Select guard...</option>
-                    {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.guardCode})</option>)}
+                    {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber})</option>)}
                   </select>
                 </div>
                 <div>

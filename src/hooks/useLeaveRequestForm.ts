@@ -3,7 +3,7 @@ import type { LeaveRequest, Guard } from "../types";
 
 export function useLeaveRequestForm(guards: Guard[], initialLeaveRequests: LeaveRequest[] = []) {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(initialLeaveRequests);
-  const [leaveFilter, setLeaveFilter] = useState<"ALL" | "Approved" | "Pending HR Review" | "Rejected">("ALL");
+  const [leaveFilter, setLeaveFilter] = useState<"ALL" | "Approved" | "Pending HR Approval" | "Rejected">("ALL");
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const [leaveGuardId, setLeaveGuardId] = useState("");
@@ -21,7 +21,7 @@ export function useLeaveRequestForm(guards: Guard[], initialLeaveRequests: Leave
       id: `lev-${Date.now()}`,
       guardId: guard ? guard.id : "grd-101",
       guardName: guard ? guard.fullName : "John Bosco Kateregga",
-      guardCode: guard ? guard.guardCode : "SG-2024-001",
+      forceNumber: guard ? guard.forceNumber : "SG-2024-001",
       leaveType,
       startDate: leaveStartDate || "2026-08-01",
       endDate: leaveEndDate || "2026-08-14",
@@ -29,7 +29,7 @@ export function useLeaveRequestForm(guards: Guard[], initialLeaveRequests: Leave
       reason: leaveReason || "Scheduled annual leave & family rest.",
       reliefGuardName: leaveReliefGuardName || "Assigned Relief Officer",
       appliedDate: new Date().toISOString().split("T")[0],
-      status: "Pending HR Review",
+      status: "Pending HR Approval",
       notes: "Submitted via HR Portal.",
     };
     setLeaveRequests([newLeave, ...leaveRequests]);

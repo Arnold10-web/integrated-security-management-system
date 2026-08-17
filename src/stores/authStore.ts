@@ -8,7 +8,8 @@ import {
   persistSessionUserId,
   readPersistedSessionUserId,
 } from "../services/authService";
-import { loginApi, logoutApi, updateUserApi, fetchUsers, grantActingPrivilegeApi, revokeActingPrivilegeApi } from "../services/authApi";
+import { loginApi, logoutApi, updateUserApi, fetchUsers, issueStaffIdApi, revokeActingPrivilegeApi, createActingRequestApi, fetchActingRequestsApi, executeActingRequestApi, denyActingRequestApi } from "../services/authApi";
+import type { ActingPrivilegeRequest } from "../types";
 import { useAuditStore } from "./auditStore";
 import { useDomainStore } from "./domainStore";
 
@@ -35,11 +36,16 @@ interface AuthState {
   updateUser: (userId: string, updates: Partial<User>) => void;
   deleteUser: (userId: string) => void;
   toggleSuspendUser: (userId: string) => void;
+  issueStaffId: (userId: string, idCardNumber: string) => Promise<void>;
   addCustomRole: (role: CustomRoleDefinition) => void;
   deleteCustomRole: (id: string) => void;
   setCurrentUserRole: (role: UserRole) => void;
-  grantActingPrivilege: (userId: string, actingRole: UserRole, expiresAt: string) => Promise<void>;
   revokeActingPrivilege: (userId: string) => Promise<void>;
+  actingRequests: ActingPrivilegeRequest[];
+  createActingRequest: (input: { targetUserId: string; actingRole: UserRole; expiresAt: string; reason: string }) => Promise<void>;
+  fetchActingRequests: () => Promise<void>;
+  executeActingRequest: (requestId: string) => Promise<void>;
+  denyActingRequest: (requestId: string) => Promise<void>;
 
   getActiveRole: () => UserRole | null;
   getIdleTimeoutMs: () => number;
@@ -49,6 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: null,
   users: initialUsers,
   customRoles: initialCustomRoles,
+  actingRequests: [],
   idleNotice: null,
   showWelcomeBanner: true,
   showWalkthroughModal: false,
@@ -225,6 +232,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }));
   },
 
+  issueStaffId: async (userId, idCardNumber) => {
+    const { useApi } = get();
+    const today = new Date().toISOString().split("T")[0];
+    const exp = new Date();
+    exp.setFullYear(exp.getFullYear() + 3);
+    const expStr = exp.toISOString().split("T")[0];
+    const issuer = get().currentUser?.name ?? "Records Officer";
+    let serverExpiry = expStr;
+    if (useApi) {
+      try {
+        const updated = await issueStaffIdApi(userId, idCardNumber);
+        serverExpiry = (updated as any).idCardExpiryDate ?? expStr;
+      } catch {
+        /* keep local expiry */
+      }
+    }
+    set((s) => ({
+      users: s.users.map((u) =>
+        u.id === userId
+          ? { ...u, idCardStatus: "Issued & Active", idCardNumber, idCardIssuedDate: today, idCardExpiryDate: serverExpiry, idCardIssuerName: issuer }
+          : u
+      ),
+      currentUser:
+        s.currentUser?.id === userId
+          ? { ...s.currentUser, idCardStatus: "Issued & Active", idCardNumber, idCardIssuedDate: today, idCardExpiryDate: serverExpiry, idCardIssuerName: issuer }
+          : s.currentUser,
+    }));
+    useAuditStore.getState().addLog(
+      "Staff ID Card Issued",
+      `Issued staff plastic ID ${idCardNumber} to ${get().users.find((u) => u.id === userId)?.name || userId} (expires ${serverExpiry})`,
+      "Identity & Records",
+      get().currentUser
+    );
+  },
+
   addCustomRole: (role) => {
     set((s) => ({ customRoles: [...s.customRoles, role] }));
     useAuditStore.getState().addLog(
@@ -250,40 +292,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { currentUser } = get();
     if (!currentUser) return;
     set({ currentUser: { ...currentUser, role } });
-  },
-
-  grantActingPrivilege: async (userId, actingRole, expiresAt) => {
-    const { useApi } = get();
-    if (useApi) {
-      const updated = await grantActingPrivilegeApi(userId, actingRole, expiresAt);
-      const normalized: Partial<User> = {
-        actingRole: (updated as any).actingRole as UserRole,
-        actingExpiresAt: (updated as any).actingExpiresAt,
-        actingGrantedBy: (updated as any).actingGrantedBy,
-        actingGrantedAt: (updated as any).actingGrantedAt,
-        effectiveRole: (updated as any).effectiveRole as UserRole,
-      };
-      set((s) => ({
-        users: s.users.map((u) => (u.id === userId ? { ...u, ...normalized } : u)),
-        currentUser:
-          s.currentUser?.id === userId ? { ...s.currentUser, ...normalized } : s.currentUser,
-      }));
-    } else {
-      const grantedAt = new Date().toISOString();
-      set((s) => ({
-        users: s.users.map((u) =>
-          u.id === userId
-            ? { ...u, actingRole, actingExpiresAt: expiresAt, actingGrantedAt: grantedAt, actingGrantedBy: s.currentUser?.name ?? "IT Officer" }
-            : u
-        ),
-      }));
-    }
-    useAuditStore.getState().addLog(
-      "Acting Privileges Granted",
-      `Granted temporary ${actingRole} privileges to ${get().users.find((u) => u.id === userId)?.name || userId} until ${expiresAt}`,
-      "RBAC Security",
-      get().currentUser
-    );
   },
 
   revokeActingPrivilege: async (userId) => {
@@ -314,6 +322,97 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useAuditStore.getState().addLog(
       "Acting Privileges Revoked",
       `Revoked acting privileges from ${get().users.find((u) => u.id === userId)?.name || userId}`,
+      "RBAC Security",
+      get().currentUser
+    );
+  },
+
+  /* §11 — HR Manager initiates (who/role/why); IT Officer executes on the request. */
+  createActingRequest: async ({ targetUserId, actingRole, expiresAt, reason }) => {
+    const { useApi } = get();
+    if (useApi) {
+      await createActingRequestApi({ targetUserId, actingRole, expiresAt, reason });
+      await get().fetchActingRequests();
+    } else {
+      const request: ActingPrivilegeRequest = {
+        id: `arp-${Date.now()}`,
+        targetUserId,
+        targetName: get().users.find((u) => u.id === targetUserId)?.name || targetUserId,
+        actingRole,
+        reason,
+        expiresAt,
+        status: "Pending",
+        requestedById: get().currentUser?.id || "system",
+        requestedByName: get().currentUser?.name || "HR Manager",
+        createdAt: new Date().toISOString(),
+      };
+      set((s) => ({ actingRequests: [request, ...s.actingRequests] }));
+    }
+    useAuditStore.getState().addLog(
+      "Acting Privileges Requested",
+      `HR Manager requested ${actingRole} acting coverage for ${get().users.find((u) => u.id === targetUserId)?.name || targetUserId} until ${expiresAt} — ${reason}`,
+      "HR",
+      get().currentUser
+    );
+  },
+
+  fetchActingRequests: async () => {
+    if (!get().useApi) return;
+    try {
+      const requests = await fetchActingRequestsApi();
+      set({ actingRequests: requests });
+    } catch {
+      /* keep existing list */
+    }
+  },
+
+  executeActingRequest: async (requestId) => {
+    const { useApi } = get();
+    const request = get().actingRequests.find((r) => r.id === requestId);
+    if (useApi) {
+      const updated = await executeActingRequestApi(requestId);
+      const normalized: Partial<User> = {
+        actingRole: (updated as any).actingRole as UserRole,
+        actingExpiresAt: (updated as any).actingExpiresAt,
+        actingGrantedBy: (updated as any).actingGrantedBy,
+        actingGrantedAt: (updated as any).actingGrantedAt,
+        effectiveRole: (updated as any).effectiveRole as UserRole,
+      };
+      set((s) => ({
+        users: s.users.map((u) => (u.id === (updated as any).id ? { ...u, ...normalized } : u)),
+      }));
+      await get().fetchActingRequests();
+    } else if (request) {
+      set((s) => ({
+        users: s.users.map((u) =>
+          u.id === request.targetUserId
+            ? { ...u, actingRole: request.actingRole, actingExpiresAt: request.expiresAt, actingGrantedAt: new Date().toISOString(), actingGrantedBy: s.currentUser?.name ?? "IT Officer" }
+            : u
+        ),
+        actingRequests: s.actingRequests.map((r) => (r.id === requestId ? { ...r, status: "Granted", grantedByName: s.currentUser?.name ?? "IT Officer", grantedAt: new Date().toISOString() } : r)),
+      }));
+    }
+    useAuditStore.getState().addLog(
+      "Acting Privileges Granted",
+      `IT Officer executed HR request — granted ${request?.actingRole || ""} to ${request?.targetName || requestId}`,
+      "RBAC Security",
+      get().currentUser
+    );
+  },
+
+  denyActingRequest: async (requestId) => {
+    const { useApi } = get();
+    if (useApi) {
+      await denyActingRequestApi(requestId);
+      await get().fetchActingRequests();
+    } else {
+      set((s) => ({
+        actingRequests: s.actingRequests.map((r) => (r.id === requestId ? { ...r, status: "Denied", grantedByName: s.currentUser?.name ?? "IT Officer", grantedAt: new Date().toISOString() } : r)),
+      }));
+    }
+    useAuditStore.getState().addLog(
+      "Acting Privileges Denied",
+      `IT Officer denied an HR acting-privilege request (${requestId})`,
       "RBAC Security",
       get().currentUser
     );

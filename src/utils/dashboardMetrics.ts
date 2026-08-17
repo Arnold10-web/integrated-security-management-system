@@ -70,7 +70,7 @@ export function consolidateDashboardMetrics(data: DashboardData): ConsolidationR
   const pendingRevenue = invoices.filter(i => i.status === 'Pending').reduce((sum, i) => sum + i.amount, 0);
   const overdueRevenue = invoices.filter(i => i.status === 'Overdue').reduce((sum, i) => sum + i.amount, 0);
   const totalRevenue = invoices.reduce((sum, i) => sum + i.amount, 0);
-  const collectionPercentage = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
+  const collectionPercentage = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 10000) / 100 : 0;
 
   // Guard calculations
   const activeGuards = guards.filter(g => g.status === 'On Duty').length;
@@ -86,7 +86,8 @@ export function consolidateDashboardMetrics(data: DashboardData): ConsolidationR
   const openAlerts = incidents.filter(i => i.status !== 'Resolved').length;
   const criticalAlerts = incidents.filter(i => i.severity === 'Critical').length;
   const alertsBySeverity = incidents.reduce((acc, i) => {
-    acc[i.severity] = (acc[i.severity] || 0) + 1;
+    const key = i.severity.toLowerCase();
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 

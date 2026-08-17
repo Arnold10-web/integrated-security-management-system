@@ -1,7 +1,7 @@
 import React from "react";
-import { Users, CreditCard, UserCheck, HardDrive, MapPin, Server, ShieldCheck, Cpu } from "lucide-react";
+import { Users, CreditCard, UserCheck, HardDrive, MapPin, Server, ShieldCheck, Cpu, Monitor } from "lucide-react";
 
-type ITAdminTab = "users" | "id_cards" | "roles" | "it_assets" | "regions" | "servers" | "audit" | "automation" | "maintenance";
+type ITAdminTab = "users" | "id_cards" | "roles" | "it_assets" | "regions" | "servers" | "devices" | "audit" | "automation" | "maintenance";
 
 interface ITAdminTabNavProps {
   activeTab: ITAdminTab;
@@ -22,6 +22,7 @@ const tabs: { key: ITAdminTab; label: string; icon: React.FC<{ className?: strin
   { key: "it_assets", label: "IT Hardware & Software Assets", icon: HardDrive, iconColor: "text-purple-400" },
   { key: "regions", label: "Regional Stations & Outer Locations", icon: MapPin, iconColor: "text-amber-400" },
   { key: "servers", label: "Server Health & IT Help Desk", icon: Server, iconColor: "text-emerald-400" },
+  { key: "devices", label: "Device Sessions & IP Intelligence", icon: Monitor, iconColor: "text-cyan-400", highlight: true },
   { key: "audit", label: "Audit Telemetry Logs", icon: ShieldCheck, iconColor: "text-purple-400" },
   { key: "automation", label: "Automated IT Engine & Jobs", icon: Cpu, iconColor: "text-cyan-500" },
   { key: "maintenance", label: "System Maintenance & Integrity", icon: HardDrive, iconColor: "text-emerald-400" },

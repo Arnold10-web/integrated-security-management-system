@@ -175,104 +175,82 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
   const canRecordDesertion = DESERTION_ROLES.includes(activeRole);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-      {/* Header + ownership map */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+    <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 border-b border-slate-100 pb-4">
         <div>
-          <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-emerald-600" />
-            Guard Deployment Pipeline
+          <h3 className="text-[13px] font-bold text-slate-900 flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-slate-700" />
+            Guard deployment
           </h3>
-          <p className="text-[11px] text-slate-500 font-medium">
-            Recruit intake → HR enrolls → Operations hands to Training → Passed Out → Deployed to region / site.
+          <p className="text-xs text-slate-500 mt-1">
+            Recruit <span className="text-slate-400">→</span> HR enrolls <span className="text-slate-400">→</span> Operations <span className="text-slate-400">→</span> Training <span className="text-slate-400">→</span> Passed out <span className="text-slate-400">→</span> Deployed
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Acting as</span>
-          <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">{activeRole}</span>
-        </div>
-      </div>
-
-      {/* Process ownership strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        {(Object.keys(OWNER_LABELS) as OwnerKey[]).map((key) => {
-          const owner = OWNER_LABELS[key];
-          const active = isRoleIn(activeRole, HR_STAFF_ROLES)
-            ? key === "HR"
-              : key === "Operations"
-                ? isRoleIn(activeRole, DEPLOYMENT_OPERATIONS_ROLES)
-              : key === "Training"
-                ? isRoleIn(activeRole, TRAINING_OFFICER_ROLES)
-                : false;
+        {(() => {
+          const ownerKey = isRoleIn(activeRole, HR_STAFF_ROLES) ? "HR" : isRoleIn(activeRole, TRAINING_OFFICER_ROLES) ? "Training" : "Operations";
+          const owner = OWNER_LABELS[ownerKey];
           return (
-            <div key={key} className={`rounded-xl border p-3 ${active ? "border-slate-900 bg-slate-50" : "border-slate-200 bg-white"}`}>
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${owner.color}`} />
-                <span className="text-xs font-black text-slate-900">{owner.name}</span>
-                {active && <span className="ml-auto px-2 py-0.5 rounded-full bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">You</span>}
-              </div>
-              <p className="text-[10px] text-slate-500 mt-1">{owner.roles}</p>
-            </div>
+            <span className={`shrink-0 px-2.5 py-1 rounded-full border text-[10px] font-semibold ${owner.chip}`}>{owner.name}: you</span>
           );
-        })}
+        })()}
       </div>
 
-      {/* Stage flow */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 overflow-x-auto pb-1">
+        <span className={`px-2 py-1 rounded-full border font-semibold ${isRoleIn(activeRole, HR_STAFF_ROLES) ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200"}`}>HR</span>
+        <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+        <span className={`px-2 py-1 rounded-full border font-semibold ${isRoleIn(activeRole, DEPLOYMENT_OPERATIONS_ROLES) ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200"}`}>Operations</span>
+        <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+        <span className={`px-2 py-1 rounded-full border font-semibold ${isRoleIn(activeRole, TRAINING_OFFICER_ROLES) ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200"}`}>Training</span>
+        <span className="ml-2 text-[10px] text-slate-400 hidden sm:inline">Ownership</span>
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-1 px-1">
         {[INTAKE_STEP, ...STAGES].map((node, idx) => {
           const isIntake = node.kind === "intake";
           const stageGuards = isIntake ? [] : guards.filter((g) => stageOf(g) === node.stage);
           const next = isIntake ? null : canTransitionFrom(node.stage);
-          const owner = OWNER_LABELS[node.owner];
           return (
-            <div key={isIntake ? "intake" : node.stage} className="relative rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2 flex flex-col">
+            <div key={isIntake ? "intake" : node.stage} className="relative min-w-[180px] max-w-[200px] flex-1 snap-start rounded-lg border border-slate-200 bg-white p-3 space-y-2 flex flex-col">
               {idx < (1 + STAGES.length) - 1 && (
-                <ArrowRight className="hidden lg:block absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 z-10" />
+                <ArrowRight className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 z-10 bg-white rounded-full border border-slate-200" />
               )}
-              <div className="flex items-start justify-between gap-1">
-                <span className={`flex items-center gap-2 p-1.5 rounded-lg ${isIntake ? "bg-indigo-100 text-indigo-700" : node.stage === "DEPLOYED" ? "bg-emerald-100 text-emerald-700" : node.stage === "IN_TRAINING" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"}`}>
+              <div className="flex items-center justify-between gap-1">
+                <span className={`flex items-center justify-center w-7 h-7 rounded-full ${isIntake ? "bg-slate-100 text-slate-600 border border-slate-200" : node.stage === "DEPLOYED" ? "bg-slate-900 text-white" : node.stage === "IN_TRAINING" ? "bg-amber-100 text-amber-700 border border-amber-200" : "bg-white text-slate-700 border border-slate-200"}`}>
                   {node.icon}
                 </span>
-                <span className="w-fit px-2 py-0.5 rounded-full bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
-                  Step {node.step}
+                <span className="text-[10px] font-bold text-slate-400">
+                  {node.step}/6
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <div>
-                  <div className="text-xs font-extrabold text-slate-800">{node.label}</div>
-                  <div className="text-[10px] text-slate-500">{isIntake ? "pre-record" : `${stageGuards.length} guard(s)`}</div>
-                </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">{node.label}</div>
+                <div className="text-[11px] text-slate-500">{isIntake ? "Pre-record" : `${stageGuards.length} in stage`}</div>
               </div>
 
-              {/* Owner badge */}
-              <span className={`w-fit px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${owner.chip}`}>
-                {owner.name}
-              </span>
-
-              <p className="text-[10px] text-slate-500 leading-snug">{isIntake ? INTAKE_STEP.desc : node.desc}</p>
+              <p className="text-[11px] text-slate-600 leading-snug line-clamp-2">{isIntake ? "Recruitment precedes HR enrollment." : node.desc}</p>
 
               <div className="flex-1 space-y-1.5">
                 {isIntake ? (
-                  <div className="text-[10px] italic text-slate-400">No records — recruitment precedes HR enrollment.</div>
+                  <div className="text-[11px] text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-200 p-2">Recruitment — no record yet</div>
                 ) : (
                   <>
                 {stageGuards.length === 0 && (
-                  <div className="text-[10px] italic text-slate-400">No guards in this stage.</div>
+                  <div className="text-[11px] text-slate-400 border border-dashed border-slate-200 rounded-lg p-2">Empty</div>
                 )}
-                {stageGuards.slice(0, 4).map((g) => {
+                {stageGuards.slice(0, 3).map((g) => {
                   const isDeserter = g.status === "Deserted" || g.isDeserter;
                   return (
-                    <div key={g.id} className="flex items-center justify-between gap-2 bg-white rounded-lg border border-slate-200 px-2 py-1.5">
+                    <div key={g.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg border border-slate-100 px-2 py-1.5">
                       <div className="min-w-0">
-                        <div className={`text-[11px] font-bold truncate cursor-pointer hover:underline ${isDeserter ? "text-red-700" : "text-slate-800"}`} onClick={() => onViewBiodata?.(g)}>{g.fullName}</div>
-                        <div className="text-[9px] text-slate-400 font-mono">{g.guardCode}</div>
+                        <div className={`text-[11px] font-semibold truncate cursor-pointer hover:underline ${isDeserter ? "text-red-700" : "text-slate-800"}`} onClick={() => onViewBiodata?.(g)}>{g.fullName}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">{g.forceNumber}</div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {next && (
                           <button
                             onClick={() => move(g.id, { lifecycleStage: next })}
                             title={`${node.action} — next owner: ${node.nextOwner ? OWNER_LABELS[node.nextOwner].name : "—"}`}
-                            className="px-2 py-1 rounded-lg bg-slate-900 text-white text-[9px] font-bold hover:bg-blue-600 cursor-pointer transition-all"
+                            className="px-2 py-1 rounded-md bg-slate-900 text-white text-[10px] font-semibold hover:bg-slate-800 cursor-pointer"
                           >
                             {node.action}
                           </button>
@@ -281,7 +259,7 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
                           <button
                             onClick={() => setDesertionDraft({ guard: g, reason: "", date: new Date().toISOString().split("T")[0] })}
                             title="Record desertion (HR confirms final termination)"
-                            className="px-2 py-1 rounded-lg bg-red-600 text-white text-[9px] font-bold hover:bg-red-700 cursor-pointer transition-all"
+                            className="px-2 py-1 rounded-md bg-white text-red-600 border border-red-200 text-[10px] font-semibold hover:bg-red-50 cursor-pointer"
                           >
                             Desertion
                           </button>
@@ -290,8 +268,8 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
                     </div>
                   );
                 })}
-                {stageGuards.length > 4 && (
-                  <div className="text-[10px] text-slate-400 font-semibold">+{stageGuards.length - 4} more</div>
+                {stageGuards.length > 3 && (
+                  <div className="text-[10px] text-slate-500 font-medium px-1">+{stageGuards.length - 3} more</div>
                 )}
                   </>
                 )}
@@ -301,12 +279,11 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
         })}
       </div>
 
-      {/* Deserters registry strip */}
-      <div className={`rounded-xl border p-3 flex items-center justify-between gap-3 ${deserters.length > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"}`}>
+      <div className={`rounded-lg border p-3 flex items-center justify-between gap-3 ${deserters.length > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"}`}>
         <div className="flex items-center gap-2">
           <AlertTriangle className={`w-4 h-4 ${deserters.length > 0 ? "text-red-600" : "text-slate-400"}`} />
-          <span className="text-xs font-black text-slate-800">Deserters Registry</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${deserters.length > 0 ? "bg-red-600 text-white" : "bg-slate-200 text-slate-500"}`}>{deserters.length}</span>
+          <span className="text-xs font-bold text-slate-800">Deserters registry</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${deserters.length > 0 ? "bg-red-600 text-white" : "bg-slate-200 text-slate-500"}`}>{deserters.length}</span>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {deserters.length === 0 && <span className="text-[10px] text-slate-500 italic">No deserters recorded.</span>}
@@ -335,7 +312,7 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
                 <h3 className="text-base font-bold text-slate-900">Record Desertion</h3>
               </div>
               <p className="text-xs text-slate-500">
-                Recording <strong>{desertionDraft.guard.fullName}</strong> ({desertionDraft.guard.guardCode}) as deserted.
+                Recording <strong>{desertionDraft.guard.fullName}</strong> ({desertionDraft.guard.forceNumber}) as deserted.
                 Operations reports the desertion; the HR Manager retains final termination authority.
               </p>
               <div className="space-y-3">

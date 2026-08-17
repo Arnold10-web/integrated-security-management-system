@@ -11,6 +11,10 @@ import {
 
 type FleetTab = "register" | "trips" | "fuel" | "maintenance" | "drivers" | "inspections" | "breakdowns" | "gps" | "replacement" | "reports";
 
+interface FleetViewWithTabProps extends FleetViewProps {
+  initialTab?: FleetTab;
+}
+
 interface FleetViewProps {
   vehicles: Vehicle[];
   activeRole: UserRole;
@@ -34,7 +38,7 @@ interface FleetViewProps {
   onAddBreakdown: (b: Omit<FleetBreakdownEmergency, "id" | "incidentCode">) => void;
 }
 
-export const FleetView: React.FC<FleetViewProps> = ({
+export const FleetView: React.FC<FleetViewWithTabProps> = ({
   vehicles, activeRole, onAddVehicle,
   onUpdateVehicle: _onUpdateVehicle,
   onDeleteVehicle: _onDeleteVehicle,
@@ -42,10 +46,12 @@ export const FleetView: React.FC<FleetViewProps> = ({
   tripLogs, fuelLogs, maintenanceLogs, drivers, inspections, breakdowns,
   onAddTrip, onAddFuelLog, onAddMaintenanceLog, onAddDriver,
   onUpdateDriver: _onUpdateDriver, onApproveDriver, onAddInspection, onAddBreakdown,
+  initialTab,
 }) => {
   const canEditVehicles = activeRole === "Fleet Manager";
   const canLogFleet = canEditVehicles;
-  const [activeTab, setActiveTab] = useState<FleetTab>("register");
+  const [activeTab, setActiveTab] = useState<FleetTab>(initialTab ?? "register");
+  React.useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
   const [searchTerm, setSearchTerm] = useState("");
   const [localVehicles, setLocalVehicles] = useState<Vehicle[]>(vehicles);
 
@@ -384,15 +390,13 @@ export const FleetView: React.FC<FleetViewProps> = ({
         </div>
       </div>
 
-      <FleetKpiGrid totalVehicles={totalVehicles} operationalVehicles={operationalVehicles} totalFuelUgx={totalFuelUgx} fuelLogsLength={fuelLogs.length} inServiceVehicles={inServiceVehicles} maintenanceLogsLength={maintenanceLogs.length} />
+      {!initialTab && <FleetKpiGrid totalVehicles={totalVehicles} operationalVehicles={operationalVehicles} totalFuelUgx={totalFuelUgx} fuelLogsLength={fuelLogs.length} inServiceVehicles={inServiceVehicles} maintenanceLogsLength={maintenanceLogs.length} />}
 
-      <FleetDashboardPanel totalVehicles={totalVehicles} operationalVehicles={operationalVehicles} inServiceVehicles={inServiceVehicles} totalFuelUgx={totalFuelUgx} fuelLogsLength={fuelLogs.length} maintenanceLogsLength={maintenanceLogs.length} fleet30DayData={fleet30DayData} total30DayFuel={total30DayFuel} total30DayDistance={total30DayDistance} avg30DayEfficiency={avg30DayEfficiency} total30DayCost={total30DayCost} avgCostPerKm={avgCostPerKm} />
+      {!initialTab && <FleetDashboardPanel totalVehicles={totalVehicles} operationalVehicles={operationalVehicles} inServiceVehicles={inServiceVehicles} totalFuelUgx={totalFuelUgx} fuelLogsLength={fuelLogs.length} maintenanceLogsLength={maintenanceLogs.length} fleet30DayData={fleet30DayData} total30DayFuel={total30DayFuel} total30DayDistance={total30DayDistance} avg30DayEfficiency={avg30DayEfficiency} total30DayCost={total30DayCost} avgCostPerKm={avgCostPerKm} />}
 
-      <FleetAlertsPanel alerts={fleetAlerts} filter={fleetAlertFilter} onFilterChange={setFleetAlertFilter} collapsed={isAlertsCollapsed} onToggleCollapse={() => setIsAlertsCollapsed(!isAlertsCollapsed)} onDismiss={(id) => setDismissedFleetAlertIds((prev) => [...prev, id])} />
+      {!initialTab && <FleetAlertsPanel alerts={fleetAlerts} filter={fleetAlertFilter} onFilterChange={setFleetAlertFilter} collapsed={isAlertsCollapsed} onToggleCollapse={() => setIsAlertsCollapsed(!isAlertsCollapsed)} onDismiss={(id) => setDismissedFleetAlertIds((prev) => [...prev, id])} />}
 
-      <FleetTabNav activeTab={activeTab} onTabChange={setActiveTab} vehicleCount={vehicles.length} tripCount={tripLogs.length} fuelCount={fuelLogs.length} maintenanceCount={maintenanceLogs.length} driverCount={drivers.length} inspectionCount={inspections.length} breakdownCount={breakdowns.length} />
-
-      <FleetSearchBar activeTab={activeTab} searchTerm={searchTerm} onSearchChange={setSearchTerm}
+      {initialTab && <FleetSearchBar activeTab={activeTab} searchTerm={searchTerm} onSearchChange={setSearchTerm}
         canAdd={(["trips", "fuel", "maintenance"].includes(activeTab) ? canLogFleet : canEditVehicles)}
         onAddClick={() => {
         if (activeTab === "trips") setShowTripModal(true);
@@ -401,12 +405,12 @@ export const FleetView: React.FC<FleetViewProps> = ({
         else if (activeTab === "drivers") setShowDriverModal(true);
         else if (activeTab === "inspections") setShowInspectionModal(true);
         else if (activeTab === "breakdowns") setShowBreakdownModal(true);
-      }} />
+      }} />}
 
-      {activeTab === "register" && <FleetRegisterTab vehicles={vehicles} searchTerm={searchTerm} onLogFuel={canEditVehicles ? onLogFuel : undefined} onUpdateVehicle={canEditVehicles ? _onUpdateVehicle : undefined} onDeleteVehicle={canEditVehicles ? _onDeleteVehicle : undefined} />}
-      {activeTab === "trips" && <FleetTripsTab tripLogs={tripLogs} />}
-      {activeTab === "fuel" && <FleetFuelTab fuelLogs={fuelLogs} />}
-      {activeTab === "maintenance" && (
+      {initialTab && activeTab === "register" && <FleetRegisterTab vehicles={vehicles} searchTerm={searchTerm} onLogFuel={canEditVehicles ? onLogFuel : undefined} onUpdateVehicle={canEditVehicles ? _onUpdateVehicle : undefined} onDeleteVehicle={canEditVehicles ? _onDeleteVehicle : undefined} />}
+      {initialTab && activeTab === "trips" && <FleetTripsTab tripLogs={tripLogs} />}
+      {initialTab && activeTab === "fuel" && <FleetFuelTab fuelLogs={fuelLogs} />}
+      {initialTab && activeTab === "maintenance" && (
         <FleetMaintenancePanel vehicles={localVehicles} maintenanceLogs={maintenanceLogs} searchTerm={searchTerm} canManage={canLogFleet}
           onScheduleInterval={(vid) => { setTargetVehId(vid); setShowIntervalModal(true); }}
           onLogOilChange={(vid, km) => { setTargetVehId(vid); if (km > 0) setOilChangeKmInput(km); setShowOilModal(true); }}
@@ -414,11 +418,11 @@ export const FleetView: React.FC<FleetViewProps> = ({
           onNewWorkOrder={(vid) => { if (vid) setSelectedVehicleId(vid); setShowMaintModal(true); }}
           onAdjustSchedule={(vid, ikm, tkm) => { setTargetVehId(vid); setIntervalKmInput(ikm); setTargetServiceKmInput(tkm); setShowIntervalModal(true); }} />
       )}
-      {activeTab === "drivers" && <FleetDriversTab drivers={drivers} activeRole={activeRole} onApproveDriver={onApproveDriver} />}
-      {activeTab === "inspections" && <FleetInspectionsTab dailyInspections={inspections} />}
-      {activeTab === "breakdowns" && <FleetBreakdownsTab breakdowns={breakdowns} />}
-      {activeTab === "gps" && <FleetGpsTab vehicles={vehicles} />}
-      {activeTab === "replacement" && <FleetReplacementTab vehicles={vehicles} />}
+      {initialTab && activeTab === "drivers" && <FleetDriversTab drivers={drivers} activeRole={activeRole} onApproveDriver={onApproveDriver} />}
+      {initialTab && activeTab === "inspections" && <FleetInspectionsTab dailyInspections={inspections} />}
+      {initialTab && activeTab === "breakdowns" && <FleetBreakdownsTab breakdowns={breakdowns} />}
+      {initialTab && activeTab === "gps" && <FleetGpsTab vehicles={vehicles} />}
+      {initialTab && activeTab === "replacement" && <FleetReplacementTab vehicles={vehicles} />}
 
       <FleetModalsPanel showAddVehicleModal={showAddVehicleModal} setShowAddVehicleModal={setShowAddVehicleModal} showTripModal={showTripModal} setShowTripModal={setShowTripModal} showFuelModal={showFuelModal} setShowFuelModal={setShowFuelModal} showMaintModal={showMaintModal} setShowMaintModal={setShowMaintModal} showDriverModal={showDriverModal} setShowDriverModal={setShowDriverModal} showInspectionModal={showInspectionModal} setShowInspectionModal={setShowInspectionModal} showBreakdownModal={showBreakdownModal} setShowBreakdownModal={setShowBreakdownModal} showIntervalModal={showIntervalModal} setShowIntervalModal={setShowIntervalModal} showOilModal={showOilModal} setShowOilModal={setShowOilModal} showTyreModal={showTyreModal} setShowTyreModal={setShowTyreModal} handleAddVehicleSubmit={handleAddVehicleSubmit} handleAddTripSubmit={handleAddTripSubmit} handleAddFuelSubmit={handleAddFuelSubmit} handleAddMaintSubmit={handleAddMaintSubmit} handleAddDriverSubmit={handleAddDriverSubmit} handleAddInspectionSubmit={handleAddInspectionSubmit} handleAddBreakdownSubmit={handleAddBreakdownSubmit} handleScheduleIntervalSubmit={handleScheduleIntervalSubmit} handleLogOilChangeSubmit={handleLogOilChangeSubmit} handleLogTyreCheckSubmit={handleLogTyreCheckSubmit} vehicles={vehicles} localVehicles={localVehicles} plateNumber={plateNumber} setPlateNumber={setPlateNumber} vehicleType={vehicleType} setVehicleType={setVehicleType} makeModel={makeModel} setMakeModel={setMakeModel} driverAssigned={driverAssigned} setDriverAssigned={setDriverAssigned} deploymentBranch={deploymentBranch} setDeploymentBranch={setDeploymentBranch} selectedVehicleId={selectedVehicleId} setSelectedVehicleId={setSelectedVehicleId} tripDriver={tripDriver} setTripDriver={setTripDriver} tripDestination={tripDestination} setTripDestination={setTripDestination} tripPurpose={tripPurpose} setTripPurpose={setTripPurpose} startMileage={startMileage} setStartMileage={setStartMileage} fuelLitres={fuelLitres} setFuelLitres={setFuelLitres} fuelCost={fuelCost} setFuelCost={setFuelCost} stationName={stationName} setStationName={setStationName} maintType={maintType} setMaintType={setMaintType} maintDesc={maintDesc} setMaintDesc={setMaintDesc} workshop={workshop} setWorkshop={setWorkshop} driverName={driverName} setDriverName={setDriverName} licenceNo={licenceNo} setLicenceNo={setLicenceNo} licenceClass={licenceClass} setLicenceClass={setLicenceClass} driverRoleType={driverRoleType} setDriverRoleType={setDriverRoleType} inspectVehicle={inspectVehicle} setInspectVehicle={setInspectVehicle} brakesCheck={brakesCheck} setBrakesCheck={setBrakesCheck} tyresCheck={tyresCheck} setTyresCheck={setTyresCheck} defectsNoted={defectsNoted} setDefectsNoted={setDefectsNoted} breakdownVehicle={breakdownVehicle} setBreakdownVehicle={setBreakdownVehicle} breakdownLocation={breakdownLocation} setBreakdownLocation={setBreakdownLocation} issueType={issueType} setIssueType={setIssueType} breakdownDesc={breakdownDesc} setBreakdownDesc={setBreakdownDesc} targetVehId={targetVehId} setTargetVehId={setTargetVehId} intervalKmInput={intervalKmInput} setIntervalKmInput={setIntervalKmInput} targetServiceKmInput={targetServiceKmInput} setTargetServiceKmInput={setTargetServiceKmInput} targetWorkshopInput={targetWorkshopInput} setTargetWorkshopInput={setTargetWorkshopInput} targetScopeInput={targetScopeInput} setTargetScopeInput={setTargetScopeInput} oilChangeKmInput={oilChangeKmInput} setOilChangeKmInput={setOilChangeKmInput} oilGradeInput={oilGradeInput} setOilGradeInput={setOilGradeInput} oilCostUgxInput={oilCostUgxInput} setOilCostUgxInput={setOilCostUgxInput} tyreTreadMmInput={tyreTreadMmInput} setTyreTreadMmInput={setTyreTreadMmInput} tyrePressurePsiInput={tyrePressurePsiInput} setTyrePressurePsiInput={setTyrePressurePsiInput} tyreNotesInput={tyreNotesInput} setTyreNotesInput={setTyreNotesInput} />
     </div>

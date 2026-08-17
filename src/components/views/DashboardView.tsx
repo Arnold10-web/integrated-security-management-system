@@ -75,8 +75,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Client Sites */}
       <DashboardClientSitesList sites={sites} onNavigate={onNavigate} />
 
-      {/* Security Event Summary */}
-      <DashboardAuditLog auditLogs={auditLogs} />
+      {/* Security Event Summary — hidden for GM/Director executive view */}
+      {activeRole !== "General Manager" && activeRole !== "Director" && (
+        <DashboardAuditLog auditLogs={auditLogs} />
+      )}
     </div>
   );
 };

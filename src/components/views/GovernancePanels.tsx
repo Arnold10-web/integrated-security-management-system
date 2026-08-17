@@ -3,10 +3,10 @@
  *  - Complaints (Marketing-owned, resolve mirrors rating to ClientSite)
  *  - Disciplinary chain (IO -> Regional Manager -> Ops Manager -> HR Manager)
  *  - Deployments (Ops Manager / Regional Manager hand-off)
- *  - Campaign budget approvals (FM -> GM for >10M UGX)
+ *  - Campaign budget approvals (Marketing proposes -> General Manager sole approval, no threshold)
  *  - Guard availability by region (Marketing read-only aggregate)
  *  - Guard lifecycle (Ops/RM/HR) + ID issuance (Records Officer)
- *  - Expense approval chain (FM -> GM for >10M UGX)
+ *  - Expense approval chain (any staff submits -> General Manager sole approval, no threshold)
  */
 
 import React, { useState } from "react";
@@ -16,7 +16,6 @@ import { useDomainStore } from "../../stores/domainStore";
 import type { DisciplinaryAction, UserRole } from "../../types";
 import { DESERTION_REPORTING_ROLES, MARKETING_ROLES, isRoleIn } from "../../services/rbacService";
 
-const FINANCE_MANAGER: UserRole = "Finance Manager";
 const GENERAL_MANAGER: UserRole = "General Manager";
 const INVESTIGATIONS_OFFICER: UserRole = "Investigations Officer";
 const RECORDS_OFFICER: UserRole = "Records Officer";
@@ -257,7 +256,7 @@ export const DisciplinaryPanel: React.FC = () => {
       actionCode: `DISC-${Date.now()}`,
       guardId,
       guardName: g.fullName,
-      guardCode: g.guardCode,
+      forceNumber: g.forceNumber,
       actionType,
       reason: reason || offence || "Disciplinary grounds recorded on charge sheet.",
       severity: severity as DisciplinaryAction["severity"],
@@ -289,7 +288,7 @@ export const DisciplinaryPanel: React.FC = () => {
           <div className="grid grid-cols-2 gap-3">
             <select className={inputCls} value={guardId} onChange={(e) => setGuardId(e.target.value)} required>
               <option value="">Select Guard...</option>
-              {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.guardCode})</option>)}
+              {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber})</option>)}
             </select>
             <select className={inputCls} value={actionType} onChange={(e) => setActionType(e.target.value as DisciplinaryAction["actionType"])}>
               <option>Warning Letter</option>
@@ -344,9 +343,11 @@ export const DisciplinaryPanel: React.FC = () => {
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-black text-xs text-slate-900">{a.guardName}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">{a.guardCode}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">{a.forceNumber}</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 border border-red-500/30 font-bold uppercase">{a.actionType}</span>
                   {statusBadge(a.status)}
+                  {a.linkedIncidentCode && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/30 font-mono font-bold">Incident {a.linkedIncidentCode}</span>}
+                  {a.initiatedBy && <span className="text-[10px] text-slate-500 font-semibold">by {a.initiatedBy}</span>}
                 </div>
               </div>
               <p className="text-[11px] text-slate-600 mt-1">{a.reason}</p>
@@ -559,7 +560,7 @@ export const DeploymentsPanel: React.FC = () => {
                           return (
                             <label key={g.id} className={`flex items-center gap-2 p-2 rounded-lg border text-xs ${atCap ? "border-slate-200 opacity-40 cursor-not-allowed" : "border-slate-200 cursor-pointer hover:bg-slate-50"}`}>
                               <input type="checkbox" checked={selectedGuards.includes(g.id)} disabled={atCap} onChange={() => toggleGuard(g.id, o.requiredHeadcount)} />
-                              <span className="truncate">{g.fullName} <span className="text-slate-400">({g.guardCode})</span></span>
+                              <span className="truncate">{g.fullName} <span className="text-slate-400">({g.forceNumber})</span></span>
                             </label>
                           );
                         })}
@@ -615,25 +616,23 @@ export const DeploymentsPanel: React.FC = () => {
 export const CampaignBudgetPanel: React.FC = () => {
   const campaigns = useDomainStore((s) => s.campaigns);
   const approveCampaignBudget = useDomainStore((s) => s.approveCampaignBudget);
-  const gmApproveCampaignBudget = useDomainStore((s) => s.gmApproveCampaignBudget);
   const currentUser = useAuthStore((s) => s.currentUser);
   const role = currentUser?.role;
 
-  const isFM = role === FINANCE_MANAGER;
   const isGM = role === GENERAL_MANAGER;
 
-  const pending = campaigns.filter((c) => c.budgetStatus === "Pending Finance Approval" || c.budgetStatus === "Pending GM Approval");
+  const pending = campaigns.filter((c) => c.budgetStatus === "Pending Approval" || !c.budgetStatus);
 
   return (
     <div className={card}>
       <div className="flex items-center justify-between mb-4">
-        <SectionTitle icon={BadgeCheck} title="Campaign Budget Approvals" sub="Finance Manager approves; budgets >10M UGX additionally require GM final approval" />
+        <SectionTitle icon={BadgeCheck} title="Campaign Budget Approvals" sub="Marketing proposes → General Manager sole approval, no threshold." />
       </div>
       {pending.length === 0 ? (
         <p className="text-xs text-slate-400 py-4 text-center">No campaigns pending budget approval.</p>
       ) : (
         <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-          {campaigns.filter((c) => c.budgetStatus && c.budgetStatus !== "Approved").map((c) => (
+          {pending.map((c) => (
             <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -643,11 +642,8 @@ export const CampaignBudgetPanel: React.FC = () => {
                 <p className="text-[11px] text-slate-500 mt-0.5">{c.channel} · UGX {c.budget.toLocaleString()} · {c.leadsGenerated} leads · proposed by {c.proposedBy ?? "—"}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                {c.budgetStatus === "Pending Finance Approval" && isFM && (
+                {isGM && (
                   <button className={btn("success", true)} onClick={() => approveCampaignBudget(c.id)}>Approve Budget</button>
-                )}
-                {c.budgetStatus === "Pending GM Approval" && isGM && (
-                  <button className={btn("success", true)} onClick={() => gmApproveCampaignBudget(c.id)}>GM Final Approve</button>
                 )}
               </div>
             </div>
@@ -746,7 +742,7 @@ export const GuardLifecyclePanel: React.FC = () => {
       <form onSubmit={submit} className="space-y-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
         <select className={inputCls} value={guardId} onChange={(e) => setGuardId(e.target.value)} required>
           <option value="">Select guard...</option>
-          {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.guardCode}) — {g.lifecycleStage ?? "n/a"}</option>)}
+          {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber}) — {g.lifecycleStage ?? "n/a"}</option>)}
         </select>
 
         {canMove && action === "stage" && (
@@ -802,19 +798,17 @@ export const GuardLifecyclePanel: React.FC = () => {
 export const ExpenseApprovalPanel: React.FC = () => {
   const expenses = useDomainStore((s) => s.expenses);
   const approveExpense = useDomainStore((s) => s.approveExpense);
-  const gmApproveExpense = useDomainStore((s) => s.gmApproveExpense);
   const rejectExpense = useDomainStore((s) => s.rejectExpense);
   const currentUser = useAuthStore((s) => s.currentUser);
   const role = currentUser?.role;
 
-  const isFM = role === FINANCE_MANAGER;
   const isGM = role === GENERAL_MANAGER;
 
-  const pending = expenses.filter((e) => e.status === "Pending" || e.status === "Pending GM Approval");
+  const pending = expenses.filter((e) => e.status === "Pending");
 
   return (
     <div className={card}>
-      <div className="mb-4"><SectionTitle icon={CreditCard} title="Expense Approval Chain" sub="Accountant submits → Finance Manager approves → GM final for >10M UGX" /></div>
+      <div className="mb-4"><SectionTitle icon={CreditCard} title="Expense Approval Chain" sub="Any staff submits → General Manager sole approval, no threshold." /></div>
       {pending.length === 0 ? (
         <p className="text-xs text-slate-400 py-4 text-center">No expenses awaiting approval.</p>
       ) : (
@@ -829,18 +823,12 @@ export const ExpenseApprovalPanel: React.FC = () => {
                 <p className="text-[11px] text-slate-500 mt-0.5">{e.category} · UGX {e.amount.toLocaleString()} · submitted by {e.submittedBy ?? "—"}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                {e.status === "Pending" && isFM && (
+                {isGM && (
                   <>
                     <button className={btn("success", true)} onClick={() => approveExpense(e.id)}>Approve</button>
                     <button className={btn("danger", true)} onClick={() => rejectExpense(e.id)}>Reject</button>
                   </>
                 )}
-          {e.status === "Pending GM Approval" && isGM && (
-            <>
-              <button className={btn("success", true)} onClick={() => gmApproveExpense(e.id)}>GM Approve</button>
-              <button className={btn("danger", true)} onClick={() => rejectExpense(e.id)}>Reject</button>
-            </>
-          )}
         </div>
       </div>
           ))}

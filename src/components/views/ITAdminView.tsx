@@ -4,10 +4,11 @@ import { AuditLog, User, UserRole, CustomRoleDefinition, Guard, ITServer, ITSupp
 import { initialITAssets } from "../../data/mockData";
 import { UserRolesView } from "./UserRolesView";
 import { AuditLogsView } from "./AuditLogsView";
-import { SystemMaintenancePanel, AutomationEnginePanel, IdentityCardPanel, ITAssetPanel, ITAdminTabNav, ITAdminUsersToolbar } from "../organisms";
+import { ActingRequestsITQueue } from "./ActingRequestsITQueue";
+import { SystemMaintenancePanel, AutomationEnginePanel, IdentityCardPanel, ITAssetPanel, ITAdminTabNav, ITAdminUsersToolbar, DeviceSessionsPanel } from "../organisms";
 import { AddAssetModal, AddUserModal, ActingPrivilegeModal, EditUserModal, IdentityCardPrintModal, PermissionOverridesModal, ProvisionUserModal, RegionalOfficesGrid, ServerHealthGrid, UserTable } from "../organisms";
 
-type SubTab = "users" | "id_cards" | "roles" | "it_assets" | "regions" | "servers" | "audit" | "automation" | "maintenance";
+type SubTab = "users" | "id_cards" | "roles" | "it_assets" | "regions" | "servers" | "devices" | "audit" | "automation" | "maintenance";
 
 interface ITAdminViewProps {
   users: User[]; customRoles: CustomRoleDefinition[]; servers: ITServer[]; tickets: ITSupportTicket[];
@@ -20,7 +21,6 @@ interface ITAdminViewProps {
   onUpdateITAsset?: (assetId: string, updates: Partial<ITAsset>) => void;
   onDeleteITAsset?: (assetId: string) => void; onUpdateGuard?: (guardId: string, updates: Partial<Guard>) => void;
   onTriggerWalkthroughForUser?: (user: User) => void;
-  onGrantActingPrivilege?: (userId: string, actingRole: UserRole, expiresAt: string) => Promise<void>;
   onRevokeActingPrivilege?: (userId: string) => Promise<void>;
   onAddRegion?: (r: Omit<RegionalOffice, "id">) => void;  onUpdateRegion?: (id: string, updates: Partial<RegionalOffice>) => void;
   onDeleteRegion?: (id: string) => void;
@@ -35,7 +35,7 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
   users, guards = [], customRoles, servers, tickets, itAssets = initialITAssets, auditLogs, activeRole,
   regions, onRoleChange, onAddUser, onUpdateUser, onDeleteUser, onToggleSuspendUser, onAddCustomRole,
   onDeleteCustomRole, onAddITAsset, onUpdateITAsset, onDeleteITAsset, onUpdateGuard, onTriggerWalkthroughForUser,
-  onGrantActingPrivilege, onRevokeActingPrivilege,
+  onRevokeActingPrivilege,
   onAddRegion, onUpdateRegion, onDeleteRegion, onUpdateServer, onDeleteServer,
   onAddTicket, onUpdateTicket, onDeleteTicket,
 }) => {
@@ -157,6 +157,7 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
 
       {subTab === "users" && (
         <div className="space-y-6">
+          <ActingRequestsITQueue />
           <ITAdminUsersToolbar searchQuery={searchQuery} onSearchChange={setSearchQuery} filterDept={filterDept} onFilterDeptChange={setFilterDept} filterRegion={filterRegion} onFilterRegionChange={setFilterRegion} />
           <UserTable users={filteredUsers} onEdit={(u) => setEditingUser(u)} onToggleSuspend={onToggleSuspendUser} onDelete={onDeleteUser} onTriggerWalkthrough={onTriggerWalkthroughForUser} onEditPermissions={(u) => setPermissionsUser(u)} onManageActing={(u) => setActingUser(u)} />
         </div>
@@ -172,6 +173,7 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
       )}
       {subTab === "regions" && <RegionalOfficesGrid offices={regions} users={users} isITOfficer={activeRole === "IT Officer"} onAddRegion={onAddRegion} onUpdateRegion={onUpdateRegion} onDeleteRegion={onDeleteRegion} />}
       {subTab === "servers" && <ServerHealthGrid servers={servers} tickets={tickets} onUpdateServer={onUpdateServer} onDeleteServer={onDeleteServer} onAddTicket={onAddTicket} onUpdateTicket={onUpdateTicket} onDeleteTicket={onDeleteTicket} />}
+      {subTab === "devices" && <DeviceSessionsPanel />}
       {subTab === "audit" && <AuditLogsView logs={auditLogs} />}
       {subTab === "automation" && (
         <AutomationEnginePanel scanOutput={scanOutput} isScanning={isScanning} backupStatus={backupStatus} dormantAuditOutput={dormantAuditOutput} slaEscalationMsg={slaEscalationMsg} selectedResetUser={selectedResetUser} generatedResetToken={generatedResetToken} copiedToken={copiedToken} automationLogs={automationLogs} users={users} onRunVulnerabilityScan={handleRunVulnerabilityScan} onRunBackup={handleRunBackup} onRunDormantAudit={handleRunDormantAudit} onRunSLAEscalation={handleRunSLAEscalation} onGenerateResetToken={handleGenerateResetToken} onSetSelectedResetUser={setSelectedResetUser} onSetCopiedToken={setCopiedToken} />
@@ -184,9 +186,8 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
       <AddUserModal show={showAddUserModal} onClose={() => setShowAddUserModal(false)} onSubmit={(user) => { onAddUser(user); setShowAddUserModal(false); }} />
       <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSubmit={(userId, updates) => { onUpdateUser(userId, updates); setEditingUser(null); }} />
       <PermissionOverridesModal user={permissionsUser} onClose={() => setPermissionsUser(null)} onSubmit={(userId, updates) => { onUpdateUser(userId, updates); setPermissionsUser(null); }} />
-      <ActingPrivilegeModal user={actingUser} onClose={() => setActingUser(null)} onGrant={async (userId, actingRole, expiresAt) => { if (onGrantActingPrivilege) await onGrantActingPrivilege(userId, actingRole, expiresAt); }} onRevoke={async (userId) => { if (onRevokeActingPrivilege) await onRevokeActingPrivilege(userId); }} />
-      <IdentityCardPrintModal show={showPrintModal} guard={selectedGuardForCard} onClose={() => { setShowPrintModal(false); setSelectedGuardForCard(null); }} onUpdateGuard={onUpdateGuard} readOnly />
-      <ProvisionUserModal guard={showProvisionUserForGuard} onClose={() => setShowProvisionUserForGuard(null)} onAddUser={onAddUser} onUpdateGuard={onUpdateGuard} />
+      <ActingPrivilegeModal user={actingUser} onClose={() => setActingUser(null)} onRevoke={async (userId) => { if (onRevokeActingPrivilege) await onRevokeActingPrivilege(userId); }} />
+      <IdentityCardPrintModal show={showPrintModal} guard={selectedGuardForCard} onClose={() => { setShowPrintModal(false); setSelectedGuardForCard(null); }} onUpdateGuard={onUpdateGuard} readOnly />      <ProvisionUserModal guard={showProvisionUserForGuard} onClose={() => setShowProvisionUserForGuard(null)} onAddUser={onAddUser} onUpdateGuard={onUpdateGuard} />
     </div>
   );
 };

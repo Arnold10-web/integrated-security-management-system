@@ -37,42 +37,32 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
 }) => {
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-5 rounded-2xl border border-slate-700/80 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 mb-2">
-            <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{readOnly ? "IT VERIFICATION • OFFICIAL PERSONNEL IDENTITY CARDS" : "RECORDS OFFICE • OFFICIAL PERSONNEL IDENTITY CARDS"}</span>
+      {readOnly && (
+        <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-5 rounded-2xl border border-slate-700/80 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 mb-2">
+              <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
+              <span>IT VERIFICATION • OFFICIAL PERSONNEL IDENTITY CARDS</span>
+            </div>
+            <h3 className="text-base font-extrabold text-white">Identity Card Verification & Status View</h3>
+            <p className="text-xs text-slate-300 mt-1 max-w-3xl">Read-only verification: confirm a card is genuine by checking the issued card number, holder photo, and holder & issuer signatures before accepting it as authentic.</p>
           </div>
-          <h3 className="text-base font-extrabold text-white">
-            {readOnly ? "Identity Card Verification & Status View" : "Employee Identity Card Issuance & Printing"}
-          </h3>
-          <p className="text-xs text-slate-300 mt-1 max-w-3xl">
-            {readOnly
-              ? "Read-only verification: confirm a card is genuine by checking the issued card number, holder photo, and holder & issuer signatures before accepting it as authentic."
-              : "After HR recruits and approves an employee, the Records Officer verifies their biodata, captures the holder photo and signature, records the issuer signature, and prints the high-security PVC Identity Card."}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="bg-slate-800/90 border border-slate-700 p-3 rounded-xl text-center min-w-[100px]">
-            <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Roster</span>
-            <span className="text-lg font-black text-white">{guards.length}</span>
-          </div>
-          <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center min-w-[100px]">
-            <span className="text-[10px] text-amber-300 font-bold uppercase block">Pending ID</span>
-            <span className="text-lg font-black text-amber-400">
-              {guards.filter((g) => g.idCardStatus === "Pending Records Issuance" || !g.idCardStatus).length}
-            </span>
-          </div>
-          <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl text-center min-w-[100px]">
-            <span className="text-[10px] text-emerald-300 font-bold uppercase block">Active Cards</span>
-            <span className="text-lg font-black text-emerald-400">
-              {guards.filter((g) => g.idCardStatus === "Issued & Active").length}
-            </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="bg-slate-800/90 border border-slate-700 p-3 rounded-xl text-center min-w-[100px]">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Roster</span>
+              <span className="text-lg font-black text-white">{guards.length}</span>
+            </div>
+            <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center min-w-[100px]">
+              <span className="text-[10px] text-amber-300 font-bold uppercase block">Pending ID</span>
+              <span className="text-lg font-black text-amber-400">{guards.filter((g) => g.idCardStatus === "Pending Records Issuance" || g.idCardStatus === "Reissue Required" || !g.idCardStatus).length}</span>
+            </div>
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl text-center min-w-[100px]">
+              <span className="text-[10px] text-emerald-300 font-bold uppercase block">Active Cards</span>
+              <span className="text-lg font-black text-emerald-400">{guards.filter((g) => g.idCardStatus === "Issued & Active").length}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Filter & Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -90,7 +80,7 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
                 }`}
               >
                 {filter === "ALL" && `All Personnel (${guards.length})`}
-                {filter === "PENDING" && `Pending Records Issuance (${guards.filter((g) => g.idCardStatus === "Pending Records Issuance" || !g.idCardStatus).length})`}
+                {filter === "PENDING" && `Pending Records Issuance (${guards.filter((g) => g.idCardStatus === "Pending Records Issuance" || g.idCardStatus === "Reissue Required" || !g.idCardStatus).length})`}
                 {filter === "ISSUED" && `Issued & Active (${guards.filter((g) => g.idCardStatus === "Issued & Active").length})`}
                 {filter === "REVOKED" && `Revoked / Suspended (${guards.filter((g) => g.idCardStatus === "Revoked").length})`}
               </button>
@@ -118,14 +108,14 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
             <span>Personnel Roster & Identity Card Status</span>
           </h4>          <span className="text-xs font-bold text-slate-500">
             Showing {guards.filter((g) => {
-              if (idCardFilter === "PENDING" && g.idCardStatus !== "Pending Records Issuance" && g.idCardStatus) return false;
+              if (idCardFilter === "PENDING" && g.idCardStatus !== "Pending Records Issuance" && g.idCardStatus !== "Reissue Required" && g.idCardStatus) return false;
               if (idCardFilter === "ISSUED" && g.idCardStatus !== "Issued & Active") return false;
               if (idCardFilter === "REVOKED" && g.idCardStatus !== "Revoked") return false;
               if (idCardSearch) {
                 const query = idCardSearch.toLowerCase();
                 return (
                   g.fullName.toLowerCase().includes(query) ||
-                  g.guardCode.toLowerCase().includes(query) ||
+                  g.forceNumber.toLowerCase().includes(query) ||
                   g.nationalId.toLowerCase().includes(query) ||
                       g.designation.toLowerCase().includes(query)
                 );
@@ -151,14 +141,14 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
             <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
               {guards
                 .filter((g) => {
-                  if (idCardFilter === "PENDING" && g.idCardStatus !== "Pending Records Issuance" && g.idCardStatus) return false;
+                  if (idCardFilter === "PENDING" && g.idCardStatus !== "Pending Records Issuance" && g.idCardStatus !== "Reissue Required" && g.idCardStatus) return false;
                   if (idCardFilter === "ISSUED" && g.idCardStatus !== "Issued & Active") return false;
                   if (idCardFilter === "REVOKED" && g.idCardStatus !== "Revoked") return false;
                   if (idCardSearch) {
                     const query = idCardSearch.toLowerCase();
                     return (
                       g.fullName.toLowerCase().includes(query) ||
-                      g.guardCode.toLowerCase().includes(query) ||
+                      g.forceNumber.toLowerCase().includes(query) ||
                       g.nationalId.toLowerCase().includes(query) ||
                   g.designation.toLowerCase().includes(query)
                     );
@@ -168,6 +158,7 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
                 .map((guard) => {
                   const isIssued = guard.idCardStatus === "Issued & Active";
                   const isRevoked = guard.idCardStatus === "Revoked";
+                  const isReissue = guard.idCardStatus === "Reissue Required";
                   return (
                     <tr key={guard.id} className="hover:bg-slate-50 transition-colors">
                       <td className="p-3.5">
@@ -188,7 +179,7 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
 
                       <td className="p-3.5">
                         <span className="font-mono font-black text-cyan-800 bg-cyan-50 border border-cyan-200 px-2 py-1 rounded-lg text-xs">
-                          {guard.guardCode}
+                          {guard.forceNumber}
                         </span>
                       </td>
 
@@ -209,13 +200,18 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
                               <span>Issued & Active</span>
                             </span>
                             <span className="text-[10px] text-slate-500 font-mono block">
-                              {guard.idCardNumber || `ID-UG-2026-${guard.guardCode.replace(/\D/g, "")}`}
+                              {guard.idCardNumber || `ID-UG-2026-${guard.forceNumber.replace(/\D/g, "")}`}
                             </span>
                           </div>
                         ) : isRevoked ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300">
                             <AlertTriangle className="w-3 h-3 text-rose-600" />
                             <span>Revoked / Suspended</span>
+                          </span>
+                        ) : isReissue ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-300">
+                            <Clock className="w-3 h-3 text-orange-600" />
+                            <span>Reissue Required</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">

@@ -50,6 +50,65 @@ export interface User {
   actingExpiresAt?: string;
   actingGrantedBy?: string;
   actingGrantedAt?: string;
+  // Staff identity card (plastic) — mirrors the guard paper-ID lifecycle.
+  idCardStatus?: string;
+  idCardNumber?: string;
+  idCardIssuedDate?: string;
+  idCardExpiryDate?: string;
+  idCardIssuerName?: string;
+  idCardIssuerSignatureUrl?: string;
+  // Staff biodata — captured the same way as guard biodata (§HR personnel).
+  photoUrl?: string;
+  signatureUrl?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  maritalStatus?: string;
+  educationLevel?: string;
+  motherName?: string;
+  motherPhone?: string;
+  fatherName?: string;
+  fatherPhone?: string;
+  nextOfKinName?: string;
+  nextOfKinRelationship?: string;
+  nextOfKinPhone?: string;
+  nextOfKinResidence?: string;
+  relativesOrReferees?: string;
+  residenceDistrict?: string;
+  residenceSubCounty?: string;
+  residenceParish?: string;
+  residenceVillage?: string;
+  lc1Chairperson?: string;
+  lc1Contact?: string;
+  physicalAddress?: string;
+  emergencyContactPhone?: string;
+  surnameAtBirth?: string;
+  nationality?: string;
+  tribe?: string;
+  placeOfBirth?: string;
+  lc2Chairperson?: string;
+  closeRelatives?: string[];
+  neighbours?: string[];
+  fatherAlive?: boolean;
+  fatherResidence?: string;
+}
+
+/** §11 — HR-initiated acting-privilege request, executed by the IT Officer.
+ *  Who needs coverage, for which role, why, until when (requestedBy) and the
+ *  IT officer who carried out the grant (grantedBy). */
+export interface ActingPrivilegeRequest {
+  id: string;
+  targetUserId: string;
+  targetName: string;
+  actingRole: UserRole;
+  reason: string;
+  expiresAt: string;
+  status: "Pending" | "Granted" | "Denied" | "Cancelled";
+  requestedById: string;
+  requestedByName: string;
+  grantedById?: string | null;
+  grantedByName?: string | null;
+  grantedAt?: string | null;
+  createdAt: string;
 }
 
 export interface RegionalOffice {
@@ -104,7 +163,7 @@ export type GuardLifecycleStage =
 
 export interface Guard {
   id: string;
-  guardCode: string; // FORCE/NO (Unique Force Number)
+  forceNumber: string; // FORCE/NO (Unique Force Number — canonical identifier for guards and all staff)
   fullName: string; // NAME
   photoUrl?: string; // Personnel Passport Photo / Biodata Image
   signatureUrl?: string; // ID holder's captured signature (signature pad)
@@ -133,7 +192,7 @@ export interface Guard {
   certifications: string[];
 
   // IT ID Card Issuance & System Account Tracking
-  idCardStatus?: "Pending Records Issuance" | "Issued & Active" | "Revoked" | "Expired";
+  idCardStatus?: "Pending Records Issuance" | "Issued & Active" | "Revoked" | "Expired" | "Reissue Required";
   idCardNumber?: string; // e.g. IDC-2026-SG001
   idCardIssuedDate?: string;
   idCardExpiryDate?: string;
@@ -214,16 +273,16 @@ export interface LeaveRequest {
   id: string;
   guardId: string;
   guardName: string;
-  guardCode: string;
+  forceNumber: string;
   leaveType: "Annual Leave" | "Sick Leave" | "Emergency Leave" | "Maternity/Paternity" | "Compassionate Leave" | "Unpaid Leave" | "Paternity Leave" | "Maternity Leave" | "Compensatory Leave" | "Study Leave";
   startDate: string;
   endDate: string;
   durationDays: number;
   reason: string;
   reliefGuardName?: string;
-  reliefGuardCode?: string;
+  reliefForceNumber?: string;
   appliedDate: string;
-  status: "Approved" | "Pending HR Review" | "Pending Regional Approval" | "Pending Ops Approval" | "Pending GM Approval" | "Rejected" | "Completed";
+  status: "Approved" | "Pending HR Approval" | "Pending GM Approval" | "Rejected" | "Completed";
   approvedBy?: string;
   notes?: string;
   contactAddress?: string;
@@ -232,13 +291,15 @@ export interface LeaveRequest {
   balance?: number;
   resumptionDate?: string;
   gmApprovedBy?: string;
+  approvalId?: string;
+  requestedByRole?: string;
 }
 
 export interface StaffAppraisal {
   id: string;
   guardId: string;
   guardName: string;
-  guardCode: string;
+  forceNumber: string;
   designation: string;
   siteName: string;
   reviewPeriod: "Q1 2026" | "Mid-Year 2026" | "Q3 2026" | "Annual 2026" | "Annual 2025" | "Annual 2027";
@@ -326,7 +387,7 @@ export interface ContractRecord {
   approvedBy?: string;
   approvedAt?: string;
   approvalStep?: string;
-  relatedGuardCode?: string;
+  relatedForceNumber?: string;
   relatedSiteName?: string;
   voidReason?: string;
   siteSurvey?: string;
@@ -496,6 +557,82 @@ export interface FuelRequisitionLog {
   reconciled: boolean;
 }
 
+export interface TransportRequest {
+  id: string;
+  requestCode: string;
+  requestedBy: string;
+  requestedByName: string;
+  requesterDepartment: string;
+  destination: string;
+  purpose: string;
+  travelDate: string;
+  travelTime?: string;
+  returnTime?: string;
+  vehicleType: "Car" | "Motorcycle" | "Any";
+  passengersCount: number;
+  status: "Pending Fleet" | "Approved" | "Declined";
+  assignedVehicleId?: string;
+  assignedVehicle?: string;
+  assignedDriverId?: string;
+  assignedDriver?: string;
+  assignedRiderId?: string;
+  assignedRider?: string;
+  declinedReason?: string;
+  actedBy?: string;
+  actedAt?: string;
+  approvalId?: string;
+}
+
+export type SiteSurveyStatus = "Requested" | "In Progress" | "Completed" | "Cancelled";
+
+export interface SiteSurvey {
+  id: string;
+  surveyCode: string;
+  clientName: string;
+  siteName: string;
+  region?: string;
+  status: SiteSurveyStatus;
+  requestedBy: string;
+  requestedByName: string;
+  requestedDepartment: string;
+  surveyedBy?: string;
+  premisesType?: string;
+  perimeterStatus?: string;
+  entryPoints?: number;
+  riskLevel?: string;
+  highValueAssets?: string;
+  dayGuardsNeeded?: number;
+  nightGuardsNeeded?: number;
+  armedDay?: boolean;
+  armedNight?: boolean;
+  equipmentNeeded?: string;
+  k9Required?: boolean;
+  patrolVehicleRequired?: boolean;
+  accessHours?: string;
+  recommendation?: string;
+  notes?: string;
+  reportPath?: string;
+  createdAt?: string;
+}
+
+export interface ContractInquiry {
+  id: string;
+  inquiryCode: string;
+  requestedBy: string;
+  requestedByName: string;
+  requesterDepartment: string;
+  clientName: string;
+  siteName?: string;
+  searchHints?: string;
+  purpose: "Confirmation" | "Full Copy";
+  status: "Pending" | "Answered";
+  respondedBy?: string;
+  responseType?: "Confirmation" | "Full Copy";
+  responseNotes?: string;
+  responsePath?: string;
+  respondedAt?: string;
+}
+
 export interface MaintenanceServiceLog {
   id: string;
   serviceCode: string;
@@ -590,13 +727,15 @@ export interface AuditLog {
   id: string;
   timestamp: string;
   userName: string;
-  userRole: UserRole;
+  userRole: string;
   action: string;
   module: string;
   details: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
-// Finance & Cashier Department Interfaces
+// Finance Department Interfaces
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -642,7 +781,7 @@ export interface Expense {
 export interface CashierTransaction {
   id: string;
   guardName: string;
-  guardCode: string;
+  forceNumber: string;
   type: "Salary Advance" | "Meal Allowance" | "Housing Grant" | "Loan Repayment";
   amount: number;
   date: string;
@@ -707,7 +846,7 @@ export interface Campaign {
   budget: number;
   conversions: number;
   proposedBy?: string;
-  budgetStatus?: "Pending Finance Approval" | "Pending GM Approval" | "Approved" | "Rejected";
+  budgetStatus?: "Pending Approval" | "Approved" | "Rejected";
   budgetApprovedBy?: string;
   budgetApprovedAt?: string;
 }
@@ -736,7 +875,7 @@ export interface DisciplinaryAction {
   actionCode: string;
   guardId: string;
   guardName: string;
-  guardCode: string;
+  forceNumber: string;
   actionType: "Warning Letter" | "Suspension" | "Termination" | "Desertion";
   reason: string;
   severity: "Low" | "Medium" | "High" | "Critical";
@@ -896,6 +1035,10 @@ export interface WorkflowStepDefinition {
   stepOrder: number;
   name: string;
   approverRole: string;
+  approverRoles?: string[];
+  optional?: boolean;
+  regionScoped?: boolean;
+  condition?: string;
   escalationHours?: number;
 }
 
@@ -910,6 +1053,10 @@ export interface Approval {
   status: "Pending" | "Approved" | "Rejected";
   requestedBy: string;
   requestedByName: string;
+  regionScope?: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  meta?: { excludeOptional?: boolean; skipOptionalStepOrders?: number[] };
   actions: ApprovalAction[];
 }
 
@@ -990,7 +1137,7 @@ export interface PerformanceReviewRecord {
   id: string;
   guardId: string;
   guardName: string;
-  guardCode: string;
+  forceNumber: string;
   reviewPeriod: string;
   reviewType: string;
   evaluatorName: string;

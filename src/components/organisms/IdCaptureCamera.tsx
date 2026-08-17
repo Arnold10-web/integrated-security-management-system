@@ -80,8 +80,8 @@ export const IdCaptureCamera: React.FC<IdCaptureCameraProps> = ({ onCapture, ini
     const video = videoRef.current;
     if (!video) return;
     const canvas = document.createElement("canvas");
-    const outW = 800;
-    const outH = 1000;
+    const outW = 1200;
+    const outH = 1500;
     canvas.width = outW;
     canvas.height = outH;
     const ctx = canvas.getContext("2d");
@@ -108,7 +108,7 @@ export const IdCaptureCamera: React.FC<IdCaptureCameraProps> = ({ onCapture, ini
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, outW, outH);
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
     setPreview(dataUrl);
     onCapture(dataUrl);
     stopCam();

@@ -28,6 +28,7 @@ const USERS: LoginUser[] = [
   { name: "Peter Okello", email: "peter.okello@iscms.ug", role: "Regional Manager" },
   { name: "Betty Auma", email: "betty.auma@iscms.ug", role: "Regional Manager" },
   { name: "Francis Ogwang", email: "francis.ogwang@iscms.ug", role: "Fleet Manager" },
+  { name: "Tom Ssemakula", email: "tom.ssemakula@iscms.ug", role: "Guard Officer" },
   { name: "David Ssenyonga", email: "david.ssenyonga@iscms.ug", role: "Finance Manager" },
   { name: "Martha Kemigisha", email: "martha.kemigisha@iscms.ug", role: "Accountant" },
   { name: "Sandra Namutebi", email: "sandra.namutebi@iscms.ug", role: "Assistant Accountant" },
@@ -53,6 +54,21 @@ beforeAll(async () => {
   await prisma.cashierTransaction.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
   await prisma.incident.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { title: { startsWith: "RBAC" } } });
+  await prisma.notification.deleteMany({ where: { message: { contains: "RBAC" } } });
+  const rbacLeaves = await prisma.leaveRequest.findMany({ where: { guardName: { startsWith: "RBAC" } }, select: { id: true, approvalId: true } });
+  for (const l of rbacLeaves) {
+    if (l.approvalId) {
+      await prisma.approvalAction.deleteMany({ where: { approvalId: l.approvalId } });
+      await prisma.approval.delete({ where: { id: l.approvalId } });
+    }
+  }
+  await prisma.leaveRequest.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
+  await prisma.transportRequest.deleteMany({ where: { requestedByName: { startsWith: "RBAC" } } });
+  await prisma.contractInquiry.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
+  await prisma.siteSurvey.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
+  await prisma.contract.deleteMany({ where: { OR: [{ contractCode: { startsWith: "CTR-RBCTEST" } }, { title: { startsWith: "Draft: RBAC" } }] } });
+  await prisma.adminRequisition.deleteMany({ where: { itemDescription: { startsWith: "RBAC" } } });
+  await prisma.guard.deleteMany({ where: { forceNumber: { startsWith: "PSG026/RBAC" } } });
 
   for (const u of USERS) {
     const res = await fetch(`${BASE}/api/auth/login`, {
@@ -85,6 +101,21 @@ afterAll(async () => {
   await prisma.cashierTransaction.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
   await prisma.incident.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { title: { startsWith: "RBAC" } } });
+  await prisma.notification.deleteMany({ where: { message: { contains: "RBAC" } } });
+  const rbacLeaves = await prisma.leaveRequest.findMany({ where: { guardName: { startsWith: "RBAC" } }, select: { id: true, approvalId: true } });
+  for (const l of rbacLeaves) {
+    if (l.approvalId) {
+      await prisma.approvalAction.deleteMany({ where: { approvalId: l.approvalId } });
+      await prisma.approval.delete({ where: { id: l.approvalId } });
+    }
+  }
+  await prisma.leaveRequest.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
+  await prisma.transportRequest.deleteMany({ where: { requestedByName: { startsWith: "RBAC" } } });
+  await prisma.contractInquiry.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
+  await prisma.siteSurvey.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
+  await prisma.contract.deleteMany({ where: { OR: [{ contractCode: { startsWith: "CTR-RBCTEST" } }, { title: { startsWith: "Draft: RBAC" } }] } });
+  await prisma.adminRequisition.deleteMany({ where: { itemDescription: { startsWith: "RBAC" } } });
+  await prisma.guard.deleteMany({ where: { forceNumber: { startsWith: "PSG026/RBAC" } } });
   await prisma.siteDeployment.deleteMany({ where: { siteName: { startsWith: "RBAC" } } });
 });
 
@@ -345,7 +376,7 @@ describe("RBAC — Guard Records", () => {
   it("blocks Operations Manager from enrolling guards", async () => {
     const res = await authed("/api/guards", "Operations Manager", undefined, {
       method: "POST",
-      body: JSON.stringify({ fullName: "RBAC Test", guardCode: "RBAC-1" }),
+      body: JSON.stringify({ fullName: "RBAC Test", forceNumber: "RBAC-1" }),
     });
     expect(res.status).toBe(403);
   });
@@ -353,7 +384,7 @@ describe("RBAC — Guard Records", () => {
   it("blocks Records Officer from enrolling guards (creation is HR-only)", async () => {
     const res = await authed("/api/guards", "Records Officer", undefined, {
       method: "POST",
-      body: JSON.stringify({ fullName: "RBAC Test", guardCode: "RBAC-2" }),
+      body: JSON.stringify({ fullName: "RBAC Test", forceNumber: "RBAC-2" }),
     });
     expect(res.status).toBe(403);
   });
@@ -468,16 +499,16 @@ describe("RBAC — Deployment Orders", () => {
 
 describe("Deployment — passed-out gate (two-step fill flow)", () => {
   let guardId: string;
-  let guardCode: string;
+  let forceNumber: string;
   let orderId: string;
 
   beforeAll(async () => {
-    guardCode = `RBAC-DEPLOY-${Date.now()}`;
+    forceNumber = `RBAC-DEPLOY-${Date.now()}`;
     const createGuard = await authed("/api/guards", "HR Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
         fullName: "Deploy Gate Test Guard",
-        guardCode,
+        forceNumber,
         designation: "Guard",
         phone: "+256 700 000098",
         nationalId: `NIN-RBAC-${Date.now()}`,
@@ -529,7 +560,7 @@ describe("Deployment — passed-out gate (two-step fill flow)", () => {
       orderBy: { createdAt: "desc" },
       take: 2,
     });
-    expect(notifications.some((n) => n.message.includes(guardCode))).toBe(true);
+    expect(notifications.some((n) => n.message.includes(forceNumber))).toBe(true);
   });
 
   it("allows the matching RM to assign the now-passed-out guard", async () => {
@@ -545,8 +576,8 @@ describe("Deployment — passed-out gate (two-step fill flow)", () => {
   afterAll(async () => {
     await prisma.siteDeployment.deleteMany({ where: { siteName: "RBAC Deploy Test Site" } });
     await prisma.deploymentOrder.deleteMany({ where: { notes: "RBAC-DEPLOY-GATE" } });
-    await prisma.notification.deleteMany({ where: { title: "Guard Passed Out", message: { contains: guardCode } } });
-    await prisma.guard.deleteMany({ where: { guardCode } });
+    await prisma.notification.deleteMany({ where: { title: "Guard Passed Out", message: { contains: forceNumber } } });
+    await prisma.guard.deleteMany({ where: { forceNumber } });
   });
 });
 
@@ -557,7 +588,7 @@ describe("Deployment — passed-out gate (two-step fill flow)", () => {
 
 describe("Phase 4 — OM analytics-only oversight", () => {
   const viewOnlyModules = [
-    { name: "guards", path: "/api/guards", body: { fullName: "RBAC OM", guardCode: "RBAC-OM" } },
+    { name: "guards", path: "/api/guards", body: { fullName: "RBAC OM", forceNumber: "RBAC-OM" } },
     { name: "vehicles", path: "/api/vehicles", body: { plateNumber: "RBAC-OM-1", vehicleType: "Truck", makeModel: "Test" } },
     { name: "k9s", path: "/api/k9s", body: { dogName: "RBAC OM", handlerName: "RBAC" } },
     { name: "armoury", path: "/api/armoury", body: { weaponCode: "RBAC-OM", weaponType: "Pistol" } },
@@ -579,7 +610,7 @@ describe("Phase 4 — OM analytics-only oversight", () => {
   it("can open guard records but cannot enroll (create) guards", async () => {
     const res = await authed("/api/guards", "Operations Manager", undefined, {
       method: "POST",
-      body: JSON.stringify({ fullName: "RBAC OM", guardCode: "RBAC-OM-2" }),
+      body: JSON.stringify({ fullName: "RBAC OM", forceNumber: "RBAC-OM-2" }),
     });
     expect(res.status).toBe(403);
   });
@@ -653,8 +684,8 @@ describe("RBAC — Driver Licence Approvals", () => {
   });
 });
 
-/* ─────────── RBAC: Contracts approval chain (BD → Finance → GM≥100M → Done) ─────────── */
-/* Contract realignment (2026-08-09): OM is out of contract approval entirely — site-survey support only; only GM approves/voids (≥100M UGX step). */
+/* ─────────── RBAC: Contracts approval chain (Marketing drafts → GM sole approval, no threshold, no Finance step) ─────────── */
+/* Spec (ISCMS-Implementation-Lockdown-Spec §6): Marketing drafts the client contract, General Manager is the sole approver for ALL client contracts with no amount threshold. Finance and BDM are not approvers. OM is out of contract approval entirely — site-survey support only. */
 
 describe("RBAC — Contract Approval Chain", () => {
   let contractId: string | null = null;
@@ -675,7 +706,7 @@ describe("RBAC — Contract Approval Chain", () => {
     expect(res.status).toBe(403);
   });
 
-  it("lets Business Development Manager create a Draft client contract at BD step", async () => {
+  it("lets Business Development Manager create a Draft client contract at GM step", async () => {
     const res = await authed("/api/contracts", "Business Development Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
@@ -692,11 +723,11 @@ describe("RBAC — Contract Approval Chain", () => {
     expect(res.status).toBe(201);
     const contract = (await res.json()) as { id: string; status: string; approvalStep: string };
     expect(contract.status).toBe("Draft");
-    expect(contract.approvalStep).toBe("BD");
+    expect(contract.approvalStep).toBe("GM");
     contractId = contract.id;
   });
 
-  it("blocks Operations Manager from editing at BD step", async () => {
+  it("blocks Operations Manager from editing at the GM step", async () => {
     if (!contractId) throw new Error("no contract created");
     const res = await authed(`/api/contracts/${contractId}`, "Operations Manager", undefined, {
       method: "PUT",
@@ -705,7 +736,7 @@ describe("RBAC — Contract Approval Chain", () => {
     expect(res.status).toBe(403);
   });
 
-  it("blocks Operations Manager from approving at BD step", async () => {
+  it("blocks Operations Manager from approving (OM has zero contract authority)", async () => {
     if (!contractId) throw new Error("no contract created");
     const res = await authed(`/api/contracts/${contractId}`, "Operations Manager", undefined, {
       method: "PUT",
@@ -714,7 +745,7 @@ describe("RBAC — Contract Approval Chain", () => {
     expect(res.status).toBe(403);
   });
 
-  it("blocks Finance Manager from approving at BD step (chain order enforced)", async () => {
+  it("blocks Finance Manager from approving (Finance not part of the chain)", async () => {
     if (!contractId) throw new Error("no contract created");
     const res = await authed(`/api/contracts/${contractId}`, "Finance Manager", undefined, {
       method: "PUT",
@@ -723,18 +754,25 @@ describe("RBAC — Contract Approval Chain", () => {
     expect(res.status).toBe(403);
   });
 
-  it("lets Business Development Manager approve at BD step → advances to Finance", async () => {
+  it("blocks Business Development Manager from approving (Marketing drafts but does not approve)", async () => {
     if (!contractId) throw new Error("no contract created");
     const res = await authed(`/api/contracts/${contractId}`, "Business Development Manager", undefined, {
       method: "PUT",
       body: JSON.stringify({ action: "approve" }),
     });
-    expect(res.status).toBe(200);
-    const contract = (await res.json()) as { approvalStep: string };
-    expect(contract.approvalStep).toBe("Finance");
+    expect(res.status).toBe(403);
   });
 
-  it("lets Operations Manager record a supporting site survey at the Finance step (no approval rights)", async () => {
+  it("blocks Finance Manager from editing a client contract (no Finance validation step)", async () => {
+    if (!contractId) throw new Error("no contract created");
+    const res = await authed(`/api/contracts/${contractId}`, "Finance Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ slaTerms: "4 day guards, 2 night guards" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("lets Operations Manager record a supporting site survey (survey support only, no approval rights)", async () => {
     if (!contractId) throw new Error("no contract created");
     const res = await authed(`/api/contracts/${contractId}`, "Operations Manager", undefined, {
       method: "PUT",
@@ -743,36 +781,18 @@ describe("RBAC — Contract Approval Chain", () => {
     expect(res.status).toBe(200);
     const contract = (await res.json()) as { siteSurvey: string; approvalStep: string };
     expect(contract.siteSurvey).toContain("perimeter sound");
-    expect(contract.approvalStep).toBe("Finance");
+    expect(contract.approvalStep).toBe("GM");
   });
 
-  it("blocks Operations Manager from approving at Finance step (OM out of approval entirely)", async () => {
+  it("lets General Manager approve directly → Done/Active (sole approver, no threshold)", async () => {
     if (!contractId) throw new Error("no contract created");
-    const res = await authed(`/api/contracts/${contractId}`, "Operations Manager", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ action: "approve" }),
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it("lets Finance Manager edit at the Finance step", async () => {
-    if (!contractId) throw new Error("no contract created");
-    const res = await authed(`/api/contracts/${contractId}`, "Finance Manager", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ slaTerms: "4 day guards, 2 night guards" }),
-    });
-    expect(res.status).toBe(200);
-  });
-
-  it("lets Finance Manager approve at Finance step → completes chain for <100M (Done/Active)", async () => {
-    if (!contractId) throw new Error("no contract created");
-    const res = await authed(`/api/contracts/${contractId}`, "Finance Manager", undefined, {
+    const res = await authed(`/api/contracts/${contractId}`, "General Manager", undefined, {
       method: "PUT",
       body: JSON.stringify({ action: "approve" }),
     });
     expect(res.status).toBe(200);
     const contract = (await res.json()) as { approvalStep: string; status: string };
-    expect(["GM", "Done"]).toContain(contract.approvalStep);
+    expect(contract.approvalStep).toBe("Done");
     expect(contract.status).toBe("Active");
   });
 
@@ -797,9 +817,9 @@ describe("RBAC — Contract Approval Chain", () => {
   });
 });
 
-/* ─────────── RBAC: Client contracts ≥100M UGX — GM final approval step ─────────── */
+/* ─────────── RBAC: Client contracts — no GM threshold (any value, sole GM approval) ─────────── */
 
-describe("RBAC — Contract Approval Chain (GM step, ≥100M UGX)", () => {
+describe("RBAC — Contract Approval Chain (no threshold — high-value contract)", () => {
   let highContractId: string | null = null;
 
   it("lets Business Development Manager create a high-value client contract", async () => {
@@ -820,38 +840,16 @@ describe("RBAC — Contract Approval Chain (GM step, ≥100M UGX)", () => {
     highContractId = ((await res.json()) as { id: string }).id;
   });
 
-  it("advances BD → Finance on BD approval", async () => {
+  it("blocks Finance Manager from approving a high-value contract (no Finance step at any value)", async () => {
     if (!highContractId) throw new Error("no high-value contract created");
-    const res = await authed(`/api/contracts/${highContractId}`, "Business Development Manager", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ action: "approve" }),
-    });
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { approvalStep: string }).approvalStep).toBe("Finance");
-  });
-
-  it("blocks General Manager from approving before the Finance step (chain order enforced)", async () => {
-    if (!highContractId) throw new Error("no high-value contract created");
-    const res = await authed(`/api/contracts/${highContractId}`, "General Manager", undefined, {
+    const res = await authed(`/api/contracts/${highContractId}`, "Finance Manager", undefined, {
       method: "PUT",
       body: JSON.stringify({ action: "approve" }),
     });
     expect(res.status).toBe(403);
   });
 
-  it("advances Finance → GM on Finance approval for ≥100M UGX (does not complete yet)", async () => {
-    if (!highContractId) throw new Error("no high-value contract created");
-    const res = await authed(`/api/contracts/${highContractId}`, "Finance Manager", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ action: "approve" }),
-    });
-    expect(res.status).toBe(200);
-    const contract = (await res.json()) as { approvalStep: string; status: string };
-    expect(contract.approvalStep).toBe("GM");
-    expect(contract.status).toBe("Draft");
-  });
-
-  it("lets General Manager approve the final GM step → Done/Active", async () => {
+  it("lets General Manager approve a high-value contract directly → Active (no 100M gate)", async () => {
     if (!highContractId) throw new Error("no high-value contract created");
     const res = await authed(`/api/contracts/${highContractId}`, "General Manager", undefined, {
       method: "PUT",
@@ -859,7 +857,7 @@ describe("RBAC — Contract Approval Chain (GM step, ≥100M UGX)", () => {
     });
     expect(res.status).toBe(200);
     const contract = (await res.json()) as { approvalStep: string; status: string };
-    expect(["GM", "Done"]).toContain(contract.approvalStep);
+    expect(contract.approvalStep).toBe("Done");
     expect(contract.status).toBe("Active");
   });
 
@@ -1154,66 +1152,125 @@ describe("RBAC — Rider onboarding (riders are first-class in the Fleet registe
   });
 });
 
-/* ─────────── RBAC: IT acting-privileges delegation (time-bound, §5.4) ─────────── */
+/* ─────────── RBAC: Acting-privileges delegation (§11, HR-initiated / IT-executed) ─────────── */
 
-describe("RBAC — IT Acting Privileges (time-bound delegation)", () => {
+describe("RBAC — Acting Privileges (§11 HR requests, IT executes, additive)", () => {
   let targetId: string | null = null;
+  let financeManagerId: string | null = null;
   let draftContractId: string | null = null;
+  let requestId: string | null = null;
+
+  const freshLogin = async (email: string) => {
+    const res = await fetch(`${BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: "password123" }),
+    });
+    expect(res.status).toBe(200);
+    return (await res.json()) as { token: string; user: { role: string; effectiveRole: string; actingRole?: string } };
+  };
 
   beforeAll(async () => {
-    // Clean up any leftover acting grants on the HR Assistant and test contracts.
-    const itToken = token("IT Officer");
-    const users = (await (await authed("/api/auth/users", "IT Officer")).json()) as Array<{ id: string; email: string; actingRole: string | null }>;
-    const hrAssistant = users.find((u) => u.email === "rebecca.nansubuga@iscms.ug");
-    if (hrAssistant?.actingRole) {
-      await fetch(`${BASE}/api/auth/users/${hrAssistant.id}/acting`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${itToken}` },
-      });
-    }
-    targetId = hrAssistant?.id ?? null;
+    // Clean up any leftover acting grants/requests so the suite is repeatable.
+    await prisma.actingPrivilegeRequest.deleteMany({});
+    await prisma.user.updateMany({ where: { email: "rebecca.nansubuga@iscms.ug" }, data: { actingRole: null, actingExpiresAt: null, actingGrantedBy: null, actingGrantedAt: null } });
+    await prisma.user.updateMany({ where: { email: "david.ssenyonga@iscms.ug" }, data: { actingRole: null, actingExpiresAt: null, actingGrantedBy: null, actingGrantedAt: null } });
     await prisma.contract.deleteMany({ where: { contractCode: { startsWith: "CTR-ACTING" } } });
+    const users = (await (await authed("/api/auth/users", "IT Officer")).json()) as Array<{ id: string; email: string }>;
+    targetId = users.find((u) => u.email === "rebecca.nansubuga@iscms.ug")?.id ?? null;
+    financeManagerId = users.find((u) => u.email === "david.ssenyonga@iscms.ug")?.id ?? null;
   });
 
-  it("blocks non-IT roles from granting acting privileges", async () => {
+  it("blocks non-HR roles from initiating an acting-coverage request", async () => {
     if (!targetId) throw new Error("no target user");
-    const res = await authed(`/api/auth/users/${targetId}/acting`, "HR Manager", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ actingRole: "HR Manager", expiresAt: "2026-09-01T00:00:00Z" }),
+    const res = await authed("/api/auth/acting-requests", "IT Officer", undefined, {
+      method: "POST",
+      body: JSON.stringify({ targetUserId: targetId, actingRole: "HR Manager", expiresAt: "2026-09-01T00:00:00Z", reason: "RBAC test" }),
     });
     expect(res.status).toBe(403);
   });
 
-  it("lets IT Officer grant time-bound acting HR Manager privileges to an HR Assistant", async () => {
+  it("blocks an invalid/expired acting-coverage request", async () => {
+    if (!targetId) throw new Error("no target user");
+    const res = await authed("/api/auth/acting-requests", "HR Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({ targetUserId: targetId, actingRole: "HR Manager", expiresAt: "2020-01-01T00:00:00Z", reason: "RBAC test" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("lets the HR Manager initiate a request (who, role, why)", async () => {
     if (!targetId) throw new Error("no target user");
     const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
-    const res = await authed(`/api/auth/users/${targetId}/acting`, "IT Officer", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ actingRole: "HR Manager", expiresAt }),
+    const res = await authed("/api/auth/acting-requests", "HR Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({ targetUserId: targetId, actingRole: "HR Manager", expiresAt, reason: "HR Manager on leave 14–21 Aug" }),
     });
+    expect(res.status).toBe(201);
+    const request = (await res.json()) as { id: string; status: string; requestedByName: string; reason: string };
+    expect(request.status).toBe("Pending");
+    expect(request.requestedByName).toBe("Grace Nakato");
+    expect(request.reason).toBe("HR Manager on leave 14–21 Aug");
+    requestId = request.id;
+  });
+
+  it("rejects a self-initiated request (targeting the requester)", async () => {
+    const grace = (await (await authed("/api/auth/users", "IT Officer")).json()) as Array<{ id: string; email: string }>;
+    const graceId = grace.find((u) => u.email === "grace.nakato@iscms.ug")?.id;
+    if (!graceId) throw new Error("no HR Manager");
+    const res = await authed("/api/auth/acting-requests", "HR Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({ targetUserId: graceId, actingRole: "General Manager", expiresAt: "2026-09-01T00:00:00Z", reason: "RBAC test" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects requests for an executive role except the FM→GM exception (§11.6)", async () => {
+    if (!targetId) throw new Error("no target user");
+    const res = await authed("/api/auth/acting-requests", "HR Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({ targetUserId: targetId, actingRole: "General Manager", expiresAt: "2026-09-01T00:00:00Z", reason: "RBAC test" }),
+    });
+    expect(res.status).toBe(400);
+    const fmRes = await authed("/api/auth/acting-requests", "HR Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({ targetUserId: financeManagerId, actingRole: "General Manager", expiresAt: "2026-09-01T00:00:00Z", reason: "GM coverage by FM" }),
+    });
+    expect(fmRes.status).toBe(201);
+  });
+
+  it("blocks non-IT roles from executing an HR request", async () => {
+    if (!requestId) throw new Error("no request");
+    const res = await authed(`/api/auth/acting-requests/${requestId}/execute`, "HR Manager", undefined, { method: "PUT", body: "{}" });
+    expect(res.status).toBe(403);
+  });
+
+  it("lets the IT Officer execute the grant on the HR request", async () => {
+    if (!requestId) throw new Error("no request");
+    const res = await authed(`/api/auth/acting-requests/${requestId}/execute`, "IT Officer", undefined, { method: "PUT", body: "{}" });
     expect(res.status).toBe(200);
-    const updated = (await res.json()) as { actingRole: string; actingExpiresAt: string; actingGrantedBy: string };
+    const updated = (await res.json()) as { actingRole: string; actingGrantedBy: string };
     expect(updated.actingRole).toBe("HR Manager");
-    expect(updated.actingExpiresAt).toBe(expiresAt);
     expect(updated.actingGrantedBy).toBe("Joseph Kizza");
   });
 
-  it("resolves the effective role for the acting user at their next sign-in", async () => {
-    const res = await fetch(`${BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "rebecca.nansubuga@iscms.ug", password: "password123" }),
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { user: { role: string; effectiveRole: string; actingRole: string }; token: string };
+  it("cannot execute the same request twice", async () => {
+    if (!requestId) throw new Error("no request");
+    const res = await authed(`/api/auth/acting-requests/${requestId}/execute`, "IT Officer", undefined, { method: "PUT", body: "{}" });
+    expect(res.status).toBe(400);
+  });
+
+  it("signs the JWT with base role + actingRole (additive, §11.4)", async () => {
+    const body = await freshLogin("rebecca.nansubuga@iscms.ug");
     expect(body.user.role).toBe("HR Assistant");
     expect(body.user.effectiveRole).toBe("HR Manager");
     expect(body.user.actingRole).toBe("HR Manager");
-    const payload = JSON.parse(Buffer.from(body.token.split(".")[1], "base64url").toString()) as { role: string };
-    expect(payload.role).toBe("HR Manager");
+    const payload = JSON.parse(Buffer.from(body.token.split(".")[1], "base64url").toString()) as { role: string; actingRole?: string };
+    expect(payload.role).toBe("HR Assistant");
+    expect(payload.actingRole).toBe("HR Manager");
   });
 
-  it("lets the acting HR Manager perform an HR-Manager-only action (issue staff contract)", async () => {
+  it("lets the acting HR Manager issue a staff contract (HR-Manager-only, §11.5 attribution)", async () => {
     const created = await authed("/api/contracts", "HR Assistant", undefined, {
       method: "POST",
       body: JSON.stringify({
@@ -1231,11 +1288,7 @@ describe("RBAC — IT Acting Privileges (time-bound delegation)", () => {
     expect(draft.status).toBe("Draft");
     draftContractId = draft.id;
 
-    const login = (await fetch(`${BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "rebecca.nansubuga@iscms.ug", password: "password123" }),
-    }).then((r) => r.json())) as { token: string };
+    const login = await freshLogin("rebecca.nansubuga@iscms.ug");
     const res = await fetch(`${BASE}/api/contracts/${draftContractId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${login.token}` },
@@ -1244,49 +1297,42 @@ describe("RBAC — IT Acting Privileges (time-bound delegation)", () => {
     expect(res.status).toBe(200);
     const issued = (await res.json()) as { status: string; issuedBy: string };
     expect(issued.status).toBe("Active");
+    expect(issued.issuedBy).toContain("Acting HR Manager");
   });
 
-  it("rejects an already-expired acting grant", async () => {
+  it("keeps the acting user's own role capabilities (additive, not swap)", async () => {
+    // An HR Assistant can still draft a staff contract after acting grant.
+    const created = await authed("/api/contracts", "HR Assistant", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        contractCode: "CTR-ACTING-002",
+        title: "Additive Own-Role Contract",
+        contractType: "Staff Contract",
+        partyName: "Additive Test Employee",
+        category: "Employment",
+        startDate: "2026-08-10",
+        endDate: "2027-08-09",
+      }),
+    });
+    expect(created.status).toBe(201);
+  });
+
+  it("records both the HR request and the IT grant in the audit trail", async () => {
+    const audit = (await (await authed("/api/audit-logs", "IT Officer")).json()) as Array<{ action: string; details: string; userRole: string }>;
+    const actions = audit.filter((a) => a.action.includes("Acting Privileges"));
+    expect(actions.some((a) => a.action === "Acting Privileges Requested")).toBe(true);
+    expect(actions.some((a) => a.action === "Acting Privileges Granted")).toBe(true);
+  });
+
+  it("rejects revoking acting privileges by non-IT roles", async () => {
     if (!targetId) throw new Error("no target user");
-    const res = await authed(`/api/auth/users/${targetId}/acting`, "IT Officer", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ actingRole: "HR Manager", expiresAt: "2020-01-01T00:00:00Z" }),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it("rejects self-granting acting privileges", async () => {
-    const itUser = (await (await authed("/api/auth/me", "IT Officer")).json()) as { id: string };
-    const res = await authed(`/api/auth/users/${itUser.id}/acting`, "IT Officer", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ actingRole: "HR Manager", expiresAt: "2026-09-01T00:00:00Z" }),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it("rejects granting acting IT Officer privileges", async () => {
-    if (!targetId) throw new Error("no target user");
-    const res = await authed(`/api/auth/users/${targetId}/acting`, "IT Officer", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ actingRole: "IT Officer", expiresAt: "2026-09-01T00:00:00Z" }),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it("rejects granting executive acting privileges (GM/Director are not delegable)", async () => {
-    if (!targetId) throw new Error("no target user");
-    const res = await authed(`/api/auth/users/${targetId}/acting`, "IT Officer", undefined, {
-      method: "PUT",
-      body: JSON.stringify({ actingRole: "General Manager", expiresAt: "2026-09-01T00:00:00Z" }),
-    });
-    expect(res.status).toBe(400);
+    const res = await authed(`/api/auth/users/${targetId}/acting`, "HR Manager", undefined, { method: "DELETE" });
+    expect(res.status).toBe(403);
   });
 
   it("lets IT Officer revoke acting privileges", async () => {
     if (!targetId) throw new Error("no target user");
-    const res = await authed(`/api/auth/users/${targetId}/acting`, "IT Officer", undefined, {
-      method: "DELETE",
-    });
+    const res = await authed(`/api/auth/users/${targetId}/acting`, "IT Officer", undefined, { method: "DELETE" });
     expect(res.status).toBe(200);
     const revoked = (await res.json()) as { actingRole: string | null };
     expect(revoked.actingRole).toBeNull();
@@ -1294,11 +1340,7 @@ describe("RBAC — IT Acting Privileges (time-bound delegation)", () => {
 
   it("falls back to the base role after revocation", async () => {
     if (!draftContractId) throw new Error("no draft contract");
-    const login = (await fetch(`${BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "rebecca.nansubuga@iscms.ug", password: "password123" }),
-    }).then((r) => r.json())) as { user: { effectiveRole: string }; token: string };
+    const login = await freshLogin("rebecca.nansubuga@iscms.ug");
     expect(login.user.effectiveRole).toBe("HR Assistant");
     const res = await fetch(`${BASE}/api/contracts/${draftContractId}`, {
       method: "PUT",
@@ -1390,7 +1432,7 @@ describe("RBAC — Cashier disbursement FM-approval flow (Phase 3)", () => {
       method: "POST",
       body: JSON.stringify({
         guardName: "RBAC-Guard Cashier",
-        guardCode: "SG-RBAC-001",
+        forceNumber: "SG-RBAC-001",
         type: "Salary Advance",
         amount: 200000,
         phone: "+256700000001",
@@ -1415,7 +1457,7 @@ describe("RBAC — Cashier disbursement FM-approval flow (Phase 3)", () => {
   it("blocks the Accountant from requesting a disbursement (Cashier/FM only)", async () => {
     const res = await authed("/api/cashier-transactions", "Accountant", undefined, {
       method: "POST",
-      body: JSON.stringify({ guardName: "RBAC-Blocked", guardCode: "SG-X", type: "Salary Advance", amount: 1000 }),
+      body: JSON.stringify({ guardName: "RBAC-Blocked", forceNumber: "SG-X", type: "Salary Advance", amount: 1000 }),
     });
     expect(res.status).toBe(403);
   });
@@ -1436,7 +1478,7 @@ describe("RBAC — Cashier disbursement FM-approval flow (Phase 3)", () => {
   it("lets the Finance Manager reject a different pending disbursement", async () => {
     const create = await authed("/api/cashier-transactions", "Cashier", undefined, {
       method: "POST",
-      body: JSON.stringify({ guardName: "RBAC-Guard Reject", guardCode: "SG-RBAC-002", type: "Meal Allowance", amount: 80000 }),
+      body: JSON.stringify({ guardName: "RBAC-Guard Reject", forceNumber: "SG-RBAC-002", type: "Meal Allowance", amount: 80000 }),
     });
     const tx = (await create.json()) as { id: string };
     rejectId = tx.id;
@@ -1603,4 +1645,461 @@ describe("Phase 5 — Durable notifications", () => {
     expect(list.every((n) => n.readAt !== null)).toBe(true);
   });
 });
+
+/* ─────────── P6: force-number identity on guard enrolment ─────────── */
+
+describe("P6 RBAC — guard enrolment defaults forceNumber (canonical unique identifier)", () => {
+  let guardId: string | null = null;
+
+  it("rejects guard creation by non-HR roles", async () => {
+    const res = await authed("/api/guards", "Finance Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        fullName: "RBAC FN Denied",
+        forceNumber: "PSG026/RBAC00",
+        designation: "Guard",
+        region: "Kampala Central",
+        phone: "+256 700 000099",
+        nationalId: "CM99999999ABC",
+        assignedSite: "RBAC Site",
+        location: "Kampala",
+        joinDate: "2026-08-14",
+      }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("HR Manager creates a guard and forceNumber defaults to forceNumber", async () => {
+    const res = await authed("/api/guards", "HR Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        fullName: "RBAC ForceNumber Guard",
+        forceNumber: "PSG026/RBAC01",
+        designation: "Guard",
+        region: "Kampala Central",
+        phone: "+256 700 000099",
+        nationalId: "CM99999998ABC",
+        assignedSite: "RBAC Site",
+        location: "Kampala",
+        joinDate: "2026-08-14",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const guard = (await res.json()) as { id: string; forceNumber: string };
+    expect(guard.forceNumber).toBe("PSG026/RBAC01");
+    guardId = guard.id;
+  });
+
+  it("explicit forceNumber is honoured when supplied", async () => {
+    const res = await authed("/api/guards", "HR Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        fullName: "RBAC Explicit FN Guard",
+        forceNumber: "PSG026/RBAC02",
+        designation: "Guard",
+        region: "Kampala Central",
+        phone: "+256 700 000098",
+        nationalId: "CM99999997ABC",
+        assignedSite: "RBAC Site",
+        location: "Kampala",
+        joinDate: "2026-08-14",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const guard = (await res.json()) as { forceNumber: string };
+    expect(guard.forceNumber).toBe("PSG026/RBAC02");
+  });
+
+  it("each guard carries a unique force number on the roster read", async () => {
+    const roster = (await (await authed("/api/guards", "HR Manager")).json()) as Array<{ forceNumber: string }>;
+    const fns = roster.filter((g) => g.forceNumber.startsWith("PSG026/RBAC")).map((g) => g.forceNumber);
+    expect(new Set(fns).size).toBe(fns.length);
+    expect(fns).toContain("PSG026/RBAC01");
+    if (!guardId) throw new Error("no guard created");
+  });
+
+  it("a promotion changing designation flags the ID card for reissue (§5)", async () => {
+    if (!guardId) throw new Error("no guard created");
+    const issued = await authed(`/api/guards/${guardId}/issue-id`, "Records Officer", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ idCardNumber: "IDC-RBAC-001", idCardExpiryDate: "2028-08-14" }),
+    });
+    expect(issued.status).toBe(200);
+    expect(((await issued.json()) as { idCardStatus: string }).idCardStatus).toBe("Issued & Active");
+    const updated = await authed(`/api/guards/${guardId}`, "HR Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ designation: "Inspector" }),
+    });
+    expect(updated.status).toBe(200);
+    const body = (await updated.json()) as { idCardStatus: string; designation: string };
+    expect(body.designation).toBe("Inspector");
+    expect(body.idCardStatus).toBe("Reissue Required");
+  });
+
+  it("mapped guard designations round-trip as display strings (K9 Handler / Site In-Charge)", async () => {
+    if (!guardId) throw new Error("no guard created");
+    const put = await authed(`/api/guards/${guardId}`, "HR Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ designation: "Site In-Charge" }),
+    });
+    expect(put.status).toBe(200);
+    const body = (await put.json()) as { designation: string };
+    expect(body.designation).toBe("Site In-Charge");
+    const roster = (await (await authed("/api/guards", "HR Manager")).json()) as Array<{ id: string; designation: string }>;
+    expect(roster.find((g) => g.id === guardId)?.designation).toBe("Site In-Charge");
+    const reverted = await authed(`/api/guards/${guardId}`, "HR Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ designation: "Guard" }),
+    });
+    expect(reverted.status).toBe(200);
+  });
+});
+
+/* ─────────── P6: leave workflow engine (HR Manager → optional GM) ─────────── */
+
+describe("P6 RBAC — leave engine realignment (submit → HR Manager → optional GM)", () => {
+  let guardLeaveId: string | null = null;
+  let staffLeaveId: string | null = null;
+
+  it("rejects leave submission by a non-requester role", async () => {
+    const res = await authed("/api/leave-requests", "Finance Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        guardId: "fake",
+        guardName: "RBAC-DENIED",
+        forceNumber: "PSG000/000",
+        leaveType: "Annual",
+        startDate: "2026-09-01",
+        endDate: "2026-09-05",
+        durationDays: 5,
+        reason: "RBAC test",
+      }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("Guard Officer submits leave for a real guard (guard leave → GM step auto-skipped)", async () => {
+    const guard = await prisma.guard.findUnique({ where: { forceNumber: "PSG026/RBAC01" } });
+    if (!guard) throw new Error("RBAC guard not found");
+    const res = await authed("/api/leave-requests", "Guard Officer", "Tom Ssemakula", {
+      method: "POST",
+      body: JSON.stringify({
+        guardId: guard.id,
+        guardName: "RBAC ForceNumber Guard",
+        forceNumber: "PSG026/RBAC01",
+        leaveType: "Annual",
+        startDate: "2026-09-01",
+        endDate: "2026-09-05",
+        durationDays: 5,
+        reason: "RBAC guard leave flow",
+      }),
+    });
+    expect(res.status).toBe(201);
+    guardLeaveId = ((await res.json()) as { id: string }).id;
+    const leave = await prisma.leaveRequest.findUnique({ where: { id: guardLeaveId } });
+    expect(leave?.approvalId).toBeTruthy();
+  });
+
+  it("HR Assistant is not an approver (403)", async () => {
+    if (!guardLeaveId) throw new Error("no leave");
+    const res = await authed(`/api/leave-requests/${guardLeaveId}/hr-approve`, "HR Assistant", undefined, {
+      method: "PUT",
+      body: "{}",
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("HR Manager approves a guard leave straight to Approved (GM step optional)", async () => {
+    if (!guardLeaveId) throw new Error("no leave");
+    const res = await authed(`/api/leave-requests/${guardLeaveId}/hr-approve`, "HR Manager", undefined, {
+      method: "PUT",
+      body: "{}",
+    });
+    expect(res.status).toBe(200);
+    const leave = await prisma.leaveRequest.findUnique({ where: { id: guardLeaveId } });
+    expect(leave?.status).toBe("Approved");
+    const approval = await prisma.approval.findUnique({ where: { id: leave!.approvalId! }, include: { actions: true } });
+    expect(approval?.status).toBe("Approved");
+  });
+
+  it("staff leave (no guard record) advances HR → GM and GM approves to Approved", async () => {
+    const res = await authed("/api/leave-requests", "HR Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        guardId: "staff-non-guard-id-0000",
+        guardName: "RBAC Staff Member",
+        forceNumber: "PSG026/RBAC-STF",
+        leaveType: "Study",
+        startDate: "2026-09-10",
+        endDate: "2026-09-14",
+        durationDays: 5,
+        reason: "RBAC staff leave flow",
+      }),
+    });
+    expect(res.status).toBe(201);
+    staffLeaveId = ((await res.json()) as { id: string }).id;
+
+    const hr = await authed(`/api/leave-requests/${staffLeaveId}/hr-approve`, "HR Manager", undefined, { method: "PUT", body: "{}" });
+    expect(hr.status).toBe(200);
+    const mid = await prisma.leaveRequest.findUnique({ where: { id: staffLeaveId } });
+    expect(mid?.status).toBe("Pending GM Approval");
+
+    const gm = await authed(`/api/leave-requests/${staffLeaveId}/gm-approve`, "General Manager", undefined, { method: "PUT", body: "{}" });
+    expect(gm.status).toBe(200);
+    const final = await prisma.leaveRequest.findUnique({ where: { id: staffLeaveId } });
+    expect(final?.status).toBe("Approved");
+  });
+
+  it("legacy regional/ops leave-approval routes are removed (410)", async () => {
+    if (!guardLeaveId) throw new Error("no leave");
+    const legacy = await authed(`/api/leave-requests/${guardLeaveId}/approve`, "Regional Manager", "Peter Okello", { method: "PUT", body: "{}" });
+    expect(legacy.status).toBe(410);
+    const legacyOps = await authed(`/api/leave-requests/${guardLeaveId}/ops-approve`, "Operations Manager", undefined, { method: "PUT", body: "{}" });
+    expect(legacyOps.status).toBe(410);
+  });
+
+  it("HR Manager cannot deny leave requested by a peer department manager (§5)", async () => {
+    const res = await authed("/api/leave-requests", "Operations Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        guardId: "staff-non-guard-id-peer",
+        guardName: "RBAC Peer Manager",
+        forceNumber: "PSG026/RBAC-PEER",
+        leaveType: "Annual Leave",
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
+        durationDays: 5,
+        reason: "RBAC peer-level leave flow",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const peerLeaveId = ((await res.json()) as { id: string }).id;
+    const reject = await authed(`/api/leave-requests/${peerLeaveId}/reject`, "HR Manager", undefined, { method: "PUT", body: "{}" });
+    expect(reject.status).toBe(403);
+    const stillPending = await prisma.leaveRequest.findUnique({ where: { id: peerLeaveId } });
+    expect(stillPending?.status).toBe("Pending HR Approval");
+  });
+
+  it("HR Manager CAN deny leave requested by a subordinate staff member (§5)", async () => {
+    const res = await authed("/api/leave-requests", "HR Assistant", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        guardId: "staff-non-guard-id-sub",
+        guardName: "RBAC Subordinate",
+        forceNumber: "PSG026/RBAC-SUB",
+        leaveType: "Sick Leave",
+        startDate: "2026-11-01",
+        endDate: "2026-11-02",
+        durationDays: 2,
+        reason: "RBAC subordinate leave flow",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const subLeaveId = ((await res.json()) as { id: string }).id;
+    const reject = await authed(`/api/leave-requests/${subLeaveId}/reject`, "HR Manager", undefined, { method: "PUT", body: "{}" });
+    expect(reject.status).toBe(200);
+    const rejectedRow = await prisma.leaveRequest.findUnique({ where: { id: subLeaveId } });
+    expect(rejectedRow?.status).toBe("Rejected");
+  });
+
+  it("leave submission notifies the HR Manager via a role-scoped notification", async () => {
+    const list = (await (await authed("/api/notifications", "HR Manager")).json()) as { title: string; message: string }[];
+    expect(list.some((n) => n.title === "New Leave Request" && n.message.includes("PSG026/RBAC01"))).toBe(true);
+  });
+});
+
+/* ─────────── P6: transport inbox (Fleet Manager only) ─────────── */
+
+describe("P6 RBAC — transport request act is Fleet Manager only", () => {
+  let trId: string | null = null;
+
+  it("any authenticated user can submit a transport request", async () => {
+    const res = await authed("/api/transport-requests", "HR Assistant", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        requestedByName: "RBAC Transport User",
+        requesterDepartment: "Human Resources",
+        destination: "RBAC Depot",
+        purpose: "RBAC transport flow",
+        travelDate: "2026-08-20",
+      }),
+    });
+    expect(res.status).toBe(201);
+    trId = ((await res.json()) as { id: string }).id;
+  });
+
+  it("non-Fleet-Manager cannot act on the request (403)", async () => {
+    if (!trId) throw new Error("no transport");
+    const res = await authed(`/api/transport-requests/${trId}/act`, "Operations Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ action: "Approved", assignedVehicle: "UAY 123Z" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("Fleet Manager decline requires a reason (400)", async () => {
+    if (!trId) throw new Error("no transport");
+    const res = await authed(`/api/transport-requests/${trId}/act`, "Fleet Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ action: "Declined" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("Fleet Manager approves with an assigned vehicle", async () => {
+    if (!trId) throw new Error("no transport");
+    const res = await authed(`/api/transport-requests/${trId}/act`, "Fleet Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ action: "Approved", assignedVehicle: "UAY 123Z", assignedDriver: "RBAC Driver" }),
+    });
+    expect(res.status).toBe(200);
+    const row = await prisma.transportRequest.findUnique({ where: { id: trId } });
+    expect(row?.status).toBe("Approved");
+  });
+
+  it("transport submit notifies the Fleet Manager", async () => {
+    const list = (await (await authed("/api/notifications", "Fleet Manager")).json()) as { title: string }[];
+    expect(list.some((n) => n.title === "New Transport Request")).toBe(true);
+  });
+});
+
+/* ─────────── P6: contract inquiry (Records Officer responds) ─────────── */
+
+describe("P6 RBAC — contract inquiry response is Records Officer only", () => {
+  let inquiryId: string | null = null;
+
+  it("any authenticated user can raise an inquiry", async () => {
+    const res = await authed("/api/contract-inquiries", "Operations Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        requestedByName: "RBAC Ops User",
+        requesterDepartment: "Operations",
+        clientName: "RBAC Inquiry Client",
+        siteName: "RBAC Inquiry Site",
+        purpose: "Confirmation",
+      }),
+    });
+    expect(res.status).toBe(201);
+    inquiryId = ((await res.json()) as { id: string }).id;
+  });
+
+  it("non-Records-Officer cannot respond (403)", async () => {
+    if (!inquiryId) throw new Error("no inquiry");
+    const res = await authed(`/api/contract-inquiries/${inquiryId}/respond`, "Finance Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ responseType: "Confirmation" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("Records Officer responds and the requester is notified", async () => {
+    if (!inquiryId) throw new Error("no inquiry");
+    const res = await authed(`/api/contract-inquiries/${inquiryId}/respond`, "Records Officer", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ responseType: "Confirmation", responseNotes: "RBAC verification" }),
+    });
+    expect(res.status).toBe(200);
+    const row = await prisma.contractInquiry.findUnique({ where: { id: inquiryId } });
+    expect(row?.status).toBe("Answered");
+    const list = (await (await authed("/api/notifications", "Operations Manager")).json()) as { title: string; message: string }[];
+    expect(list.some((n) => n.title === "Contract Inquiry Answered" && n.message.includes("RBAC Inquiry Client"))).toBe(true);
+  });
+});
+
+/* ─────────── P6: site surveys (Ops Manager / Regional Manager act) ─────────── */
+
+describe("P6 RBAC — site survey actions are Ops Manager / Regional Manager only", () => {
+  let surveyId: string | null = null;
+
+  it("creates a survey (any authenticated requester)", async () => {
+    const res = await authed("/api/site-surveys", "Business Development Manager", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        clientName: "RBAC Survey Client",
+        siteName: "RBAC Survey Site",
+        region: "Kampala West",
+        requestedByName: "RBAC BDM User",
+        requestedDepartment: "Business Development",
+      }),
+    });
+    expect(res.status).toBe(201);
+    surveyId = ((await res.json()) as { id: string }).id;
+  });
+
+  it("a non-ops role cannot start the survey (403)", async () => {
+    if (!surveyId) throw new Error("no survey");
+    const res = await authed(`/api/site-surveys/${surveyId}/start`, "Finance Manager", undefined, { method: "PUT", body: "{}" });
+    expect(res.status).toBe(403);
+  });
+
+  it("Regional Manager of a different region is blocked from acting (403)", async () => {
+    if (!surveyId) throw new Error("no survey");
+    const res = await authed(`/api/site-surveys/${surveyId}/start`, "Regional Manager", "Betty Auma", { method: "PUT", body: "{}" });
+    expect(res.status).toBe(403);
+  });
+
+  it("Operations Manager completes the survey and a draft contract is created", async () => {
+    if (!surveyId) throw new Error("no survey");
+    const start = await authed(`/api/site-surveys/${surveyId}/start`, "Operations Manager", undefined, { method: "PUT", body: "{}" });
+    expect(start.status).toBe(200);
+    const complete = await authed(`/api/site-surveys/${surveyId}/complete`, "Operations Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ riskLevel: "Low", dayGuardsNeeded: 2, nightGuardsNeeded: 2, recommendation: "Proceed to contract" }),
+    });
+    expect(complete.status).toBe(200);
+    const survey = await prisma.siteSurvey.findUnique({ where: { id: surveyId } });
+    expect(survey?.status).toBe("Completed");
+    const draft = await prisma.contract.findFirst({ where: { siteSurvey: survey!.surveyCode } });
+    expect(draft).toBeTruthy();
+    expect(draft?.status).toBe("Draft");
+  });
+});
+
+/* ─────────── P6: requisitions (GM final approver) ─────────── */
+
+describe("P6 RBAC — requisitions open to any staff, GM is the final approver", () => {
+  let reqId: string | null = null;
+
+  it("any staff member can submit a requisition", async () => {
+    const res = await authed("/api/requisitions", "IT Officer", undefined, {
+      method: "POST",
+      body: JSON.stringify({
+        department: "IT",
+        requestedBy: "Joseph Kizza",
+        itemDescription: "RBAC-requisition-item",
+        quantity: 2,
+        estimatedCostUgx: 250000,
+        priority: "High",
+      }),
+    });
+    expect(res.status).toBe(201);
+    reqId = ((await res.json()) as { id: string }).id;
+  });
+
+  it("non-GM cannot approve a requisition (403)", async () => {
+    if (!reqId) throw new Error("no req");
+    const res = await authed(`/api/requisitions/${reqId}/approve`, "Administrative Officer", undefined, { method: "PUT", body: "{}" });
+    expect(res.status).toBe(403);
+  });
+
+  it("GM rejection requires a reason (400)", async () => {
+    if (!reqId) throw new Error("no req");
+    const res = await authed(`/api/requisitions/${reqId}/reject`, "General Manager", undefined, { method: "PUT", body: "{}" });
+    expect(res.status).toBe(400);
+  });
+
+  it("GM rejects with a reason and the requester is notified", async () => {
+    if (!reqId) throw new Error("no req");
+    const res = await authed(`/api/requisitions/${reqId}/reject`, "General Manager", undefined, {
+      method: "PUT",
+      body: JSON.stringify({ reason: "RBAC rejection reason" }),
+    });
+    expect(res.status).toBe(200);
+    const row = await prisma.adminRequisition.findUnique({ where: { id: reqId } });
+    expect(row?.status).toBe("Rejected");
+    const list = (await (await authed("/api/notifications", "IT Officer")).json()) as { title: string; message: string }[];
+    expect(list.some((n) => n.title === "Requisition Rejected" && n.message.includes("RBAC rejection reason"))).toBe(true);
+  });
+});
+
 

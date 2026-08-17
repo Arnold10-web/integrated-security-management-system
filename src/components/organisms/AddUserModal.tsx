@@ -80,7 +80,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ show, onClose, onSub
                 <option value="Marketing & Sales">Marketing & Sales</option>
                 <option value="Operations">Operations</option>
                 <option value="Investigations">Investigations</option>
-                <option value="Finance & Cashier">Finance & Cashier</option>
+                <option value="Finance">Finance</option>
                 <option value="Administrations">Administrations</option>
                 <option value="Information Technology">Information Technology</option>
               </select>

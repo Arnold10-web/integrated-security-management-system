@@ -3,7 +3,7 @@ import type { Guard, User, Vehicle } from "../types";
 
 export const guardSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
-  guardCode: z.string().min(1, "Guard code is required"),
+  forceNumber: z.string().min(1, "Force number is required"),
   designation: z.enum(["Guard", "K9 Handler", "Armorer"]),
   phone: z.string().min(1, "Phone is required"),
   nationalId: z.string().min(1, "National ID is required"),

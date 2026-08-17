@@ -33,7 +33,7 @@ export const loginSchema = z.object({
 
 export const guardCreateSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
-  guardCode: forceNumberSchema,
+  forceNumber: forceNumberSchema,
   nationalId: z.string().trim().min(5).max(30),
   phone: phoneSchema,
   designation: z.enum(["Guard", "K9 Handler", "Armorer"]),

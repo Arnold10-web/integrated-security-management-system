@@ -6,7 +6,6 @@ import { StatusBadge } from "../atoms/StatusBadge";
 interface GuardsTableProps {
   guards: Guard[];
   onViewBiodata: (guard: Guard) => void;
-  onIssueWarning: (guard: Guard) => void;
   onArchiveGuard?: (id: string) => void;
   viewMode: "spreadsheet" | "grid";
   onViewModeChange: (mode: "spreadsheet" | "grid") => void;
@@ -19,7 +18,6 @@ interface GuardsTableProps {
 export const GuardsTable: React.FC<GuardsTableProps> = ({
   guards,
   onViewBiodata,
-  onIssueWarning,
   onArchiveGuard,
   viewMode,
   onViewModeChange,
@@ -64,7 +62,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
     const query = searchTerm.toLowerCase();
     return (
       g.fullName.toLowerCase().includes(query) ||
-      g.guardCode.toLowerCase().includes(query) ||
+      g.forceNumber.toLowerCase().includes(query) ||
       g.assignedSite.toLowerCase().includes(query) ||
       g.designation.toLowerCase().includes(query) ||
       (g.location && g.location.toLowerCase().includes(query)) ||
@@ -213,7 +211,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
                           <span>{g.fullName}</span>
                         </div>
                       </td>
-                      <td className="p-3 font-mono font-bold text-blue-700 border-r border-slate-200 whitespace-nowrap">{g.guardCode}</td>
+                      <td className="p-3 font-mono font-bold text-blue-700 border-r border-slate-200 whitespace-nowrap">{g.forceNumber}</td>
                       <td className="p-3 font-bold text-blue-950 bg-blue-50/30 border-r border-slate-200 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -243,16 +241,9 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
                       <td className="p-3 text-center border-r border-slate-200 whitespace-nowrap">{stageBadge(g)}</td>
                       <td className="p-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => onIssueWarning(g)}
-                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px] rounded-lg cursor-pointer transition-all flex items-center gap-1"
-                          >
-                            <AlertTriangle className="w-3 h-3 text-amber-700" />
-                            <span>Issue Warning</span>
-                          </button>
                           {onArchiveGuard && (
                             <button
-                              onClick={() => { if (window.confirm(`Archive guard ${g.fullName} (${g.guardCode})?`)) onArchiveGuard(g.id); }}
+                              onClick={() => { if (window.confirm(`Archive guard ${g.fullName} (${g.forceNumber})?`)) onArchiveGuard(g.id); }}
                               className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-900 border border-gray-300 font-bold text-[10px] rounded-lg cursor-pointer transition-all flex items-center gap-1"
                             >
                               <FolderArchive className="w-3 h-3 text-gray-700" />
@@ -289,7 +280,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
                     </div>
                     <div>
                       <h3 className="font-extrabold text-slate-900 text-sm hover:underline">{guard.fullName}</h3>
-                      <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{guard.guardCode}</span>
+                      <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{guard.forceNumber}</span>
                     </div>
                   </div>
                   <StatusBadge status={isDeserter ? "Deserted" : guard.status} />
@@ -323,16 +314,9 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    onClick={() => onIssueWarning(guard)}
-                    className="flex-1 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl cursor-pointer"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
-                    Issue Warning
-                  </button>
                   {onArchiveGuard && (
                     <button
-                      onClick={() => { if (window.confirm(`Archive guard ${guard.fullName} (${guard.guardCode})?`)) onArchiveGuard(guard.id); }}
+                      onClick={() => { if (window.confirm(`Archive guard ${guard.fullName} (${guard.forceNumber})?`)) onArchiveGuard(guard.id); }}
                       className="py-2 px-3 bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200 text-xs font-bold rounded-xl cursor-pointer"
                     >
                       <FolderArchive className="w-3.5 h-3.5 inline mr-1" />

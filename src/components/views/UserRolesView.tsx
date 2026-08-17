@@ -147,7 +147,7 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
       ],
     },
     {
-      dept: "Finance & Cashier Department",
+      dept: "Finance Department",
       roles: [
         {
           name: "Finance Manager",
@@ -424,7 +424,7 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
                   <option value="Human Resources">Human Resources</option>
                   <option value="Marketing & Sales">Marketing & Sales</option>
                   <option value="Operations">Operations</option>
-                  <option value="Finance & Cashier">Finance & Cashier</option>
+                  <option value="Finance">Finance</option>
                   <option value="Administrations">Administrations</option>
                   <option value="Information Technology">Information Technology</option>
                 </select>
@@ -449,7 +449,7 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
                     { id: "operations", label: "Operations" },
                     { id: "hr", label: "Human Resources" },
                     { id: "clients", label: "Client CRM & Sites" },
-                    { id: "finance", label: "Finance & Cashier" },
+                    { id: "finance", label: "Finance" },
                     { id: "marketing", label: "Marketing & Sales" },
                     { id: "fleet", label: "Fleet" },
                     { id: "administration", label: "Administrations" },

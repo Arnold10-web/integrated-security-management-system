@@ -57,7 +57,7 @@ export const GuardLeaveModal: React.FC<GuardLeaveModalProps> = ({
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
               <option value="">-- Select Guard --</option>
               {guards.map((g) => (
-                <option key={g.id} value={g.id}>{g.fullName} ({g.guardCode}) - {g.assignedSite}</option>
+                <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber}) - {g.assignedSite}</option>
               ))}
             </select>
           </div>

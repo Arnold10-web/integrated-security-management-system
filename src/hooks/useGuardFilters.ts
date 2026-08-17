@@ -19,7 +19,7 @@ export function useGuardFilters(guards: Guard[]) {
       const query = searchTerm.toLowerCase();
       return (
         g.fullName.toLowerCase().includes(query) ||
-        g.guardCode.toLowerCase().includes(query) ||
+        g.forceNumber.toLowerCase().includes(query) ||
         g.assignedSite.toLowerCase().includes(query) ||
         (g.location && g.location.toLowerCase().includes(query)) ||
         (g.bankAccount && g.bankAccount.toLowerCase().includes(query)) ||

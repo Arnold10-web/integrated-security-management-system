@@ -51,7 +51,7 @@ export const CashierTransactionsTable: React.FC<CashierTransactionsTableProps> =
                 <td className="p-3.5 font-bold text-emerald-700">{c.id}</td>
                 <td className="p-3.5">
                   <div className="font-bold text-slate-900">{c.guardName}</div>
-                  <div className="text-[11px] text-slate-500">{c.guardCode}</div>
+                  <div className="text-[11px] text-slate-500">{c.forceNumber}</div>
                   {c.phone && <div className="text-[11px] text-slate-500">{c.phone}</div>}
                 </td>
                 <td className="p-3.5 font-semibold text-purple-700">{c.type}</td>

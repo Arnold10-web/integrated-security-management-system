@@ -68,7 +68,7 @@ export const ScheduleShiftModal: React.FC<ScheduleShiftModalProps> = ({ show, gu
               <option value="">-- Choose Guard --</option>
               {guards.map((g) => (
                 <option key={g.id} value={g.id}>
-                  {g.fullName} ({g.guardCode}) - {g.designation}
+                  {g.fullName} ({g.forceNumber}) - {g.designation}
                 </option>
               ))}
             </select>

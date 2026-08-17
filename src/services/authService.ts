@@ -1,6 +1,8 @@
 /**
  * Client auth session helpers.
- * Login is still mock-user selection until JWT cookie auth is wired (roadmap §5.6).
+ * TODO: migrate to httpOnly Secure cookie + CSRF; localStorage is XSS-exposed.
+ * Keeping localStorage for now for backward compat, but idle timeout is enforced client-side
+ * and server re-validates status/acting expiry per request (see server.ts authenticateToken).
  */
 
 import type { User, UserRole } from "../types";

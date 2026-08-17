@@ -1,12 +1,13 @@
 /**
  * Client-side RBAC helpers.
  * NOTE: This is a presentation gate only. True enforcement must live on the
- * Express API with JWT + middleware.
+ * Express API with JWT + middleware. Permissions canonical source is src/config/permissions.ts
  */
 
 import type { UserRole } from "../types";
 import { getAllowedModuleIds, getEffectiveModuleIds, getModuleById } from "../constants/modules";
 import { getDepartmentForRole, getRoleNode } from "../constants/organization";
+import { MODULE_PERMISSIONS } from "../config/permissions";
 
 export interface ModulePermission {
   canView: boolean;
@@ -111,7 +112,7 @@ export function getPermissionsForRole(
     if (moduleName === "clients" || moduleName === "operations") {
       return { canView: true, canEdit: true, canDelete: false, canApprove: true };
     }
-    if (moduleName === "performance_reviews" || moduleName === "fleet" || moduleName === "sites") {
+    if (moduleName === "performance_reviews" || moduleName === "sites") {
       return { canView: true, canEdit: false, canDelete: false, canApprove: true };
     }
     if (moduleName === "invoices" || moduleName === "expenses") {
@@ -150,7 +151,7 @@ export function getPermissionsForRole(
     };
   }
 
-  if (role === "Fleet Manager" && (moduleName === "fleet" || moduleName === "operations")) {
+  if (role === "Fleet Manager" && moduleName === "fleet") {
     return { canView: true, canEdit: true, canDelete: false, canApprove: true };
   }
 

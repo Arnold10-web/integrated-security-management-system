@@ -7,7 +7,9 @@ import type {
   TrainingCohort, RecruitTrainee, ITServer, ITSupportTicket, ITAsset,
   Invoice, Expense, CashierTransaction, Lead, Campaign, Reminder,
   Complaint, DisciplinaryAction, SiteDeployment, DeploymentOrder,
-  RegionalOffice, Region, LeaveRequest, WorkflowDefinition, Approval,
+  RegionalOffice, Region, LeaveRequest, WorkflowDefinition, Approval,   TransportRequest,
+  SiteSurvey,
+  ContractInquiry,
   DocumentRecord, JobPosting, Candidate, PerformanceReviewRecord, ContractRecord,
   NotificationRecord,
 } from "../types";
@@ -200,10 +202,7 @@ export const domainApi = {
   leaveRequests: {
     list: () => api.get<LeaveRequest[]>("/leave-requests"),
     create: (data: Omit<LeaveRequest, "id">) => api.post<LeaveRequest>("/leave-requests", data),
-    approve: (id: string) => api.put(`/leave-requests/${id}/approve`, {}),
-    opsApprove: (id: string) => api.put(`/leave-requests/${id}/ops-approve`, {}),
-    hrApprove: (id: string) => api.put(`/leave-requests/${id}/hr-approve`, {}),
-    reject: (id: string, notes?: string) => api.put(`/leave-requests/${id}/reject`, { notes }),
+    act: (id: string, action: "Approved" | "Rejected", comment?: string) => api.put(`/approvals/${id}/act`, { action, comment }),
   },
   campaigns: {
     list: () => api.get<Campaign[]>("/campaigns"),
@@ -248,6 +247,23 @@ export const domainApi = {
     list: () => api.get<Approval[]>("/approvals"),
     create: (data: Omit<Approval, "id">) => api.post<Approval>("/approvals", data),
     act: (id: string, action: "Approved" | "Rejected", comment?: string) => api.put(`/approvals/${id}/act`, { action, comment }),
+  },
+  transportRequests: {
+    list: () => api.get<TransportRequest[]>("/transport-requests"),
+    create: (data: Omit<TransportRequest, "id" | "requestCode" | "status">) => api.post<TransportRequest>("/transport-requests", data),
+    act: (id: string, data: { action: "Approved" | "Declined"; assignedVehicleId?: string; assignedVehicle?: string; assignedDriverId?: string; assignedDriver?: string; assignedRiderId?: string; assignedRider?: string; declinedReason?: string }) => api.put<TransportRequest>(`/transport-requests/${id}/act`, data),
+  },
+  siteSurveys: {
+    list: () => api.get<SiteSurvey[]>("/site-surveys"),
+    create: (data: Omit<SiteSurvey, "id" | "surveyCode" | "status">) => api.post<SiteSurvey>("/site-surveys", data),
+    start: (id: string) => api.put<SiteSurvey>(`/site-surveys/${id}/start`, {}),
+    complete: (id: string, data: Partial<SiteSurvey>) => api.put<SiteSurvey>(`/site-surveys/${id}/complete`, data),
+    cancel: (id: string) => api.put<SiteSurvey>(`/site-surveys/${id}/cancel`, {}),
+  },
+  contractInquiries: {
+    list: () => api.get<ContractInquiry[]>("/contract-inquiries"),
+    create: (data: Omit<ContractInquiry, "id" | "inquiryCode" | "status">) => api.post<ContractInquiry>("/contract-inquiries", data),
+    respond: (id: string, data: { responseType: "Confirmation" | "Full Copy"; responseNotes?: string; responsePath?: string }) => api.put<ContractInquiry>(`/contract-inquiries/${id}/respond`, data),
   },
   documents: {
     list: () => api.get<DocumentRecord[]>("/documents"),

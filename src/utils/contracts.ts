@@ -1,13 +1,9 @@
 import type { ContractRecord, UserRole } from "../types";
 import { MARKETING_ROLES, OPS_MANAGEMENT_ROLES } from "../services/rbacService";
 
-export const HIGH_VALUE_THRESHOLD = 100_000_000;
-
-export const CONTRACT_APPROVAL_STEPS = ["BD", "Finance", "GM", "Done"] as const;
+export const CONTRACT_APPROVAL_STEPS = ["GM", "Done"] as const;
 
 export function contractApprovalRolesForStep(step?: string): UserRole[] {
-  if (step === "BD") return ["Business Development Manager"];
-  if (step === "Finance") return ["Finance Manager"];
   if (step === "GM") return ["General Manager"];
   return [];
 }
@@ -47,6 +43,5 @@ export function canEditContract(c: ContractRecord, role?: UserRole): boolean {
   if (MARKETING_ROLES.includes(role as UserRole)) {
     return c.status === "Draft";
   }
-  if (role === "Finance Manager") return c.approvalStep === "Finance";
   return false;
 }

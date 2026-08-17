@@ -94,13 +94,13 @@ export const OrgHierarchyPanel: React.FC<OrgHierarchyPanelProps> = ({
         </div>
       )}
 
-      {!compact && department.fieldLadder && department.fieldLadder.length > 0 && (
+      {(() => { const ladder = (department as any).rankLadder ?? department.fieldLadder; return !compact && ladder && ladder.length > 0 && (
         <div className="mt-3 pt-3 border-t border-slate-100">
           <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
-            Field rank ladder (supervision chain)
+            Rank ladder (supervision chain)
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            {department.fieldLadder.map((node, i) => (
+            {ladder.map((node: any, i: number) => (
               <React.Fragment key={node.rank}>
                 {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300" />}
                 <span
@@ -114,7 +114,7 @@ export const OrgHierarchyPanel: React.FC<OrgHierarchyPanelProps> = ({
             ))}
           </div>
         </div>
-      )}
+      )})()}
 
       {department.notes && !compact && (
         <p className="mt-3 text-[11px] text-slate-500 italic border-t border-slate-100 pt-2">

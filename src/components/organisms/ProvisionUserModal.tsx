@@ -24,7 +24,7 @@ export const ProvisionUserModal: React.FC<ProvisionUserModalProps> = ({ guard, o
       department: provUserDept,
       status: "Active",
       lastActive: "Just now",
-      forceNumber: guard.guardCode,
+      forceNumber: guard.forceNumber,
     });
     if (onUpdateGuard) {
       onUpdateGuard(guard.id, { hasSystemAccount: true });
@@ -50,7 +50,7 @@ export const ProvisionUserModal: React.FC<ProvisionUserModalProps> = ({ guard, o
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase block">Staff Force Number</span>
-            <strong className="font-mono text-cyan-700 text-sm">{guard.guardCode}</strong>
+            <strong className="font-mono text-cyan-700 text-sm">{guard.forceNumber}</strong>
           </div>
 
           <div>

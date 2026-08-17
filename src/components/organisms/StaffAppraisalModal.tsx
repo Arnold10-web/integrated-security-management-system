@@ -1,6 +1,7 @@
 import React from "react";
-import { Award, CheckCircle2 } from "lucide-react";
+import { Award, CheckCircle2, AlertTriangle } from "lucide-react";
 import type { Guard, StaffAppraisal } from "../../types";
+import { useDomainStore } from "../../stores/domainStore";
 
 interface StaffAppraisalModalProps {
   guards: Guard[];
@@ -76,6 +77,8 @@ export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
   onSubmit,
 }) => {
   if (!show) return null;
+  const selectedGuard = guards.find((g) => g.id === appraisalGuardId) ?? null;
+  const disciplinaryHistory = useDomainStore((s) => s.disciplinaryActions.filter((d) => d.guardId === appraisalGuardId || d.forceNumber === selectedGuard?.forceNumber));
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs">
@@ -85,7 +88,7 @@ export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
           <div>
             <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
               <Award className="w-5 h-5 text-purple-700" />
-              Log Annual Staff Performance Evaluation & Development Goals
+              Staff Appraisal
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">Record annual performance scores, supervisor feedback, employee acknowledgment.</p>
           </div>
@@ -100,7 +103,7 @@ export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
                 <option value="">-- Select Personnel --</option>
                 {guards.map((g) => (
-                  <option key={g.id} value={g.id}>{g.fullName} ({g.guardCode}) • {g.designation}</option>
+                  <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber}) • {g.designation}</option>
                 ))}
               </select>
             </div>
@@ -139,6 +142,31 @@ export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
                 placeholder="e.g. HR & Performance Manager" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-semibold" />
             </div>
           </div>
+
+          {appraisalGuardId && (
+            <div className={`rounded-xl border p-3 space-y-2 ${disciplinaryHistory.length > 0 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className={`w-4 h-4 ${disciplinaryHistory.length > 0 ? "text-amber-600" : "text-emerald-600"}`} />
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Disciplinary History — auto-surfaced for this review period</span>
+                <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-black ${disciplinaryHistory.length > 0 ? "bg-amber-200 text-amber-900" : "bg-emerald-200 text-emerald-900"}`}>
+                  {selectedGuard ? `${selectedGuard.warningLettersCount} warning letter(s)` : "—"} · {disciplinaryHistory.length} case(s)
+                </span>
+              </div>
+              {disciplinaryHistory.length > 0 ? (
+                <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                  {disciplinaryHistory.slice(0, 4).map((d) => (
+                    <div key={d.id} className="flex items-start justify-between gap-2 text-[11px] bg-white/70 rounded-lg px-2 py-1.5 border border-amber-200/60">
+                      <span className="font-bold text-slate-800">{d.actionType} · {d.offence || d.reason}</span>
+                      <span className="text-[10px] text-slate-500 font-semibold shrink-0">{d.status}{d.offenceDate ? ` · ${d.offenceDate}` : ""}</span>
+                    </div>
+                  ))}
+                  {disciplinaryHistory.length > 4 && <p className="text-[10px] text-slate-500 font-semibold">+{disciplinaryHistory.length - 4} more case(s) on file.</p>}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-600 font-medium">No disciplinary cases on file for this guard — evaluator cannot omit history; this banner confirms it.</p>
+              )}
+            </div>
+          )}
 
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
             <span className="font-black text-slate-800 block text-[11px] uppercase tracking-wider">5 Performance Indicator Criteria Scores (1 to 5 Stars)</span>

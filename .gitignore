@@ -6,5 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+uploads/
+secure_storage/
+*.db
+*.sqlite
 
 /src/generated/prisma

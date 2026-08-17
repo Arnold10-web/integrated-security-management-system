@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Review and Sign Document — ISCMS</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; color: #333; background: #fcfcfc; }
+  .contract-box { border: 1px solid #ddd; padding: 40px; background: #fff; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 6px; min-height: 200px; }
+  .consent-container { border: 1px solid #ccc; padding: 15px; background: #fafafa; font-size: 13px; line-height: 1.4; margin-bottom: 15px; border-radius: 4px; }
+  .canvas-container { border: 2px dashed #a1a1a1; background: #fdfdfd; display: inline-block; position: relative; margin-top: 15px; border-radius: 4px; }
+  canvas { cursor: crosshair; display: block; }
+  .buttons { margin-top: 20px; }
+  button { padding: 12px 24px; font-size: 15px; margin-right: 12px; cursor: pointer; border-radius: 4px; font-weight: 500; }
+  .btn-clear { background: #f0f0f0; border: 1px solid #ccc; color: #444; }
+  .btn-submit { background: #0066cc; color: white; border: none; }
+  .btn-submit:hover:not(:disabled) { background: #0052a3; }
+  .btn-submit:disabled { background: #99b8d9; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div class="contract-box" id="contractContent">Loading document…</div>
+<div class="consent-container">
+  <p style="margin-top:0; font-weight:bold; color:#111;">Electronic Record and Signature Disclosure Consent</p>
+  <p style="color:#555;">By checking the box below and signing with the canvas, you consent to conduct this transaction electronically. Your drawn signature carries the same legal weight as a handwritten signature on paper. This signing link expires in 14 days and can only be used once.</p>
+  <label style="display:flex; align-items:flex-start; margin-top:12px; font-weight:600; cursor:pointer;">
+    <input type="checkbox" id="consentCheckbox" style="margin-right:8px; margin-top:3px;">
+    I have read, understood, and agree to the Electronic Disclosure Terms.
+  </label>
+</div>
+<h3>Draw your signature below:</h3>
+<div class="canvas-container"><canvas id="signatureCanvas" width="550" height="160"></canvas></div>
+<div class="buttons">
+  <button class="btn-clear" id="clearBtn">Clear</button>
+  <button class="btn-submit" id="submitBtn" disabled>Sign &amp; Complete</button>
+</div>
+<script>
+const canvas = document.getElementById('signatureCanvas');
+const ctx = canvas.getContext('2d');
+let isDrawing = false, hasDrawn = false;
+ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+const token = window.location.pathname.split('/').pop();
+const consentCheckbox = document.getElementById('consentCheckbox');
+const submitBtn = document.getElementById('submitBtn');
+function updateSubmitState(){ submitBtn.disabled = !(consentCheckbox.checked && hasDrawn); }
+consentCheckbox.addEventListener('change', updateSubmitState);
+async function loadContract(){
+  try {
+    const res = await fetch(`/api/esign/get-contract/${token}`);
+    const data = await res.json();
+    // Server escapes signer-supplied variables before returning HTML; template markup is admin-authored
+    document.getElementById('contractContent').innerHTML = data.html || `<p>${data.error || 'Unable to load document.'}</p>`;
+  } catch { document.getElementById('contractContent').innerHTML = '<p>Failed to load document.</p>'; }
+}
+loadContract();
+function getCoords(e){
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x: cx - rect.left, y: cy - rect.top };
+}
+function startDrawing(e){ isDrawing = true; hasDrawn = true; const c = getCoords(e); ctx.beginPath(); ctx.moveTo(c.x, c.y); updateSubmitState(); if(e.touches) e.preventDefault(); }
+function draw(e){ if(!isDrawing) return; const c=getCoords(e); ctx.lineTo(c.x,c.y); ctx.stroke(); if(e.touches) e.preventDefault(); }
+function stopDrawing(){ isDrawing = false; }
+canvas.addEventListener('mousedown', startDrawing); canvas.addEventListener('mousemove', draw); window.addEventListener('mouseup', stopDrawing);
+canvas.addEventListener('touchstart', startDrawing); canvas.addEventListener('touchmove', draw); window.addEventListener('touchend', stopDrawing);
+document.getElementById('clearBtn').addEventListener('click',()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn=false; updateSubmitState(); });
+submitBtn.addEventListener('click', async ()=>{
+  const signatureImage = canvas.toDataURL('image/png');
+  submitBtn.disabled = true; submitBtn.textContent = 'Processing…';
+  try {
+    const r = await fetch(`/api/esign/sign-contract/${token}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signatureImage})});
+    const j = await r.json();
+    if(j.success){ alert('Signed successfully. This document is now finalized.'); window.location.reload(); }
+    else { alert('Error: '+(j.error||'Unknown')); submitBtn.disabled=false; submitBtn.textContent='Sign & Complete'; }
+  } catch { alert('Network error — please try again.'); submitBtn.disabled=false; submitBtn.textContent='Sign & Complete'; }
+});
+</script>
+</body>
+</html>

@@ -49,6 +49,9 @@ import type {
   DisciplinaryAction,
   SiteDeployment,
   DeploymentOrder,
+  TransportRequest,
+  SiteSurvey,
+  ContractInquiry,
 } from "../types";
 import {
   initialGuards,
@@ -83,6 +86,7 @@ import {
   initialBreakdowns,
   initialLeaveRequests,
   initialStaffAppraisals,
+  initialDisciplinaryActions,
   initialContractRecords,
 } from "../data/mockData";
 import { useAuditStore } from "./auditStore";
@@ -92,10 +96,36 @@ import { domainApi } from "../services/domainApi";
 import { api } from "../services/apiClient";
 import { nextForceNumber } from "../utils/forceNumber";
 
-function syncApi(method: "post" | "put" | "delete", path: string, body?: unknown) {
+type LeaveBalanceComputed = { entitlement: number; taken: number; balance: number };
+
+function computeMockLeaveBalance(
+  leaveRequests: { guardId: string; status: string; durationDays: number }[],
+  current?: { guardId: string; durationDays: number } | undefined
+): LeaveBalanceComputed {
+  const entitlement = 30;
+  const prior = current
+    ? leaveRequests.filter((l) => l.guardId === current.guardId && l.status === "Approved")
+    : [];
+  const taken = prior.reduce((sum, l) => sum + l.durationDays, 0) + (current?.durationDays ?? 0);
+  return { entitlement, taken, balance: entitlement - taken };
+}
+
+type LoadingMap = Record<string, boolean>;
+type ErrorMap = Record<string, string | null>;
+
+async function syncApi(method: "post" | "put" | "delete", path: string, body?: unknown): Promise<void> {
   const { useApi } = useDomainStore.getState();
-  if (useApi) {
-    api[method](path, body).catch(() => {});
+  if (!useApi) return;
+  const key = `${method}:${path}`;
+  useDomainStore.setState((s) => ({ loading: { ...s.loading, [key]: true }, error: { ...s.error, [key]: null } }));
+  try {
+    await api[method](path, body);
+    useDomainStore.setState((s) => ({ loading: { ...s.loading, [key]: false } }));
+  } catch (err: any) {
+    const msg = err?.message ?? "Sync failed";
+    console.error(`[domainStore] syncApi ${method.toUpperCase()} ${path} failed:`, err);
+    useDomainStore.setState((s) => ({ loading: { ...s.loading, [key]: false }, error: { ...s.error, [key]: msg } }));
+    throw err;
   }
 }
 
@@ -104,11 +134,12 @@ function actor() {
 }
 
 function audit(action: string, details: string, module: string) {
-  useAuditStore.getState().addLog(action, details, module, actor());
+  // Audit is now fire-and-forget but logged after successful state commit (caller must await syncApi first)
+  try { useAuditStore.getState().addLog(action, details, module, actor()); } catch {}
 }
 
 function notif(type: AppNotification["type"], title: string, message: string, module: string) {
-  useNotificationStore.getState().addNotification({ type, title, message, module });
+  try { useNotificationStore.getState().addNotification({ type, title, message, module }); } catch {}
 }
 
 const SOURCE_TO_CAMPAIGN_CHANNEL: Partial<Record<LeadSource, Campaign["channel"]>> = {
@@ -120,6 +151,10 @@ const SOURCE_TO_CAMPAIGN_CHANNEL: Partial<Record<LeadSource, Campaign["channel"]
 };
 
 interface DomainState {
+  loading: LoadingMap;
+  error: ErrorMap;
+  pagination: Record<string, { page: number; limit: number; total: number }>;
+  useApi: boolean;
   regions: RegionalOffice[];
   regionalOffices: RegionalOffice[];
   guards: Guard[];
@@ -165,6 +200,7 @@ interface DomainState {
   disciplinaryActions: DisciplinaryAction[];
   deployments: SiteDeployment[];
   deploymentOrders: DeploymentOrder[];
+  transportRequests: TransportRequest[];
 
   // Guards / HR
   addGuard: (g: Omit<Guard, "id">) => void;
@@ -284,10 +320,9 @@ interface DomainState {
   // Leave
   addLeaveRequest: (r: Omit<LeaveRequest, "id">) => void;
   updateLeaveRequest: (id: string, updates: Partial<LeaveRequest>) => void;
-  regionalApproveLeave: (id: string) => void;
-  opsApproveLeave: (id: string) => void;
   hrApproveLeave: (id: string, verification?: { entitlement?: number; taken?: number; balance?: number; resumptionDate?: string }) => void;
   gmApproveLeave: (id: string) => void;
+  rejectLeaveRequest: (id: string, notes?: string) => void;
   deleteLeaveRequest: (id: string) => void;
 
   // Workflow
@@ -338,6 +373,22 @@ interface DomainState {
   assignDeploymentOrder: (orderId: string, guardIds: string[]) => void;
   cancelDeploymentOrder: (orderId: string) => void;
 
+  // Transport Requests
+  addTransportRequest: (r: Omit<TransportRequest, "id" | "requestCode" | "status">) => void;
+  actOnTransportRequest: (id: string, data: { action: "Approved" | "Declined"; assignedVehicleId?: string; assignedVehicle?: string; assignedDriverId?: string; assignedDriver?: string; assignedRiderId?: string; assignedRider?: string; declinedReason?: string }) => void;
+
+  // Site Surveys
+  siteSurveys: SiteSurvey[];
+  addSiteSurvey: (r: Omit<SiteSurvey, "id" | "surveyCode" | "status">) => void;
+  startSiteSurvey: (id: string, surveyedBy: string) => void;
+  completeSiteSurvey: (id: string, data: Partial<SiteSurvey>) => void;
+  cancelSiteSurvey: (id: string) => void;
+
+  // Contract Inquiries
+  contractInquiries: ContractInquiry[];
+  addContractInquiry: (r: Omit<ContractInquiry, "id" | "inquiryCode" | "status">) => void;
+  respondToContractInquiry: (id: string, data: { responseType: "Confirmation" | "Full Copy"; responseNotes?: string; responsePath?: string }) => void;
+
   // IT Servers
   updateITServer: (id: string, updates: Partial<ITServer>) => void;
   deleteITServer: (id: string) => void;
@@ -360,12 +411,15 @@ interface DomainState {
   updateRegion: (id: string, updates: Partial<RegionalOffice>) => void;
   deleteRegion: (id: string) => void;
 
-  useApi: boolean;
   setUseApi: (v: boolean) => void;
   hydrateFromApi: () => Promise<void>;
 }
 
 export const useDomainStore = create<DomainState>((set, get) => ({
+  loading: {},
+  error: {},
+  pagination: {},
+  useApi: false,
   regions: initialRegionalOffices,
   regionalOffices: initialRegionalOffices,
   guards: initialGuards,
@@ -407,14 +461,17 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   jobPostings: [],
   candidates: [],
   complaints: [],
-  disciplinaryActions: [],
+  disciplinaryActions: initialDisciplinaryActions,
   deployments: [],
   deploymentOrders: initialDeploymentOrders,
+  siteSurveys: [],
+  contractInquiries: [],
+  transportRequests: [],
   performanceReviews: initialStaffAppraisals.map((a) => ({
     id: a.id,
     guardId: a.guardId,
     guardName: a.guardName,
-    guardCode: a.guardCode,
+    forceNumber: a.forceNumber,
     reviewPeriod: a.reviewPeriod,
     reviewType: a.reviewType || 'Annual Evaluation',
     evaluatorName: a.evaluatorName,
@@ -439,15 +496,24 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     syncApi("post", "/guards", newGuard);
     audit(
       "Guard Enrollment",
-      `Enrolled guard officer ${guard.fullName} (${guard.guardCode}) to ${guard.assignedSite}.`,
+      `Enrolled guard officer ${guard.fullName} (${guard.forceNumber}) to ${guard.assignedSite}.`,
       "Guard Personnel"
     );
-    notif("success", "Guard Enrolled", `${guard.fullName} (${guard.guardCode}) assigned to ${guard.assignedSite}`, "HR");
+    notif("success", "Guard Enrolled", `${guard.fullName} (${guard.forceNumber}) assigned to ${guard.assignedSite}`, "HR");
   },
 
   updateGuard: (guardId, updates) => {
     set((s) => ({
-      guards: s.guards.map((g) => (g.id === guardId ? { ...g, ...updates } : g)),
+      guards: s.guards.map((g) => {
+        if (g.id !== guardId) return g;
+        // §5: a promotion changing the printed designation triggers a reissue
+        // entry in the Records Officer queue.
+        const reissue =
+          updates.designation &&
+          updates.designation !== g.designation &&
+          (g.idCardStatus === "Issued & Active" || g.idCardStatus === "Reissue Required");
+        return { ...g, ...updates, ...(reissue ? { idCardStatus: "Reissue Required" as const } : {}) };
+      }),
     }));
     syncApi("put", `/guards/${guardId}`, updates);
     audit("Staff Record Updated", `Updated guard ID ${guardId} biodata/ID card status`, "HR & IT Operations");
@@ -822,7 +888,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     const codeNum = get().drivers.length + 1;
     const known = [
       ...get().drivers.map((d) => d.forceNumber || d.driverCode),
-      ...get().guards.map((g) => g.guardCode),
+      ...get().guards.map((g) => g.forceNumber),
     ];
     const driver: DriverRecord = {
       ...newDriver,
@@ -1033,16 +1099,12 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   },
 
   approveExpense: (expId) => {
-    const exp = get().expenses.find((x) => x.id === expId);
-    const nextStatus = exp && exp.amount > 10000000 ? "Pending GM Approval" : "Approved";
     set((s) => ({
-      expenses: s.expenses.map((x) => (x.id === expId ? { ...x, status: nextStatus, approvedBy: actor()?.name || "", approvalStep: "fm-approve" } : x)),
+      expenses: s.expenses.map((x) => (x.id === expId ? { ...x, status: "Approved", approvedBy: actor()?.name || "", approvalStep: "gm-approve" } : x)),
     }));
     syncApi("put", `/expenses/${expId}/approve`, {});
-    audit("Expense Approved", nextStatus === "Approved"
-      ? `Finance Manager approved expense ${expId}`
-      : `Expense ${expId} >10M UGX — forwarded to GM for approval`, "Finance");
-    notif("success", "Expense Approved", nextStatus === "Approved" ? "Expense approved" : ">10M UGX forwarded to GM", "Finance");
+    audit("Expense Approved", `General Manager approved expense ${expId}`, "Finance");
+    notif("success", "Expense Approved", "Expense approved by the General Manager", "Finance");
   },
 
   gmApproveExpense: (expId) => {
@@ -1238,11 +1300,11 @@ export const useDomainStore = create<DomainState>((set, get) => ({
 
   // Campaigns
   addCampaign: (c) => {
-    const campaign: Campaign = { ...c, budgetStatus: c.budgetStatus ?? "Pending Finance Approval", id: `cmp-${Date.now()}` };
+    const campaign: Campaign = { ...c, budgetStatus: c.budgetStatus ?? "Pending Approval", id: `cmp-${Date.now()}` };
     set((s) => ({ campaigns: [campaign, ...s.campaigns] }));
     syncApi("post", "/campaigns", c);
     audit("Campaign Created", `Created campaign '${c.name}' with budget UGX ${c.budget.toLocaleString()}`, "Marketing & Sales");
-    notif("success", "Campaign Created", `${c.name} — awaiting finance budget approval`, "Marketing");
+    notif("success", "Campaign Created", `${c.name} — awaiting General Manager budget approval`, "Marketing");
   },
 
   updateCampaign: (id, updates) => {
@@ -1262,12 +1324,10 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   },
 
   approveCampaignBudget: (id) => {
-    const c = get().campaigns.find((x) => x.id === id);
-    const nextStatus = c && c.budget > 10000000 ? "Pending GM Approval" : "Approved";
-    set((s) => ({ campaigns: s.campaigns.map((x) => (x.id === id ? { ...x, budgetStatus: nextStatus, budgetApprovedBy: actor()?.name } : x)) }));
+    set((s) => ({ campaigns: s.campaigns.map((x) => (x.id === id ? { ...x, budgetStatus: "Approved", budgetApprovedBy: actor()?.name, budgetApprovedAt: new Date().toISOString().split("T")[0] } : x)) }));
     syncApi("put", `/campaigns/${id}/approve-budget`, {});
-    audit("Campaign Budget Approved", `Finance approved budget for campaign ${id}`, "Finance");
-    notif("success", "Budget Approved", nextStatus === "Approved" ? "Campaign budget approved" : "Budget >10M UGX — forwarded to GM for final approval", "Finance");
+    audit("Campaign Budget Approved", `General Manager approved budget for campaign ${id}`, "Finance");
+    notif("success", "Budget Approved", "Campaign budget approved by the General Manager", "Finance");
   },
 
   gmApproveCampaignBudget: (id) => {
@@ -1330,7 +1390,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     };
     set((s) => ({ disciplinaryActions: [action, ...s.disciplinaryActions] }));
     syncApi("post", "/disciplinary", d);
-    audit("Disciplinary Action Initiated", `${d.actionType} for ${d.guardName} (${d.guardCode}): ${d.reason}`, "HR");
+    audit("Disciplinary Action Initiated", `${d.actionType} for ${d.guardName} (${d.forceNumber}): ${d.reason}`, "HR");
     notif("warning", "Disciplinary Initiated", `${d.actionType} — ${d.guardName}`, "HR");
   },
 
@@ -1455,6 +1515,142 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     syncApi("put", `/deployment-orders/${orderId}/cancel`, {});
     audit("Deployment Order Cancelled", `Deployment order ${orderId} cancelled`, "Operations");
     notif("warning", "Order Cancelled", `Deployment order ${orderId} cancelled`, "Operations");
+  },
+
+  // Transport Requests
+  addTransportRequest: (r) => {
+    const request: TransportRequest = {
+      ...r,
+      id: `tr-${Date.now()}`,
+      requestCode: `TRP-${Date.now().toString().slice(-6)}`,
+      status: "Pending Fleet",
+    };
+    set((s) => ({ transportRequests: [request, ...s.transportRequests] }));
+    syncApi("post", "/transport-requests", r);
+    audit(
+      "Transport Requested",
+      `${r.requestedByName} requested transport to ${r.destination} (${r.vehicleType}, ${r.passengersCount} pax)`,
+      "Transport"
+    );
+    notif("warning", "Transport Requested", `Waiting on Fleet Manager for ${r.destination}`, "Transport");
+  },
+
+  actOnTransportRequest: (id, data) => {
+    const request = get().transportRequests.find((x) => x.id === id);
+    if (!request) return;
+    const isApproved = data.action === "Approved";
+    set((s) => ({
+      transportRequests: s.transportRequests.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              status: isApproved ? "Approved" : "Declined",
+              assignedVehicleId: data.assignedVehicleId,
+              assignedVehicle: data.assignedVehicle,
+              assignedDriverId: data.assignedDriverId,
+              assignedDriver: data.assignedDriver,
+              assignedRiderId: data.assignedRiderId,
+              assignedRider: data.assignedRider,
+              declinedReason: isApproved ? undefined : data.declinedReason,
+              actedBy: actor()?.name,
+              actedAt: new Date().toISOString(),
+            }
+          : x
+      ),
+    }));
+    syncApi("put", `/transport-requests/${id}/act`, data);
+    audit(
+      isApproved ? "Transport Approved" : "Transport Declined",
+      `${request.requestCode} ${isApproved ? `approved → ${data.assignedVehicle ?? "vehicle"} / ${data.assignedDriver ?? data.assignedRider ?? "driver"}` : `declined${data.declinedReason ? `: ${data.declinedReason}` : ""}`}`,
+      "Transport"
+    );
+    notif(isApproved ? "success" : "error", isApproved ? "Transport Approved" : "Transport Declined", `${request.requestCode} → ${request.destination}`, "Transport");
+  },
+
+  // Site Surveys
+  addSiteSurvey: (r) => {
+    const survey: SiteSurvey = {
+      ...r,
+      id: `ss-${Date.now()}`,
+      surveyCode: `SS-${Date.now().toString().slice(-6)}`,
+      status: "Requested",
+    };
+    set((s) => ({ siteSurveys: [survey, ...s.siteSurveys] }));
+    syncApi("post", "/site-surveys", r);
+    audit(
+      "Site Survey Requested",
+      `${r.requestedByName} requested site survey for ${r.clientName} — ${r.siteName}`,
+      "Operations"
+    );
+    notif("info", "Site Survey Requested", `${survey.surveyCode} for ${r.siteName}`, "Operations");
+  },
+
+  startSiteSurvey: (id, surveyedBy) => {
+    set((s) => ({
+      siteSurveys: s.siteSurveys.map((x) =>
+        x.id === id ? { ...x, status: "In Progress" as const, surveyedBy } : x
+      ),
+    }));
+    syncApi("put", `/site-surveys/${id}/start`, { surveyedBy });
+    audit("Site Survey Started", `Survey ${id} started by ${surveyedBy}`, "Operations");
+    notif("info", "Survey Started", `Survey ${id} is now In Progress`, "Operations");
+  },
+
+  completeSiteSurvey: (id, data) => {
+    set((s) => ({
+      siteSurveys: s.siteSurveys.map((x) =>
+        x.id === id ? { ...x, ...data, status: "Completed" as const, reportPath: `survey-${id}-report` } : x
+      ),
+    }));
+    syncApi("put", `/site-surveys/${id}/complete`, data);
+    audit("Site Survey Completed", `Survey ${id} completed with recommendation`, "Operations");
+    notif("success", "Survey Completed", `Survey ${id} report ready`, "Operations");
+  },
+
+  cancelSiteSurvey: (id) => {
+    set((s) => ({
+      siteSurveys: s.siteSurveys.map((x) => (x.id === id ? { ...x, status: "Cancelled" as const } : x)),
+    }));
+    syncApi("put", `/site-surveys/${id}/cancel`, {});
+    audit("Site Survey Cancelled", `Survey ${id} cancelled`, "Operations");
+    notif("warning", "Survey Cancelled", `Survey ${id} cancelled`, "Operations");
+  },
+
+  // Contract Inquiries
+  addContractInquiry: (r) => {
+    const inquiry: ContractInquiry = {
+      ...r,
+      id: `ci-${Date.now()}`,
+      inquiryCode: `CI-${Date.now().toString().slice(-6)}`,
+      status: "Pending",
+    };
+    set((s) => ({ contractInquiries: [inquiry, ...s.contractInquiries] }));
+    syncApi("post", "/contract-inquiries", r);
+    audit(
+      "Contract Inquiry Raised",
+      `${r.requestedByName} requested ${r.purpose} for ${r.clientName}`,
+      "Records"
+    );
+    notif("info", "Inquiry Sent to Records", `${inquiry.inquiryCode} for ${r.clientName}`, "Records");
+  },
+
+  respondToContractInquiry: (id, data) => {
+    set((s) => ({
+      contractInquiries: s.contractInquiries.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              ...data,
+              status: "Answered" as const,
+              respondedBy: actor()?.name,
+              respondedAt: new Date().toISOString().split("T")[0],
+            }
+          : x
+      ),
+    }));
+    syncApi("put", `/contract-inquiries/${id}/respond`, data);
+    audit("Contract Inquiry Answered", `Inquiry ${id} responded (${data.responseType})`, "Records");
+    notif("success", "Inquiry Answered", `Inquiry ${id} → ${data.responseType}`, "Records");
   },
 
   // IT Servers
@@ -1640,7 +1836,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       guards: [
         {
           id: `guard-${Date.now()}`,
-          guardCode: forceNumber,
+          forceNumber: forceNumber,
           fullName: trainee.fullName,
           nationalId: trainee.nationalIdNumber,
           designation: "Guard" as const,
@@ -1671,7 +1867,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   },
 
   addLeaveRequest: (r) => {
-    const req: LeaveRequest = { ...r, id: `lr-${Date.now()}` };
+    const req: LeaveRequest = { ...r, id: `lr-${Date.now()}`, status: "Pending HR Approval", requestedByRole: actor()?.role };
     set((s) => ({ leaveRequests: [req, ...s.leaveRequests] }));
     syncApi("post", "/leave-requests", r);
     audit("Leave Request Submitted", `${req.guardName} requested ${req.leaveType} from ${req.startDate} to ${req.endDate}`, "HR");
@@ -1688,32 +1884,30 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     notif("info", "Leave Updated", `Leave request ${id} updated`, "HR");
   },
 
-   regionalApproveLeave: (id) => {
-     set((s) => ({ leaveRequests: s.leaveRequests.map((lr) => (lr.id === id ? { ...lr, status: "Pending Ops Approval" } : lr)) }));
-     syncApi("put", `/leave-requests/${id}/approve`, {});
-     audit("Leave Regional Approved", `Regional Manager approved leave request ${id}`, "Operations");
-     notif("success", "Regional Approved", `Leave request ${id} forwarded to Operations`, "Operations");
-   },
-
-   opsApproveLeave: (id) => {
-    set((s) => ({ leaveRequests: s.leaveRequests.map((lr) => (lr.id === id ? { ...lr, status: "Pending HR Review" } : lr)) }));
-    syncApi("put", `/leave-requests/${id}/ops-approve`, {});
-    audit("Leave Ops Approved", `Operations approved leave request ${id}`, "Operations");
-    notif("success", "Ops Approved", `Leave request ${id} forwarded to HR`, "Operations");
-  },
-
   hrApproveLeave: (id, verification) => {
+    const lr = get().leaveRequests.find((lr) => lr.id === id);
+    const approvalId = lr?.approvalId;
+    if (approvalId) {
+      get().actOnApproval(approvalId, "Approved", verification?.resumptionDate ? `Resumption: ${verification.resumptionDate}` : undefined);
+    }
+    const computed = verification
+      ? { entitlement: verification.entitlement, taken: verification.taken, balance: verification.balance }
+      : computeMockLeaveBalance(get().leaveRequests, lr);
     set((s) => ({
       leaveRequests: s.leaveRequests.map((lr) =>
-        lr.id === id ? { ...lr, status: "Pending GM Approval" as const, ...(verification ?? {}) } : lr
+        lr.id === id ? { ...lr, status: "Pending GM Approval" as const, ...computed } : lr
       ),
     }));
-    syncApi("put", `/leave-requests/${id}/hr-approve`, verification ?? {});
     audit("Leave HR Approved", `HR approved leave request ${id}, forwarded to GM`, "HR");
     notif("info", "HR Approved", `Leave request ${id} forwarded to GM for final approval`, "HR");
   },
 
   gmApproveLeave: (id) => {
+    const lr = get().leaveRequests.find((lr) => lr.id === id);
+    const approvalId = lr?.approvalId;
+    if (approvalId) {
+      get().actOnApproval(approvalId, "Approved");
+    }
     set((s) => ({
       leaveRequests: s.leaveRequests.map((lr) =>
         lr.id === id
@@ -1721,7 +1915,6 @@ export const useDomainStore = create<DomainState>((set, get) => ({
           : lr
       ),
     }));
-    syncApi("put", `/leave-requests/${id}/gm-approve`, {});
     audit("Leave GM Approved", `GM gave final approval to leave request ${id}`, "Directorate");
     notif("success", "Leave Approved", `Leave request ${id} fully approved`, "HR");
   },
@@ -1731,6 +1924,30 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     syncApi("delete", `/leave-requests/${id}`);
     audit("Leave Request Cancelled", `Cancelled leave request ID ${id}`, "HR");
     notif("warning", "Leave Cancelled", `Leave request ${id} cancelled`, "HR");
+  },
+
+  rejectLeaveRequest: (id, notes) => {
+    const lr = get().leaveRequests.find((lr) => lr.id === id);
+    const requesterRole = lr?.requestedByRole;
+    // §5: HR denial authority only applies to genuinely subordinate staff;
+    // leave from the GM or peer department managers cannot be denied by HR.
+    const HR_SUBORDINATE_ROLES = ["HR Assistant", "Records Officer", "Sales and Marketing Supervisor", "Guard Officer", "Armorer", "K9 Supervisor", "K9 Handler", "Accountant", "Assistant Accountant", "Cashier"];
+    if (requesterRole && !HR_SUBORDINATE_ROLES.includes(requesterRole)) {
+      notif("error", "Cannot Reject", "Leave requests from the General Manager or peer department managers cannot be denied by HR — escalate to the General Manager.", "HR");
+      return;
+    }
+    const approvalId = lr?.approvalId;
+    if (approvalId) {
+      get().actOnApproval(approvalId, "Rejected", notes);
+    } else {
+      set((s) => ({
+        leaveRequests: s.leaveRequests.map((lr) =>
+          lr.id === id ? { ...lr, status: "Rejected" as const, notes: notes ?? lr.notes } : lr
+        ),
+      }));
+    }
+    audit("Leave Request Rejected", `Leave request ${id} rejected`, "HR");
+    notif("error", "Leave Rejected", `Leave request ${id} was rejected`, "HR");
   },
 
   addWorkflow: (wf) => {
@@ -1756,6 +1973,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   actOnApproval: (id, action, comment) => {
     const approval = get().approvals.find((a) => a.id === id);
     if (!approval) return;
+    const prev = get().approvals;
     const newAction: ApprovalAction = {
       id: `aa-${Date.now()}`,
       approvalId: id,
@@ -1766,14 +1984,53 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       comment,
       actedAt: new Date().toISOString(),
     };
+    const applyLocal = (next: Partial<Approval>) => {
+      set((s) => ({ approvals: s.approvals.map((a) => a.id === id ? { ...a, ...next, actions: [...a.actions, newAction] } : a) }));
+    };
     if (action === "Rejected") {
-      set((s) => ({ approvals: s.approvals.map((a) => a.id === id ? { ...a, status: "Rejected" as const, actions: [...a.actions, newAction] } : a) }));
+      applyLocal({ status: "Rejected" });
     } else if (approval.currentStep >= approval.totalSteps) {
-      set((s) => ({ approvals: s.approvals.map((a) => a.id === id ? { ...a, status: "Approved" as const, actions: [...a.actions, newAction] } : a) }));
+      applyLocal({ status: "Approved" });
     } else {
-      set((s) => ({ approvals: s.approvals.map((a) => a.id === id ? { ...a, currentStep: a.currentStep + 1, actions: [...a.actions, newAction] } : a) }));
+      applyLocal({ currentStep: approval.currentStep + 1 });
+    }
+    if (approval.referenceType === "LeaveRequest") {
+      set((s) => ({
+        leaveRequests: s.leaveRequests.map((lr) => {
+          if (lr.approvalId !== id) return lr;
+          let status = lr.status;
+          if (action === "Rejected") status = "Rejected";
+          else if (approval.currentStep >= approval.totalSteps) status = "Approved";
+          else {
+            const nextStep = approval.currentStep + 1;
+            const wf = s.workflows.find((w) => w.id === approval.workflowId || w.code === approval.workflowCode);
+            const stepDef = wf?.steps.find((st) => st.stepOrder === nextStep);
+            status = stepDef?.name?.includes("GM") ? "Pending GM Approval" : "Pending HR Approval";
+          }
+          return { ...lr, status };
+        }),
+      }));
     }
     notif(action === "Approved" ? "success" : "error", `Approval ${action}`, `${approval.referenceType || "Request"} ${action.toLowerCase()}${comment ? `: ${comment}` : ""}`, "Workflow");
+
+    const { useApi } = get();
+    if (!useApi) return;
+    api.put<{ status: string }>(`/approvals/${id}/act`, { action, comment })
+      .then((res) => {
+        set((s) => ({
+          approvals: s.approvals.map((a) => {
+            if (a.id !== id) return a;
+            if (res.status === "Approved") return { ...a, status: "Approved" as const };
+            if (res.status === "Rejected") return { ...a, status: "Rejected" as const };
+            const match = /Advanced to step (\d+)/.exec(res.status);
+            return match ? { ...a, currentStep: Number(match[1]) } : a;
+          }),
+        }));
+      })
+      .catch(() => {
+        set({ approvals: prev });
+        notif("error", "Sync Failed", `Could not persist approval action for ${approval.referenceType || "request"}`, "Workflow");
+      });
   },
 
   uploadDocument: (d) => {
@@ -1823,7 +2080,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     if (hiringDriverOrRider && cand && !get().drivers.some((d) => d.sourceRef === id)) {
       const known = [
         ...get().drivers.map((d) => d.forceNumber || d.driverCode),
-        ...get().guards.map((g) => g.guardCode),
+        ...get().guards.map((g) => g.forceNumber),
       ];
       const pending: DriverRecord = {
         id: `DRV-CAND-${Date.now()}`,
@@ -1886,7 +2143,6 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     notif("warning", "Region Deleted", `Region ID ${id} removed`, "IT");
   },
 
-  useApi: false,
   setUseApi: (v) => set({ useApi: v }),
 
   hydrateFromApi: async () => {
@@ -1895,6 +2151,8 @@ export const useDomainStore = create<DomainState>((set, get) => ({
         regionalOffices, leaveRequests, workflows, approvals, documents, jobPostings, candidates,
         performanceReviews, k9s, k9Logs, k9HealthInspections, armoury, armouryLogs, cashierTxns, contracts,
         campaigns, complaints, disciplinaryActions, deployments, deploymentOrders,
+        transportRequests,
+        siteSurveys, contractInquiries,
         trips, fuelLogs, maintenanceLogs, drivers, inspections, breakdowns,
         dutyRoster, patrolInspections, adminRequisitions, trainingCohorts, recruitTrainees,
         itServers, itTickets, itAssets, collections] = await Promise.all([
@@ -1926,6 +2184,9 @@ export const useDomainStore = create<DomainState>((set, get) => ({
         domainApi.disciplinary.list().catch(() => []),
         domainApi.deployments.list().catch(() => []),
         domainApi.deploymentOrders.list().catch(() => []),
+        domainApi.transportRequests.list().catch(() => []),
+        domainApi.siteSurveys.list().catch(() => []),
+        domainApi.contractInquiries.list().catch(() => []),
         domainApi.trips.list().catch(() => []),
         domainApi.fuelLogs.list().catch(() => []),
         domainApi.maintenanceLogs.list().catch(() => []),
@@ -1973,6 +2234,9 @@ export const useDomainStore = create<DomainState>((set, get) => ({
         disciplinaryActions: disciplinaryActions.length > 0 ? disciplinaryActions : get().disciplinaryActions,
         deployments: deployments.length > 0 ? deployments : get().deployments,
         deploymentOrders: deploymentOrders.length > 0 ? deploymentOrders : get().deploymentOrders,
+        transportRequests: transportRequests.length > 0 ? transportRequests : get().transportRequests,
+        siteSurveys: siteSurveys.length > 0 ? siteSurveys : get().siteSurveys,
+        contractInquiries: contractInquiries.length > 0 ? contractInquiries : get().contractInquiries,
         trips: trips.length > 0 ? trips : get().trips,
         fuelLogs: fuelLogs.length > 0 ? fuelLogs : get().fuelLogs,
         maintenanceLogs: maintenanceLogs.length > 0 ? maintenanceLogs : get().maintenanceLogs,

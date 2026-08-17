@@ -34,8 +34,8 @@ interface ContractModalProps {
   setRegion: (v: string) => void;
   autoRenew: boolean;
   setAutoRenew: (v: boolean) => void;
-  relatedGuardCode: string;
-  setRelatedGuardCode: (v: string) => void;
+  relatedForceNumber: string;
+  setRelatedForceNumber: (v: string) => void;
   relatedSiteName: string;
   setRelatedSiteName: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
@@ -58,7 +58,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({
   billingCycle, setBillingCycle,
   region, setRegion,
   autoRenew, setAutoRenew,
-  relatedGuardCode, setRelatedGuardCode,
+  relatedForceNumber, setRelatedForceNumber,
   relatedSiteName, setRelatedSiteName,
   onSubmit,
 }) => {
@@ -162,7 +162,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({
           {contractType === "Staff Contract" ? (
             <div>
               <label className="block text-slate-700 font-bold mb-1">Related Guard / Force Number</label>
-              <input type="text" value={relatedGuardCode} onChange={(e) => setRelatedGuardCode(e.target.value)}
+              <input type="text" value={relatedForceNumber} onChange={(e) => setRelatedForceNumber(e.target.value)}
                 placeholder="e.g. FORCE-2026-001" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold outline-none" />
             </div>
           ) : (

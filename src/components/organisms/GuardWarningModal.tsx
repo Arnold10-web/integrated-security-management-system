@@ -28,7 +28,7 @@ export const GuardWarningModal: React.FC<GuardWarningModalProps> = ({ guard, onC
             Official Warning Letter #{guard.warningLettersCount}
           </p>
           <p>
-            <strong>Employee:</strong> {guard.fullName} ({guard.guardCode})
+            <strong>Employee:</strong> {guard.fullName} ({guard.forceNumber})
           </p>
           <p>
             <strong>Assigned Station:</strong> {guard.assignedSite}
@@ -41,7 +41,7 @@ export const GuardWarningModal: React.FC<GuardWarningModalProps> = ({ guard, onC
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             onClick={() => {
-              toast.success("Warning letter archived", `${guard.fullName} (${guard.guardCode}) — warning letter printed and archived in the HR file.`);
+              toast.success("Warning letter archived", `${guard.fullName} (${guard.forceNumber}) — warning letter printed and archived in the HR file.`);
               onClose();
             }}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5"

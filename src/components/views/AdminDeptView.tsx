@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AdminRequisition, ClientSite, type UserRole } from "../../types";
 import { ADMIN_REQUISITION_ROLES, MARKETING_ROLES } from "../../services/rbacService";
+import { useAuthStore } from "../../stores/authStore";
 
 const GM_APPROVE_ROLE: UserRole = "General Manager";
 const SITE_CREATE_ROLES: UserRole[] = MARKETING_ROLES;
@@ -35,10 +36,11 @@ export const AdminDeptView: React.FC<AdminDeptViewProps> = ({
   const isGM = activeRole === GM_APPROVE_ROLE;
   const canApproveRequisition = isGM;
   const canCreateSite = SITE_CREATE_ROLES.includes(activeRole);
+  const currentUserName = useAuthStore((s) => s.currentUser?.name) ?? "";
   const [showReqModal, setShowReqModal] = useState(false);
   const [showSiteModal, setShowSiteModal] = useState(false);
   const [deptInput, setDeptInput] = useState("Operations");
-  const [requestedByInput, setRequestedByInput] = useState("Patrick Kigozi");
+  const [requestedByInput, setRequestedByInput] = useState(currentUserName || "Operations");
   const [descInput, setDescInput] = useState("");
   const [qtyInput, setQtyInput] = useState(1);
   const [costInput, setCostInput] = useState(250000);
@@ -368,7 +370,7 @@ export const AdminDeptView: React.FC<AdminDeptViewProps> = ({
                 >
                   <option value="Operations">Operations</option>
                   <option value="Human Resources">Human Resources</option>
-                  <option value="Finance & Cashier">Finance & Cashier</option>
+                  <option value="Finance">Finance</option>
                   <option value="Marketing & Sales">Marketing & Sales</option>
                   <option value="Administrations">Administrations</option>
                   <option value="Information Technology">Information Technology</option>

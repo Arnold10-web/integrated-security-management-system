@@ -2,7 +2,7 @@
  * Additive regional data enrichment for the Operations regional dashboard.
  *
  * This script is intentionally NON-destructive: it only upserts records
- * (guards by guardCode, sites by siteName, and unique-coded records for
+ * (guards by forceNumber, sites by siteName, and unique-coded records for
  * incidents/patrols/deployments/orders/complaints/contracts/k9s/armoury),
  * and it inserts roster/leave entries only when an equivalent row is missing.
  * Re-running it is safe and idempotent.
@@ -289,19 +289,19 @@ async function main() {
 
     // Guards
     const siteNames = seed.sites.map((s) => s.siteName);
-    const guardRows: { id: string; guardCode: string; fullName: string; siteName: string; siteId: string }[] = [];
+    const guardRows: { id: string; forceNumber: string; fullName: string; siteName: string; siteId: string }[] = [];
     for (let i = 0; i < seed.names.length; i += 1) {
-      const guardCode = `PSG026/${block + i}`;
+      const forceNumber = `PSG026/-e`;
       const fullName = seed.names[i];
       const siteName = siteNames[i % siteNames.length];
       const siteZone = seed.sites[i % siteNames.length].zone;
       const designation = i < 2 ? "K9 Handler" : i === 2 ? "Site In-Charge" : i === 3 ? "Inspector" : "Guard";
       const isFemale = i % 3 === 1;
       const guard = await prisma.guard.upsert({
-        where: { guardCode },
+        where: { forceNumber },
         update: { region: seed.name, designation, zone: siteZone },
         create: {
-          guardCode,
+        forceNumber,
           fullName,
           designation,
           zone: siteZone,
@@ -330,7 +330,7 @@ async function main() {
           region: seed.name,
         },
       });
-      guardRows.push({ id: guard.id, guardCode, fullName, siteName, siteId: siteMap.get(siteName)! });
+      guardRows.push({ id: guard.id, forceNumber, fullName, siteName, siteId: siteMap.get(siteName)! });
       created.guards += 1;
     }
 
@@ -605,7 +605,7 @@ async function main() {
         data: {
           guardId: g.id,
           guardName: g.fullName,
-          guardCode: g.guardCode,
+          forceNumber: g.forceNumber,
           leaveType: leave.leaveType,
           startDate: leave.startDate,
           endDate: leave.endDate,
@@ -629,7 +629,7 @@ async function main() {
         actionCode,
         guardId: disc.id,
         guardName: disc.fullName,
-        guardCode: disc.guardCode,
+        forceNumber: disc.forceNumber,
         actionType: "Warning Letter",
         reason: "Failure to register attendance on duty roster",
         severity: "Medium",

@@ -6,10 +6,9 @@ import { useAuthStore } from "../../stores/authStore";
 interface GuardBiodataModalProps {
   guard: Guard | null;
   onClose: () => void;
-  onIssueWarning?: (guard: Guard) => void;
 }
 
-export const GuardBiodataModal: React.FC<GuardBiodataModalProps> = ({ guard, onClose, onIssueWarning }) => {
+export const GuardBiodataModal: React.FC<GuardBiodataModalProps> = ({ guard, onClose }) => {
   const linkedUser = useAuthStore((s) => s.users.find((u) => u.id === guard?.linkedUserId));
   if (!guard) return null;
   return (
@@ -27,7 +26,7 @@ export const GuardBiodataModal: React.FC<GuardBiodataModalProps> = ({ guard, onC
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-900 font-mono font-black text-xs rounded-md border border-blue-200">FORCE/NO: {guard.guardCode}</span>
+                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-900 font-mono font-black text-xs rounded-md border border-blue-200">FORCE/NO: {guard.forceNumber}</span>
                 <span className={`px-2.5 py-0.5 font-extrabold text-[11px] rounded-full ${
                   guard.status === "On Duty" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-800"
                 }`}>{guard.status}</span>
@@ -133,20 +132,13 @@ export const GuardBiodataModal: React.FC<GuardBiodataModalProps> = ({ guard, onC
           </p>
         </Section>
 
-        {onIssueWarning && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wider">Disciplinary: Warning Letters</h4>
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-black">{guard.warningLettersCount} issued</span>
+            <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Disciplinary: Warning Letters</h4>
+            <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-black">{guard.warningLettersCount} issued</span>
           </div>
-          <button
-            onClick={() => onIssueWarning(guard)}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all"
-          >
-            Issue Warning Letter
-          </button>
+          <p className="text-[11px] text-slate-500 font-medium">Warning letters are issued only through the formal disciplinary chain: Investigations Officer → Regional Manager → Operations Manager → HR Manager (final). Use the Disciplinary Actions tab to initiate a case from this guard’s profile.</p>
         </div>
-        )}
 
         <div className="bg-slate-900 text-white p-4 rounded-xl border border-slate-800 space-y-3 shadow-md">
           <div className="flex items-center justify-between">
@@ -163,7 +155,7 @@ export const GuardBiodataModal: React.FC<GuardBiodataModalProps> = ({ guard, onC
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
-            <div><span className="text-slate-400 block text-[10px] uppercase font-bold">Force Number</span><p className="text-white font-bold">{guard.guardCode}</p></div>
+            <div><span className="text-slate-400 block text-[10px] uppercase font-bold">Force Number</span><p className="text-white font-bold">{guard.forceNumber}</p></div>
             <div><span className="text-slate-400 block text-[10px] uppercase font-bold">ID Card No.</span><p className="text-white font-bold">{guard.idCardNumber || "Pending..."}</p></div>
             <div><span className="text-slate-400 block text-[10px] uppercase font-bold">Issued Date</span><p className="text-white font-bold">{guard.idCardIssuedDate || "N/A"}</p></div>
             <div><span className="text-slate-400 block text-[10px] uppercase font-bold">Expiry Date</span><p className="text-white font-bold">{guard.idCardExpiryDate || "N/A"}</p></div>

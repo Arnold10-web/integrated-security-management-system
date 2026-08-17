@@ -130,7 +130,7 @@ export const IssueWeaponModal: React.FC<IssueWeaponModalProps> = ({
                 <option value="">-- Select Assignee Guard --</option>
                 {availableGuards.map((g) => (
                   <option key={g.id} value={g.id}>
-                    {g.fullName} ({g.guardCode}) - {g.designation}
+                    {g.fullName} ({g.forceNumber}) - {g.designation}
                   </option>
                 ))}
               </select>

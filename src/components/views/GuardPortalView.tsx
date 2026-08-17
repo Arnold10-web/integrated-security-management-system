@@ -28,11 +28,11 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
   const [description, setDescription] = useState("");
   const [leaveForm, setLeaveForm] = useState({
     leaveType: "Annual Leave" as LeaveRequest["leaveType"], startDate: "", endDate: "", durationDays: 1, reason: "",
-    reliefGuardName: "", reliefGuardCode: "", contactAddress: "",
+    reliefGuardName: "", reliefForceNumber: "", contactAddress: "",
   });
 
   const myGuard = guards.find((g) => g.linkedUserId === currentUser.id || g.fullName === currentUser.name);
-  const guardCode = myGuard?.guardCode || "GUARD-001";
+  const forceNumber = myGuard?.forceNumber || "GUARD-001";
   const guardName = myGuard?.fullName || currentUser.name;
 
   const handleCheckIn = () => {
@@ -68,19 +68,19 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
     onAddLeaveRequest({
       guardId: myGuard?.id || "",
       guardName: guardName,
-      guardCode: guardCode,
+      forceNumber: forceNumber,
       leaveType: leaveForm.leaveType,
       startDate: leaveForm.startDate,
       endDate: leaveForm.endDate,
       durationDays: days,
       reason: leaveForm.reason,
       reliefGuardName: leaveForm.reliefGuardName,
-      reliefGuardCode: leaveForm.reliefGuardCode,
+      reliefForceNumber: leaveForm.reliefForceNumber,
       contactAddress: leaveForm.contactAddress || undefined,
       appliedDate: new Date().toISOString().split("T")[0],
-      status: "Pending Regional Approval",
+      status: "Pending HR Approval",
     });
-    setLeaveForm({ leaveType: "Annual Leave", startDate: "", endDate: "", durationDays: 1, reason: "", reliefGuardName: "", reliefGuardCode: "", contactAddress: "" });
+    setLeaveForm({ leaveType: "Annual Leave", startDate: "", endDate: "", durationDays: 1, reason: "", reliefGuardName: "", reliefForceNumber: "", contactAddress: "" });
     setShowLeaveModal(false);
   };
 
@@ -96,7 +96,7 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-emerald-500/30">
                 Active Duty
               </span>
-              <span className="text-xs text-slate-400">Code: {guardCode}</span>
+              <span className="text-xs text-slate-400">Code: {forceNumber}</span>
             </div>
             <h1 className="text-2xl font-black tracking-tight text-white">{currentUser.name}</h1>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -140,7 +140,7 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
             <Calendar className="w-4 h-4 text-blue-600" />
           </div>
           <div className="font-extrabold text-sm text-slate-900">{myGuard?.assignedSite || "—"}</div>
-          <div className="text-[11px] text-slate-500">{myGuard?.region || "Central (Kampala HQ)"} · {guardCode}</div>
+          <div className="text-[11px] text-slate-500">{myGuard?.region || "Central (Kampala HQ)"} · {forceNumber}</div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -221,7 +221,7 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Relief Guard Force Number</label>
-                  <input value={leaveForm.reliefGuardCode} onChange={(e) => setLeaveForm({ ...leaveForm, reliefGuardCode: e.target.value })}
+                  <input value={leaveForm.reliefForceNumber} onChange={(e) => setLeaveForm({ ...leaveForm, reliefForceNumber: e.target.value })}
                     className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" />
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import dotenv from "dotenv";
 import { PrismaClient } from "../src/generated/prisma/client.ts";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -44,6 +44,13 @@ beforeAll(async () => {
     const body = (await res.json()) as { token: string };
     tokens.set(u.role, body.token);
   }
+});
+
+afterAll(async () => {
+  await prisma.guard.deleteMany({ where: { fullName: { startsWith: "Persist Test" } } });
+  await prisma.clientSite.deleteMany({ where: { siteName: { startsWith: "Persist Test" } } });
+  await prisma.expense.deleteMany({ where: { description: { startsWith: "Persist test" } } });
+  await prisma.$disconnect();
 });
 
 function roleToken(role: string): string {
@@ -103,7 +110,7 @@ describe("Full DB persistence", () => {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${roleToken("HR Manager")}` },
       body: JSON.stringify({
         fullName: "Persist Test Guard",
-        guardCode: code,
+        forceNumber: code,
         designation: "Guard",
         phone: "+256 700 000099",
         nationalId: `NIN-PERSIST-${Date.now()}`,
@@ -116,8 +123,8 @@ describe("Full DB persistence", () => {
 
     const listRes = await get("/api/guards", "HR Manager");
     expect(listRes.status).toBe(200);
-    const guards = (await listRes.json()) as Array<{ guardCode: string }>;
-    expect(guards.some((g) => g.guardCode === code)).toBe(true);
+    const guards = (await listRes.json()) as Array<{ forceNumber: string }>;
+    expect(guards.some((g) => g.forceNumber === code)).toBe(true);
   });
 
   it("persists an expense and lists it back after re-login", async () => {

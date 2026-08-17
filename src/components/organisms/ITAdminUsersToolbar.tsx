@@ -13,7 +13,7 @@ interface ITAdminUsersToolbarProps {
 
 const departments = [
   "Executive Directorate", "Human Resources", "Marketing & Sales",
-  "Operations", "Finance & Cashier", "Administrations", "Information Technology",
+  "Operations", "Finance", "Administrations", "Information Technology",
 ];
 
 export const ITAdminUsersToolbar: React.FC<ITAdminUsersToolbarProps> = ({

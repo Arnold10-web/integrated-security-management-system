@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 export const loginRequestSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(1),
 });
 
 export const GUARD_DESIGNATIONS = ["Guard", "K9 Handler", "Armorer", "Site In-Charge", "Inspector"] as const;
@@ -18,7 +18,7 @@ export const SITE_ZONES = [
 
 export const createGuardSchema = z.object({
   fullName: z.string().min(1),
-  guardCode: z.string().min(1),
+  forceNumber: z.string().min(1),
   designation: z.enum(GUARD_DESIGNATIONS),
   phone: z.string().min(1),
   nationalId: z.string().min(1),

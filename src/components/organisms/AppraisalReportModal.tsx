@@ -1,6 +1,7 @@
 import React from "react";
-import { Award, CheckCircle2 } from "lucide-react";
+import { Award, CheckCircle2, AlertTriangle } from "lucide-react";
 import type { StaffAppraisal } from "../../types";
+import { useDomainStore } from "../../stores/domainStore";
 
 interface AppraisalReportModalProps {
   appraisal: StaffAppraisal | null;
@@ -8,7 +9,10 @@ interface AppraisalReportModalProps {
 }
 
 export const AppraisalReportModal: React.FC<AppraisalReportModalProps> = ({ appraisal, onClose }) => {
+  const disciplinary = useDomainStore((s) => s.disciplinaryActions);
   if (!appraisal) return null;
+
+  const history = disciplinary.filter((d) => d.guardId === appraisal.guardId);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-xs">
@@ -32,7 +36,7 @@ export const AppraisalReportModal: React.FC<AppraisalReportModalProps> = ({ appr
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">Officer Name & Code</span>
               <p className="font-black text-slate-900 text-sm">{appraisal.guardName}</p>
-              <p className="font-mono text-purple-700 font-bold mt-0.5">{appraisal.guardCode}</p>
+              <p className="font-mono text-purple-700 font-bold mt-0.5">{appraisal.forceNumber}</p>
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">Designation & Site</span>
@@ -84,6 +88,32 @@ export const AppraisalReportModal: React.FC<AppraisalReportModalProps> = ({ appr
               {appraisal.agreedDevelopmentGoals || "Standard operational excellence targets set."}
             </p>
           </div>
+
+          {history.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+              <span className="font-black uppercase tracking-wider text-[11px] text-amber-800 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-700" />
+                Disciplinary History for Review Period — auto-surfaced
+              </span>
+              <div className="space-y-1.5">
+                {history.map((d) => (
+                  <div key={d.id} className="bg-white border border-amber-200 rounded-lg px-3 py-2 text-[11px]">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-black text-slate-900 uppercase">{d.actionType}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold uppercase">{d.status}</span>
+                    </div>
+                    <p className="text-slate-600 mt-0.5">{d.reason}</p>
+                    {(d.offenceCategory || d.offenceDate) && (
+                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                        {d.offenceCategory ? `${d.offenceCategory}${d.offence ? ` — ${d.offence}` : ""}` : ""}
+                        {d.offenceDate ? `${d.offenceCategory ? " · " : ""}${d.offenceDate}${d.zone ? ` · ${d.zone}` : ""}` : ""}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-white p-3 rounded-xl border border-slate-200">

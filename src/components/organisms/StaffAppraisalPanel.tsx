@@ -34,7 +34,7 @@ export const StaffAppraisalPanel: React.FC<StaffAppraisalPanelProps> = ({
       const q = searchTerm.toLowerCase();
       return (
         a.guardName.toLowerCase().includes(q) ||
-        a.guardCode.toLowerCase().includes(q) ||
+        a.forceNumber.toLowerCase().includes(q) ||
         a.siteName.toLowerCase().includes(q) ||
         a.evaluatorName.toLowerCase().includes(q)
       );
@@ -60,10 +60,10 @@ export const StaffAppraisalPanel: React.FC<StaffAppraisalPanelProps> = ({
           </div>
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 mb-1">
-              <span>HR DEPARTMENT • ANNUAL PERFORMANCE EVALUATION MODULE</span>
+              <span>HR DEPARTMENT • STAFF APPRAISAL MODULE</span>
             </div>
             <h2 className="text-xl font-black text-white">
-              Staff & Security Officer Performance Appraisals
+              Staff Appraisals
             </h2>
             <p className="text-xs text-purple-200/80 mt-1 max-w-3xl leading-relaxed">
               Annual & periodic supervisor evaluations, feedback comments archive, 5-star metric scorecards, and agreed-upon professional development goals for career progression.
@@ -142,7 +142,7 @@ export const StaffAppraisalPanel: React.FC<StaffAppraisalPanelProps> = ({
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-extrabold text-slate-900">{app.guardName}</h3>
-                  <span className="text-xs font-mono font-bold text-purple-600">{app.guardCode}</span>
+                  <span className="text-xs font-mono font-bold text-purple-600">{app.forceNumber}</span>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
                   app.overallRating.startsWith("Outstanding") || app.overallRating.startsWith("Exceeds")

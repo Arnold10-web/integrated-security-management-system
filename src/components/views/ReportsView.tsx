@@ -102,7 +102,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   }, [invoices]);
 
   const totalRevenue = invoices.reduce((s, i) => s + (i.status === "Paid" ? i.amount : 0), 0);
-  const pendingLeave = leaveRequests.filter((l) => l.status === "Pending Regional Approval" || l.status === "Pending HR Review").length;
+  const pendingLeave = leaveRequests.filter((l) => l.status === "Pending HR Approval" || l.status === "Pending GM Approval").length;
 
   return (
     <div className="space-y-6">
@@ -111,7 +111,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="flex gap-2">
           <button onClick={() => downloadCsv("guards_report.csv",
             ["Force Number", "Name", "Designation", "Zone", "Status", "Site", "Phone"],
-            guards.map((g) => [g.guardCode, g.fullName, g.designation, g.zone || "", g.status, g.assignedSite, g.phone])
+            guards.map((g) => [g.forceNumber, g.fullName, g.designation, g.zone || "", g.status, g.assignedSite, g.phone])
           )} className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black cursor-pointer hover:bg-slate-800 transition-all">
             <Download className="w-3.5 h-3.5" /> Export Guards
           </button>
@@ -273,8 +273,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             { label: "Vehicles", data: vehicles.map((v) => [v.plateNumber, v.vehicleType, v.driverAssigned, v.status, String(v.mileageKm)]), headers: ["Plate", "Type", "Driver", "Status", "Mileage"] },
             { label: "Invoices", data: invoices.map((i) => [i.invoiceNumber, i.clientName, String(i.amount), i.status, i.dueDate]), headers: ["Invoice", "Client", "Amount", "Status", "Due"] },
             { label: "Expenses", data: expenses.map((e) => [e.category, e.description, String(e.amount), e.status, e.date]), headers: ["Category", "Description", "Amount", "Status", "Date"] },
-            { label: "Leave Requests", data: leaveRequests.map((l) => [l.guardCode, l.guardName, l.leaveType, l.status, l.appliedDate]), headers: ["Code", "Name", "Type", "Status", "Applied"] },
-            { label: "Performance Reviews", data: performanceReviews.map((p) => [p.guardCode, p.guardName, p.reviewPeriod, p.overallRating, p.evaluationDate]), headers: ["Code", "Name", "Period", "Rating", "Date"] },
+            { label: "Leave Requests", data: leaveRequests.map((l) => [l.forceNumber, l.guardName, l.leaveType, l.status, l.appliedDate]), headers: ["Code", "Name", "Type", "Status", "Applied"] },
+            { label: "Performance Reviews", data: performanceReviews.map((p) => [p.forceNumber, p.guardName, p.reviewPeriod, p.overallRating, p.evaluationDate]), headers: ["Code", "Name", "Period", "Rating", "Date"] },
           ].map(({ label, data, headers }) => (
             <button key={label} onClick={() => downloadCsv(`${label.toLowerCase().replace(/\s+/g, "_")}.csv`, headers, data)}
               className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-700 cursor-pointer transition-all">

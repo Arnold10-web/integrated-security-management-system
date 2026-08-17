@@ -4,7 +4,7 @@ import { nextForceNumber } from "../utils/forceNumber";
 
 export interface GuardFormState {
   fullName: string;
-  guardCode: string;
+  forceNumber: string;
   photoUrl: string;
   designation: Guard["designation"];
   phone: string;
@@ -58,7 +58,7 @@ export interface GuardFormState {
 export function useGuardForm(onAddGuard: (guard: Omit<Guard, "id">) => void, existingForceNumbers: string[] = []) {
   const [state, setState] = useState<GuardFormState>({
     fullName: "",
-    guardCode: "",
+    forceNumber: "",
     photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
     designation: "Guard",
     phone: "",
@@ -116,7 +116,7 @@ export function useGuardForm(onAddGuard: (guard: Omit<Guard, "id">) => void, exi
     setState((prev) => ({
       ...prev,
       fullName: "",
-      guardCode: "",
+      forceNumber: "",
       phone: "",
       nationalId: "",
       bankAccount: "",
@@ -146,7 +146,7 @@ export function useGuardForm(onAddGuard: (guard: Omit<Guard, "id">) => void, exi
     e.preventDefault();
     onAddGuard({
       fullName: state.fullName,
-      guardCode: state.guardCode || nextForceNumber(existingForceNumbers),
+      forceNumber: state.forceNumber || nextForceNumber(existingForceNumbers),
       photoUrl: state.photoUrl || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
       designation: state.designation,
       phone: state.phone,

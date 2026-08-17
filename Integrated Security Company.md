@@ -510,7 +510,7 @@ All stores cross-call each other for integrated audit logging (every mutation re
 | /investigations | Investigations (Incidents, Disciplinary, Complaints) — independent department (v2.8) | /investigations | Investigations |
 | /hr | Human Resources | /hr | HR |
 | /clients | Client & Sites CRM | /clients | CRM |
-| /finance | Finance & Cashier | /finance | Finance |
+| /finance | Finance | /finance | Finance |
 | /marketing | Marketing & Sales | /marketing | Marketing |
 | /transport | Transport & Logistics | /transport | Transport |
 | /administration | Administrations | /administration | Admin |

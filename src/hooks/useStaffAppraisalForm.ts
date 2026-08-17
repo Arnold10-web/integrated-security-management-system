@@ -43,7 +43,7 @@ export function useStaffAppraisalForm(guards: Guard[], initialAppraisals: StaffA
       id: `apr-${Date.now()}`,
       guardId: guard ? guard.id : "grd-101",
       guardName: guard ? guard.fullName : "John Bosco Kateregga",
-      guardCode: guard ? guard.guardCode : "SG-2024-001",
+      forceNumber: guard ? guard.forceNumber : "SG-2024-001",
       designation: guard ? guard.designation : "Guard",
       siteName: guard ? guard.assignedSite : "Kampala Station",
       reviewPeriod: appraisalPeriod,

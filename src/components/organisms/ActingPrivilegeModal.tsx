@@ -1,41 +1,15 @@
 import React, { useState } from "react";
-import { Clock3, RotateCcw, ShieldAlert } from "lucide-react";
-import type { User, UserRole } from "../../types";
+import { Clock3, RotateCcw, ShieldAlert, ListChecks } from "lucide-react";
+import type { User } from "../../types";
 import { getEffectiveRole } from "../../services/rbacService";
 
 interface ActingPrivilegeModalProps {
   user: User | null;
   onClose: () => void;
-  onGrant: (userId: string, actingRole: UserRole, expiresAt: string) => Promise<void>;
   onRevoke: (userId: string) => Promise<void>;
 }
 
-const DELEGABLE_ROLES: UserRole[] = [
-  "HR Manager",
-  "HR Assistant",
-  "Records Officer",
-  "Business Development Manager",
-  "Sales and Marketing Supervisor",
-  "Operations Manager",
-  "Regional Manager",
-  "Fleet Manager",
-  "Training Officer",
-  "Investigations Officer",
-  "Guard Officer",
-  "Armorer",
-  "K9 Supervisor",
-  "K9 Handler",
-  "Finance Manager",
-  "Accountant",
-  "Assistant Accountant",
-  "Internal Auditor",
-  "Cashier",
-  "Administrative Officer",
-];
-
-export const ActingPrivilegeModal: React.FC<ActingPrivilegeModalProps> = ({ user, onClose, onGrant, onRevoke }) => {
-  const [actingRole, setActingRole] = useState<UserRole | "">("");
-  const [expiresAt, setExpiresAt] = useState("");
+export const ActingPrivilegeModal: React.FC<ActingPrivilegeModalProps> = ({ user, onClose, onRevoke }) => {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,42 +17,6 @@ export const ActingPrivilegeModal: React.FC<ActingPrivilegeModalProps> = ({ user
 
   const effectiveRole = getEffectiveRole(user);
   const hasActiveActing = user.actingRole !== undefined && user.actingRole !== null && effectiveRole !== user.role;
-
-  const futureTime = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16);
-
-  const handleGrant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!actingRole) {
-      setError("Select an acting role to delegate.");
-      return;
-    }
-    if (actingRole === user.role) {
-      setError("The acting role must differ from the user's assigned role.");
-      return;
-    }
-    if (!expiresAt) {
-      setError("Set an expiry date/time for the delegation.");
-      return;
-    }
-    const expiryMs = new Date(expiresAt).getTime();
-    if (isNaN(expiryMs)) {
-      setError("The expiry must be a valid date and time.");
-      return;
-    }
-    if (expiryMs <= Date.now()) {
-      setError("The expiry must be in the future.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await onGrant(user.id, actingRole, expiresAt);
-      onClose();
-    } catch (err: any) {
-      setError(err?.message || "Failed to grant acting privileges.");
-      setSubmitting(false);
-    }
-  };
 
   const handleRevoke = async () => {
     setSubmitting(true);
@@ -104,10 +42,12 @@ export const ActingPrivilegeModal: React.FC<ActingPrivilegeModalProps> = ({ user
         </div>
 
         <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-          Delegate a <span className="font-bold text-amber-700">temporary elevated role</span> to this user (e.g. an HR
-          Assistant acting as HR Manager while the manager is on leave). The acting role takes effect at the user's next
-          sign-in and automatically falls back to their assigned role (<span className="font-bold text-slate-800">{user.role}</span>)
-          once the expiry passes. Executive roles (General Manager / Director) and IT Officer cannot be delegated.
+          Acting coverage is <span className="font-bold text-slate-800">requested by the HR Manager</span> and{" "}
+          <span className="font-bold text-slate-800">executed here by the IT Officer</span>. The acting role takes
+          effect at the user's next sign-in, is additive (they keep their own role's capabilities), and falls back to
+          their assigned role (<span className="font-bold text-slate-800">{user.role}</span>) once the expiry passes.
+          Executive roles (General Manager / Director) and IT Officer are not delegable; the General Manager may only be
+          covered by the Finance Manager.
         </p>
 
         {hasActiveActing && (
@@ -131,40 +71,24 @@ export const ActingPrivilegeModal: React.FC<ActingPrivilegeModalProps> = ({ user
           </div>
         )}
 
-        <form onSubmit={handleGrant} className="space-y-3 text-xs">
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">Acting Role</label>
-            <select value={actingRole} onChange={(e) => setActingRole(e.target.value as UserRole | "")}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none">
-              <option value="">Select a role to delegate…</option>
-              {DELEGABLE_ROLES.filter((r) => r !== user.role).map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
+        {!hasActiveActing && (
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-[11px] text-slate-500 font-semibold leading-relaxed flex items-center gap-2">
+            <ListChecks className="w-4 h-4 text-slate-400 shrink-0" />
+            This user has no active acting coverage. To grant it, act on a pending
+            request in the <span className="font-bold">Acting Coverage Queue</span> above.
           </div>
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">Expiry (date &amp; time)</label>
-            <input type="datetime-local" value={expiresAt} min={futureTime}
-              onChange={(e) => setExpiresAt(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none" />
-            <p className="text-[10px] text-slate-400 mt-1">Defaults to 7 days out; align with the leave period.</p>
-          </div>
+        )}
 
-          {error && (
-            <div className="p-2.5 bg-rose-50 border border-rose-300 text-rose-700 rounded-xl font-bold text-[11px]">
-              {error}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold cursor-pointer">Cancel</button>
-            <button type="submit" disabled={submitting}
-              className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 rounded-xl font-black shadow-md cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5">
-              <Clock3 className="w-4 h-4" /> Grant Acting Privileges
-            </button>
+        {error && (
+          <div className="p-2.5 bg-rose-50 border border-rose-300 text-rose-700 rounded-xl font-bold text-[11px]">
+            {error}
           </div>
-        </form>
+        )}
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <button onClick={onClose}
+            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold cursor-pointer">Close</button>
+        </div>
       </div>
     </div>
   );

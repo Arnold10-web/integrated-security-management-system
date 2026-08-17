@@ -70,9 +70,6 @@ export const ContractsPanel: React.FC<ContractsPanelProps> = ({
   };
 
   const stepLabel: Record<string, string> = {
-    BD: "Awaiting Business Development",
-    Operations: "Awaiting Operations",
-    Finance: "Awaiting Finance",
     GM: "Awaiting GM Approval",
     Done: "Approved",
   };
@@ -163,9 +160,9 @@ export const ContractsPanel: React.FC<ContractsPanelProps> = ({
                         Auto-Renew
                       </span>
                     )}
-                    {c.contractType === "Staff Contract" && c.relatedGuardCode && (
+                    {c.contractType === "Staff Contract" && c.relatedForceNumber && (
                       <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                        {c.relatedGuardCode}
+                        {c.relatedForceNumber}
                       </span>
                     )}
                     {c.contractType === "Client Contract" && c.relatedSiteName && (
@@ -213,7 +210,7 @@ export const ContractsPanel: React.FC<ContractsPanelProps> = ({
                   <span>
                     {c.approvalStep && stepLabel[c.approvalStep]
                       ? stepLabel[c.approvalStep]
-                      : "Workflow"}: {c.approvalStep || "BD"}
+                      : "Workflow"}: {c.approvalStep || "GM"}
                   </span>
                   <span className="text-indigo-500">Next: {approvers.join(" / ") || "None"}</span>
                 </div>
