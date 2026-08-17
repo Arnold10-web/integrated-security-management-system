@@ -5958,6 +5958,16 @@ async function startServer() {
 
   wrapAsyncRouteErrors();
 
+  // Testing auto-seed: deploy → login with no manual Railway curl. When SEED_ENABLED=true top-up to 26 users.
+  if (process.env.SEED_ENABLED === "true") {
+    try {
+      const r = await seedDatabase();
+      if (r) console.log(`[seed] ${r.message}`);
+    } catch (e) {
+      console.error("[seed] auto-seed failed:", e);
+    }
+  }
+
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error("Unhandled route error:", err);
     if (res.headersSent) return;
