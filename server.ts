@@ -702,38 +702,65 @@ const requireAnyModuleAccess = (...modules: string[]) => {
 /* ─────────────── Auth Routes ─────────────── */
 
 async function seedDatabase(): Promise<{ message: string } | undefined> {
-  const count = await prisma.user.count();
-  if (count > 0) {
-    return { message: "Database already seeded" };
-  }
+  // Non-strict testing mode: always ensure all 26 demo users exist (upsert) so any role can log in.
+  // If DB already has users, we merge missing ones instead of returning early.
   const hashedPassword = await bcrypt.hash("password123", 10);
-  await prisma.user.createMany({
-    data: [
-      { name: "Sarah Akello", email: "sarah.akello@iscms.ug", password: hashedPassword, role: "General Manager", department: "Directorate", region: "Kampala Central" },
-      { name: "Emma Muwonge", email: "emma.muwonge@iscms.ug", password: hashedPassword, role: "Operations Manager", department: "Operations", region: "Kampala Central" },
-      { name: "Grace Nakato", email: "grace.nakato@iscms.ug", password: hashedPassword, role: "HR Manager", department: "Human Resources", region: "Kampala Central" },
-      { name: "David Ssenyonga", email: "david.ssenyonga@iscms.ug", password: hashedPassword, role: "Finance Manager", department: "Finance", region: "Kampala Central" },
-      { name: "Joseph Kizza", email: "joseph.kizza@iscms.ug", password: hashedPassword, role: "IT Officer", department: "Information Technology", region: "Kampala Central" },
-    ],
-  });
-  await prisma.region.createMany({
-    data: [
-      { name: "Albertine", code: "ALB" },
-      { name: "Mbarara", code: "MBR" },
-      { name: "Mukono", code: "MKN" },
-      { name: "Masaka", code: "MSK" },
-      { name: "Savannah", code: "SAV" },
-      { name: "Arua", code: "ARA" },
-      { name: "Gulu", code: "GUL" },
-      { name: "Jinja", code: "JIN" },
-      { name: "Kampala East", code: "KLE" },
-      { name: "Kampala West", code: "KLW" },
-      { name: "Kampala North", code: "KLN" },
-      { name: "Kampala Central", code: "KLC" },
-      { name: "Outerstations", code: "OUT" },
-    ],
-  });
-  return { message: "Database seeded with 5 users and 13 regions" };
+  const demoUsers = [
+    { name: "Sarah Akello", email: "sarah.akello@iscms.ug", forceNumber: "PSG026/101", role: "General Manager", department: "Directorate", region: "Kampala Central", phone: "+256 701 000001" },
+    { name: "Daniel Mugisha", email: "daniel.mugisha@iscms.ug", forceNumber: "PSG026/102", role: "Director", department: "Directorate", region: "Kampala Central", phone: "+256 701 000002" },
+    { name: "Grace Nakato", email: "grace.nakato@iscms.ug", forceNumber: "PSG026/103", role: "HR Manager", department: "Human Resources", region: "Kampala Central", phone: "+256 701 000003" },
+    { name: "Rebecca Nansubuga", email: "rebecca.nansubuga@iscms.ug", forceNumber: "PSG026/104", role: "HR Assistant", department: "Human Resources", region: "Kampala Central", phone: "+256 701 000004" },
+    { name: "Agnes Nantege", email: "agnes.nantege@iscms.ug", forceNumber: "PSG026/105", role: "Records Officer", department: "Human Resources", region: "Kampala Central", phone: "+256 701 000005" },
+    { name: "Ivan Ssebana", email: "ivan.ssebana@iscms.ug", forceNumber: "PSG026/106", role: "Business Development Manager", department: "Marketing", region: "Kampala Central", phone: "+256 701 000006" },
+    { name: "Patricia Akello", email: "patricia.akello@iscms.ug", forceNumber: "PSG026/107", role: "Sales and Marketing Supervisor", department: "Marketing", region: "Kampala Central", phone: "+256 701 000007" },
+    { name: "Kenneth Tumusiime", email: "kenneth.tumusiime@iscms.ug", forceNumber: "PSG026/108", role: "Sales and Marketing Supervisor", department: "Marketing", region: "Mbarara", phone: "+256 701 000026" },
+    { name: "Emma Muwonge", email: "emma.muwonge@iscms.ug", forceNumber: "PSG026/109", role: "Operations Manager", department: "Operations", region: "Kampala Central", phone: "+256 701 000008" },
+    { name: "Peter Okello", email: "peter.okello@iscms.ug", forceNumber: "PSG026/110", role: "Regional Manager", department: "Operations", region: "Mbarara", phone: "+256 701 000009" },
+    { name: "Betty Auma", email: "betty.auma@iscms.ug", forceNumber: "PSG026/111", role: "Regional Manager", department: "Operations", region: "Gulu", phone: "+256 701 000010" },
+    { name: "Francis Ogwang", email: "francis.ogwang@iscms.ug", forceNumber: "PSG026/112", role: "Fleet Manager", department: "Operations", region: "Kampala Central", phone: "+256 701 000011" },
+    { name: "James Wamala", email: "james.wamala@iscms.ug", forceNumber: "PSG026/113", role: "Training Officer", department: "Operations", region: "Kampala Central", phone: "+256 701 000012" },
+    { name: "Henry Kiyingi", email: "henry.kiyingi@iscms.ug", forceNumber: "PSG026/114", role: "Investigations Officer", department: "Investigations", region: "Kampala Central", phone: "+256 701 000013" },
+    { name: "Tom Ssemakula", email: "tom.ssemakula@iscms.ug", forceNumber: "PSG026/115", role: "Guard Officer", department: "Operations", region: "Kampala Central", phone: "+256 701 000014" },
+    { name: "Joseph Ochieng", email: "joseph.ochieng@iscms.ug", forceNumber: "PSG026/116", role: "Armorer", department: "Operations", region: "Kampala Central", phone: "+256 701 000015" },
+    { name: "Diana Alowo", email: "diana.alowo@iscms.ug", forceNumber: "PSG026/117", role: "K9 Supervisor", department: "Operations", region: "Kampala Central", phone: "+256 701 000016" },
+    { name: "Peter Okot", email: "peter.okot@iscms.ug", forceNumber: "PSG026/118", role: "K9 Handler", department: "Operations", region: "Kampala Central", phone: "+256 701 000017" },
+    { name: "David Ssenyonga", email: "david.ssenyonga@iscms.ug", forceNumber: "PSG026/119", role: "Finance Manager", department: "Finance", region: "Kampala Central", phone: "+256 701 000018" },
+    { name: "Martha Kemigisha", email: "martha.kemigisha@iscms.ug", forceNumber: "PSG026/120", role: "Accountant", department: "Finance", region: "Kampala Central", phone: "+256 701 000019" },
+    { name: "Sandra Namutebi", email: "sandra.namutebi@iscms.ug", forceNumber: "PSG026/121", role: "Assistant Accountant", department: "Finance", region: "Kampala Central", phone: "+256 701 000020" },
+    { name: "Brian Mugerwa", email: "brian.mugerwa@iscms.ug", forceNumber: "PSG026/122", role: "Assistant Accountant", department: "Finance", region: "Kampala Central", phone: "+256 701 000021" },
+    { name: "Agnes Tumusiime", email: "agnes.tumusiime@iscms.ug", forceNumber: "PSG026/123", role: "Internal Auditor", department: "Finance", region: "Kampala Central", phone: "+256 701 000022" },
+    { name: "Winnie Nabukenya", email: "winnie.nabukenya@iscms.ug", forceNumber: "PSG026/124", role: "Cashier", department: "Finance", region: "Kampala Central", phone: "+256 701 000023" },
+    { name: "Alice Nabatanzi", email: "alice.nabatanzi@iscms.ug", forceNumber: "PSG026/125", role: "Administrative Officer", department: "Administration", region: "Kampala Central", phone: "+256 701 000024" },
+    { name: "Joseph Kizza", email: "joseph.kizza@iscms.ug", forceNumber: "PSG026/126", role: "IT Officer", department: "Information Technology", region: "Kampala Central", phone: "+256 701 000025" },
+  ];
+  const existingCount = await prisma.user.count();
+  for (const u of demoUsers) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: { name: u.name, role: u.role, department: u.department, region: u.region, phone: u.phone, forceNumber: u.forceNumber, password: hashedPassword, status: "Active" },
+      create: { ...u, password: hashedPassword, status: "Active", lastActive: new Date() },
+    });
+  }
+  const regionDefs = [
+    { name: "Albertine", code: "ALB" },
+    { name: "Mbarara", code: "MBR" },
+    { name: "Mukono", code: "MKN" },
+    { name: "Masaka", code: "MSK" },
+    { name: "Savannah", code: "SAV" },
+    { name: "Arua", code: "ARA" },
+    { name: "Gulu", code: "GUL" },
+    { name: "Jinja", code: "JIN" },
+    { name: "Kampala East", code: "KLE" },
+    { name: "Kampala West", code: "KLW" },
+    { name: "Kampala North", code: "KLN" },
+    { name: "Kampala Central", code: "KLC" },
+    { name: "Outerstations", code: "OUT" },
+  ];
+  for (const r of regionDefs) {
+    await prisma.region.upsert({ where: { name: r.name }, update: {}, create: { name: r.name, code: r.code, description: `${r.name} region` } });
+  }
+  if (existingCount === 0) return { message: "Database seeded with 26 users and 13 regions. Use email + password123 to login" };
+  return { message: `Database topped up to 26 users (had ${existingCount}). All roles now password123` };
 }
 
 app.post("/api/auth/seed", (req, res) => {
