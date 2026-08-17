@@ -12,12 +12,18 @@ export default defineConfig(() => {
       },
     },
     server: {
+      host: "0.0.0.0",
+      allowedHosts: true,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       proxy: {
         "/api": { target: "http://localhost:3000", changeOrigin: true },
         "/sign": { target: "http://localhost:3000", changeOrigin: true },
       },
+    },
+    preview: {
+      host: "0.0.0.0",
+      allowedHosts: true,
     },
   };
 });
