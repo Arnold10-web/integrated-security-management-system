@@ -19,4 +19,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV NODE_ENV=production
 # Railway injects PORT and DATABASE_URL at runtime; 0.0.0.0 is already in server.ts: app.listen(PORT, "0.0.0.0")
-CMD ["bun", "start"]
+# Migrate at runtime (DATABASE_URL not known at build) then start
+CMD ["sh", "-c", "bunx prisma migrate deploy && bun start"]
