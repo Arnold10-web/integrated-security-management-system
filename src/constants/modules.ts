@@ -302,6 +302,14 @@ export const APP_MODULES: AppModule[] = [
     group: "fleet",
   },
   {
+    id: "fleet_requests",
+    path: "/fleet/requests",
+    label: "Transport Requests",
+    department: "Fleet",
+    icon: ClipboardCheck,
+    group: "fleet",
+  },
+  {
     id: "fleet_gps",
     path: "/fleet/gps",
     label: "GPS & Security",
@@ -420,7 +428,7 @@ export function getAllowedModuleIds(role: UserRole): string[] {
     case "Regional Manager":
       return ["operations", "disciplinary"];
     case "Fleet Manager":
-      return ["fleet", "fleet_register", "fleet_trips", "fleet_fuel", "fleet_maintenance", "fleet_drivers", "fleet_inspections", "fleet_breakdowns", "fleet_gps"];
+      return ["fleet", "fleet_requests", "fleet_register", "fleet_trips", "fleet_fuel", "fleet_maintenance", "fleet_drivers", "fleet_inspections", "fleet_breakdowns", "fleet_gps"];
     case "Training Officer":
       return ["operations"];
     case "Armorer":

@@ -3,13 +3,14 @@ import { Car, Plus, FileSpreadsheet } from "lucide-react";
 import { FleetMaintenancePanel, FleetDashboardPanel, FleetAlertsPanel } from "../organisms";
 import { FleetModalsPanel } from "../organisms/FleetModalsPanel";
 import { FleetKpiGrid, FleetTabNav, FleetSearchBar, FleetRegisterTab, FleetTripsTab, FleetFuelTab, FleetDriversTab, FleetInspectionsTab, FleetBreakdownsTab, FleetGpsTab, FleetReplacementTab } from "../organisms";
+import { TransportInbox } from "./OperationsWorkspaceView";
 import {
   Vehicle, VehicleTripLog, FuelRequisitionLog, MaintenanceServiceLog, DriverRecord,
-  DailyVehicleInspection, FleetBreakdownEmergency, UserRole,
+  DailyVehicleInspection, FleetBreakdownEmergency, UserRole, TransportRequest,
 } from "../../types";
 
 
-type FleetTab = "register" | "trips" | "fuel" | "maintenance" | "drivers" | "inspections" | "breakdowns" | "gps" | "replacement" | "reports";
+type FleetTab = "register" | "trips" | "fuel" | "maintenance" | "drivers" | "inspections" | "breakdowns" | "gps" | "replacement" | "reports" | "requests";
 
 interface FleetViewWithTabProps extends FleetViewProps {
   initialTab?: FleetTab;
@@ -36,6 +37,8 @@ interface FleetViewProps {
   onApproveDriver: (id: string) => void;
   onAddInspection: (i: Omit<DailyVehicleInspection, "id" | "inspectionCode">) => void;
   onAddBreakdown: (b: Omit<FleetBreakdownEmergency, "id" | "incidentCode">) => void;
+  transportRequests?: TransportRequest[];
+  onActTransportRequest?: (id: string, data: { action: "Approved" | "Declined"; assignedVehicleId?: string; assignedVehicle?: string; assignedDriverId?: string; assignedDriver?: string; assignedRiderId?: string; assignedRider?: string; declinedReason?: string }) => void;
 }
 
 export const FleetView: React.FC<FleetViewWithTabProps> = ({
@@ -46,6 +49,7 @@ export const FleetView: React.FC<FleetViewWithTabProps> = ({
   tripLogs, fuelLogs, maintenanceLogs, drivers, inspections, breakdowns,
   onAddTrip, onAddFuelLog, onAddMaintenanceLog, onAddDriver,
   onUpdateDriver: _onUpdateDriver, onApproveDriver, onAddInspection, onAddBreakdown,
+  transportRequests = [], onActTransportRequest,
   initialTab,
 }) => {
   const canEditVehicles = activeRole === "Fleet Manager";
@@ -417,6 +421,28 @@ export const FleetView: React.FC<FleetViewWithTabProps> = ({
           onRecordTyreCheck={(vid, td) => { setTargetVehId(vid); if (td > 0) setTyreTreadMmInput(td); setShowTyreModal(true); }}
           onNewWorkOrder={(vid) => { if (vid) setSelectedVehicleId(vid); setShowMaintModal(true); }}
           onAdjustSchedule={(vid, ikm, tkm) => { setTargetVehId(vid); setIntervalKmInput(ikm); setTargetServiceKmInput(tkm); setShowIntervalModal(true); }} />
+      )}
+      {initialTab && activeTab === "requests" && (
+        <div className="space-y-4">
+          {activeRole === "Fleet Manager" && onActTransportRequest ? (
+            <TransportInbox pending={transportRequests.filter((t) => t.status === "Pending Fleet")} vehicles={vehicles} drivers={drivers} onAct={onActTransportRequest} />
+          ) : (
+            <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-sm text-slate-500">No transport requests — Fleet Manager inbox is available to Fleet Manager only.</div>
+          )}
+          {transportRequests.filter((t) => t.status !== "Pending Fleet").length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-4">
+              <h3 className="text-xs font-black uppercase tracking-wide text-slate-700 mb-3">Recent Decisions</h3>
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {transportRequests.filter((t) => t.status !== "Pending Fleet").slice(0, 20).map((t) => (
+                  <div key={t.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <div><p className="text-xs font-bold text-slate-700">{t.requestCode} · {t.destination} · {t.status}</p><p className="text-[11px] text-slate-500">{t.requestedByName} · {t.purpose} {t.assignedVehicle ? `→ ${t.assignedVehicle}` : ""}{t.assignedDriver ? ` · ${t.assignedDriver}` : ""}{t.assignedRider ? ` · ${t.assignedRider}` : ""}{t.declinedReason ? ` · Declined: ${t.declinedReason}` : ""}</p></div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${t.status === "Approved" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>{t.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
       {initialTab && activeTab === "drivers" && <FleetDriversTab drivers={drivers} activeRole={activeRole} onApproveDriver={onApproveDriver} />}
       {initialTab && activeTab === "inspections" && <FleetInspectionsTab dailyInspections={inspections} />}

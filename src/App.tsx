@@ -28,6 +28,7 @@ import {
   FleetMaintenancePage,
   FleetDriversPage,
   FleetInspectionsPage,
+  FleetRequestsPage,
   FleetBreakdownsPage,
   FleetGpsPage,
   AdministrationPage,
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="/marketing/campaigns" element={<MarketingCampaignsPage />} />
         <Route path="/fleet" element={<FleetPage />} />
         <Route path="/fleet/register" element={<FleetRegisterPage />} />
+        <Route path="/fleet/requests" element={<FleetRequestsPage />} />
         <Route path="/fleet/trips" element={<FleetTripsPage />} />
         <Route path="/fleet/fuel" element={<FleetFuelPage />} />
         <Route path="/fleet/maintenance" element={<FleetMaintenancePage />} />

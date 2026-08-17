@@ -575,12 +575,14 @@ export const FleetPage: React.FC = () => {
         onApproveDriver={domain.approveDriver}
         onAddInspection={domain.addInspection}
         onAddBreakdown={domain.addBreakdown}
+        transportRequests={domain.transportRequests}
+        onActTransportRequest={domain.actOnTransportRequest}
       />
     </div>
   );
 };
 
-function FleetViewWithTab({ initialTab }: { initialTab: "register" | "trips" | "fuel" | "maintenance" | "drivers" | "inspections" | "breakdowns" | "gps" }) {
+function FleetViewWithTab({ initialTab }: { initialTab: "register" | "trips" | "fuel" | "maintenance" | "drivers" | "inspections" | "breakdowns" | "gps" | "requests" }) {
   const activeRole = useActiveRole();
   const domain = useDomainStore();
   return (
@@ -606,6 +608,8 @@ function FleetViewWithTab({ initialTab }: { initialTab: "register" | "trips" | "
       onApproveDriver={domain.approveDriver}
       onAddInspection={domain.addInspection}
       onAddBreakdown={domain.addBreakdown}
+      transportRequests={domain.transportRequests}
+      onActTransportRequest={domain.actOnTransportRequest}
     />
   );
 }
@@ -616,6 +620,7 @@ export const FleetFuelPage: React.FC = () => <FleetViewWithTab initialTab="fuel"
 export const FleetMaintenancePage: React.FC = () => <FleetViewWithTab initialTab="maintenance" />;
 export const FleetDriversPage: React.FC = () => <FleetViewWithTab initialTab="drivers" />;
 export const FleetInspectionsPage: React.FC = () => <FleetViewWithTab initialTab="inspections" />;
+export const FleetRequestsPage: React.FC = () => <FleetViewWithTab initialTab="requests" />;
 export const FleetBreakdownsPage: React.FC = () => <FleetViewWithTab initialTab="breakdowns" />;
 export const FleetGpsPage: React.FC = () => <FleetViewWithTab initialTab="gps" />;
 

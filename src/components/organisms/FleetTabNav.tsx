@@ -1,7 +1,7 @@
 import React from "react";
-import { Car, Compass, Fuel, Wrench, UserCheck, ClipboardList, AlertOctagon, Navigation, RotateCw } from "lucide-react";
+import { Car, Compass, Fuel, Wrench, UserCheck, ClipboardList, AlertOctagon, Navigation, RotateCw, Truck } from "lucide-react";
 
-type FleetTab = "register" | "trips" | "fuel" | "maintenance" | "drivers" | "inspections" | "breakdowns" | "gps" | "replacement" | "reports";
+type FleetTab = "register" | "trips" | "fuel" | "maintenance" | "drivers" | "inspections" | "breakdowns" | "gps" | "replacement" | "reports" | "requests";
 
 interface FleetTabNavProps {
   activeTab: FleetTab;
@@ -13,9 +13,12 @@ interface FleetTabNavProps {
   driverCount: number;
   inspectionCount: number;
   breakdownCount: number;
+  pendingRequestsCount?: number;
+  showRequests?: boolean;
 }
 
-const tabs: { key: FleetTab; label: string; icon: React.FC<{ className?: string }>; count?: number; danger?: boolean }[] = [
+const tabs: { key: FleetTab; label: string; icon: React.FC<{ className?: string }>; count?: number; danger?: boolean; showFor?: string }[] = [
+  { key: "requests", label: "Transport Requests", icon: Truck },
   { key: "register", label: "Fleet Register", icon: Car },
   { key: "trips", label: "Trips & Journeys", icon: Compass },
   { key: "fuel", label: "Fuel Control", icon: Fuel },
@@ -28,10 +31,10 @@ const tabs: { key: FleetTab; label: string; icon: React.FC<{ className?: string 
 ];
 
 export const FleetTabNav: React.FC<FleetTabNavProps> = ({
-  activeTab, onTabChange, vehicleCount, tripCount, fuelCount, maintenanceCount, driverCount, inspectionCount, breakdownCount,
+  activeTab, onTabChange, vehicleCount, tripCount, fuelCount, maintenanceCount, driverCount, inspectionCount, breakdownCount, pendingRequestsCount,
 }) => {
   const countMap: Record<string, number> = {
-    register: vehicleCount, trips: tripCount, fuel: fuelCount, maintenance: maintenanceCount,
+    requests: pendingRequestsCount ?? 0, register: vehicleCount, trips: tripCount, fuel: fuelCount, maintenance: maintenanceCount,
     drivers: driverCount, inspections: inspectionCount, breakdowns: breakdownCount,
   };
 
