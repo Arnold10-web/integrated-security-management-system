@@ -1,11 +1,13 @@
-import React, { useState } from "react";
-import { DollarSign, CreditCard, Plus, CheckCircle2, Clock, Receipt, Search, FileText, PieChart as PieIcon, TrendingUp } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { DollarSign, CreditCard, Plus, CheckCircle2, Clock, Receipt, Search, FileText, PieChart as PieIcon, TrendingUp, AlertTriangle, Truck } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import type { Invoice, Expense, CashierTransaction, UserRole, ContractRecord } from "../../types";
 import { InvoicesTable, ExpensesTable, CashierTransactionsTable, CreateInvoiceModal, CashierDisbursementModal, ClientContractsView } from "../organisms";
 import { FINANCE_INVOICE_ROLES, FINANCE_CASHIER_ROLES, FINANCE_CONTRACT_APPROVER_ROLES } from "../../services/rbacService";
+import { useDomainStore } from "../../stores/domainStore";
+import { useAuthStore } from "../../stores/authStore";
 
 const INVOICE_ROLES: UserRole[] = FINANCE_INVOICE_ROLES;
 const CASHIER_ROLES: UserRole[] = FINANCE_CASHIER_ROLES;
@@ -58,6 +60,17 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
   React.useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showCashierModal, setShowCashierModal] = useState(false);
+  const [showTransportModal, setShowTransportModal] = useState(false);
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const nonCompliant = useMemo(() => {
+    const now = Date.now();
+    return invoices.filter((inv) => {
+      if (inv.status === "Paid") return false;
+      const due = inv.dueDate ? new Date(inv.dueDate).getTime() : NaN;
+      if (isNaN(due)) return false;
+      return (now - due) / (86400000) >= 60;
+    });
+  }, [invoices]);
   const [search, setSearch] = useState("");
 
   const filteredInvoices = invoices.filter((inv) =>
@@ -106,7 +119,14 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowTransportModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-xl text-xs font-bold cursor-pointer transition-all"
+          >
+            <Truck className="w-4 h-4" />
+            <span>Request Transport</span>
+          </button>
           {activeTab === "invoices" && INVOICE_ROLES.includes(activeRole) && (
             <button
               onClick={() => setShowInvoiceModal(true)}
@@ -169,6 +189,25 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
           <span className="text-[10px] text-slate-400 font-medium">Deducted from monthly payroll</span>
         </div>
       </div>
+
+      {nonCompliant.length > 0 && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-rose-100 text-rose-700"><AlertTriangle className="w-4 h-4" /></div>
+            <div>
+              <p className="text-xs font-black text-rose-900">Non-Compliant Clients — 2 months without payment</p>
+              <p className="text-[11px] text-rose-700 mt-0.5">{nonCompliant.length} invoice(s) ≥60 days overdue, forwarded from Marketing collections for Finance follow-up.</p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {nonCompliant.slice(0,6).map((inv) => (
+                  <span key={inv.id} className="px-2 py-0.5 rounded-full bg-white border border-rose-200 text-[10px] font-bold text-rose-800">{inv.clientName} · {inv.invoiceNumber} · {inv.dueDate}</span>
+                ))}
+                {nonCompliant.length>6 && <span className="text-[10px] text-rose-600 font-bold">+{nonCompliant.length-6} more</span>}
+              </div>
+            </div>
+          </div>
+          <span className="px-3 py-1.5 rounded-full bg-rose-600 text-white text-xs font-black shrink-0">{nonCompliant.length} Non-Compliant</span>
+        </div>
+      )}
 
       {/* Revenue & Expense Analytics */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
@@ -336,6 +375,14 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
       )}
       {initialTab && <div className="text-[10px] text-slate-400 font-semibold pt-2 border-t border-slate-100">Dedicated page — use top navigation to switch between Invoices, Expenses, Cashier and Contracts.</div>}
 
+      {showTransportModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between sticky top-0 bg-white pb-2"><h3 className="text-lg font-black flex items-center gap-2"><Truck className="w-5 h-5" /> Request Transport</h3><button onClick={() => setShowTransportModal(false)} className="p-1.5 rounded-xl bg-slate-100 cursor-pointer">✕</button></div>
+            <form onSubmit={(e) => { e.preventDefault(); const fd=new FormData(e.target as HTMLFormElement); useDomainStore.getState().addTransportRequest({requestedBy: currentUser?.id ?? "", requestedByName: currentUser?.name ?? "Finance User", requesterDepartment: (currentUser as any)?.department ?? "Finance", destination: fd.get("destination") as string, purpose: fd.get("purpose") as string, travelDate: fd.get("travelDate") as string, vehicleType: (fd.get("vehicleType") as string) || "Any", passengersCount: Number(fd.get("passengersCount")||1)}); setShowTransportModal(false); }} className="space-y-3 text-xs"><div><label className="font-bold block mb-1">Destination *</label><input name="destination" required className="w-full p-2.5 border rounded-xl" /></div><div><label className="font-bold block mb-1">Purpose *</label><input name="purpose" required className="w-full p-2.5 border rounded-xl" /></div><div className="grid grid-cols-2 gap-3"><div><label className="font-bold block mb-1">Travel Date *</label><input name="travelDate" type="date" required className="w-full p-2.5 border rounded-xl" /></div><div><label className="font-bold block mb-1">Vehicle Type</label><select name="vehicleType" className="w-full p-2.5 border rounded-xl bg-white"><option>Any</option><option>Car</option><option>Motorcycle</option></select></div></div><div><label className="font-bold block mb-1">Passengers</label><input name="passengersCount" type="number" min={1} defaultValue={1} className="w-full p-2.5 border rounded-xl" /></div><div className="flex justify-end gap-2 pt-3 border-t"><button type="button" onClick={() => setShowTransportModal(false)} className="px-4 py-2 bg-slate-100 rounded-xl font-bold cursor-pointer">Cancel</button><button type="submit" className="px-4 py-2 bg-cyan-600 text-white rounded-xl font-bold cursor-pointer">Submit to Fleet</button></div></form>
+          </div>
+        </div>
+      )}
       <CreateInvoiceModal show={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} onSubmit={onAddInvoice} />
       <CashierDisbursementModal show={showCashierModal} onClose={() => setShowCashierModal(false)} onSubmit={onDisburseAdvance} />
     </div>

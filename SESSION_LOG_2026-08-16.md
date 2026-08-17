@@ -70,6 +70,58 @@
 
 * Static `read_file/search` checks only — `muse.bash` unavailable entire session (`bubblewrap: Failed RTM_NEWADDR: Operation not permitted — sandbox enforcement unavailable`). No `tsc --noEmit`/`npm run build`/`check:rbac` or headless browser sign-in executed; next step is heal sandbox then run build + headless 4-role checks.
 
+## 7. Fleet — Requests always visible + duplicate/fleet-tab cleanup + Railway whole-repo deploy
+
+**Triggers:** `keep these cards but remove next set of duplicate cards`, `move Fleet Register … GPS & Security to top navigation`, `remove Organizational note plus its banner`, `but after moving tabs to the top you have left duplicates at the bottom`, `copy bun.lock … deploying whole repo`, `will I view entire project at once`, `Block request ... is not allowed`, `scheduling build on Metal builder ... --frozen-lockfile`, `still failing ...`, fleet readiness duplicates
+
+**Files:**
+* `src/components/organisms/FleetKpiGrid.tsx:4` + `FleetDashboardPanel` — kept, next duplicate set removed from `FleetView` overview
+* `src/components/organisms/FleetTabNav.tsx:1` — export now single source, `FleetKpiGrid` kept, banner `Organizational note` removed with its `Fleet Register (4) … GPS & Security` bottom duplicate strip
+* `src/components/views/FleetView.tsx:1` — tabs moved to top nav (`Fleet Register / Trips & Journeys / Fuel Control / Maintenance / Drivers / Daily Inspections / Breakdowns / GPS & Security`), Fleet tab removed, bottom duplicate nav deleted, `FleetView` now `FleetTabNav`-driven with `initialTab`
+* `src/pages/ModulePages.tsx:421` + `src/constants/modules.ts:168` + `src/App.tsx:15` — Finance/Marketing splits to top-nav tabs matching HR pattern; Fleet top-nav `Overview / Fleet Register / Trips & Journeys / Fuel Control / Maintenance / Drivers / Daily Inspections / Breakdowns / GPS & Security / Transport Requests`, `Fleet` group flattened
+* `Dockerfile` + `railpack.json` + `nixpacks.toml` — override Railway Railpack `bun install --frozen-lockfile` → `bun install`, add `oven/bun:1.3.14-slim` Dockerfile, `bunx prisma generate && bun run build`, single-service `0.0.0.0:PORT` at `/` (no separate frontend service)
+* `vite.config.ts:14` — `server {host:"0.0.0.0", allowedHosts:true}` + `preview {host:"0.0.0.0", allowedHosts:true}` so Railway host `*.up.railway.app` not blocked; prod serves via `server.ts:5943` `app.listen(PORT,"0.0.0.0")`
+* `server.ts:5943` `CMD ["sh","-c","bunx prisma migrate deploy && bun start"]`, `SEED_ENABLED=true` auto-seed 26 users on deploy (no manual `POST`), `prisma/seed.ts` bun vs package-lock dual-manager hygiene (`rm package-lock.json && bun install`)
+* `src/components/views/WorkspaceStrips.tsx:66` — `FleetManagerWorkspaceView` always shows `TransportInbox` (was `pending>0` hidden)
+* `src/components/views/FleetView.tsx:397` — Overview for Fleet Manager now also shows `TransportInbox` so dashboard not empty
+
+**Result:** Fleet Overview is compact KPI-only for everyone; Fleet tabs live on top nav with no bottom duplicates, no banner. Railway whole-repo deploy serves entire project at one link. `DB_ENCRYPTION_KEY` optional for testing; `SEED_ENABLED` seeds all roles `password123`.
+
+## 8. Data seeded but login failed — fix for testing
+
+**Trigger:** `Invalid email or password ... databse didnot automatically seed ...` (+ `have you made a fix ... authorised ... not production`)
+
+**Files:**
+* `server.ts:704` `seedDatabase()` was 5-user + early return `Database already seeded` — now upserts all 26 demo users (`PSG026/101-126`, Director, Records Officer, BDM/SMS, Fleet Manager etc.) with `bcrypt hash password123` + 13 regions, merging when DB had 5 (`topped up to 26` message)
+* `server.ts:5961` `startServer()` after `wrapAsyncRouteErrors()` now auto-calls `seedDatabase()` when `SEED_ENABLED==="true"` so `deploy → login` needs no manual `curl POST /api/auth/seed`; logs `[seed] Database topped up...`
+
+**Result:** After `git push` + Railway redeploy, any role logs in with `password123` (`francis.ogwang@iscms.ug` Fleet Manager at `/fleet/requests`, `agnes.nantege@iscms.ug` Records Officer, `ivan.ssebana@iscms.ug` BDM etc.) without manual seed command.
+
+## 9. Transport for all roles + Site survey gates pipeline + Finance 60-day non-compliance + Nav/mobile polish
+
+**Trigger:** `now we forgot to add request for transport to all other roles even in marketing it is missing and in marketing the request site survey is missing this request is sent to the operations manager then the operations manager sends back details ... pipeline site survey should be among the first steps it comes before drafting the contract ... 2 months without paying results to non-compliance then i noticed some navigation bugs and ui issues how the ui is rendered on mobile phones and laptops`
+
+**Files:**
+* `src/components/views/MarketingView.tsx:2` — added `Truck, MapPinned` icons, import `SiteSurveysPanel`
+* `src/components/views/MarketingView.tsx:75` — `showTransportModal` state
+* `src/components/views/MarketingView.tsx:200` — header now `Request Transport` (white/10, all roles) + `Capture Commercial Lead` (BDM/SMS); `Request Transport` modal at bottom posts `addTransportRequest` via `useDomainStore` to Fleet Manager
+* `src/components/views/MarketingView.tsx:220` — inserted `<SiteSurveysPanel />` + amber `Site survey gates the contract` callout before KPI grid — Marketing now requests survey → Ops Manager in `Operations → Surveys & Contracts` `Start Survey` / `Complete Survey` → details flow back and gate the next step
+* `src/components/views/FinanceView.tsx:1` — added `Truck, AlertTriangle` + `useDomainStore, useAuthStore`
+* `src/components/views/FinanceView.tsx:62` — `showTransportModal`, `currentUser`, `nonCompliant = invoices.filter status!==Paid && (now-due)/86400000>=60`
+* `src/components/views/FinanceView.tsx:122` — Finance header now `Request Transport` (all roles) alongside `Raise Client Invoice` / `Disburse Advance`
+* `src/components/views/FinanceView.tsx:183` — after 4-card metrics, `Non-Compliant Clients — 2 months without payment` rose banner shows count + up to 6 invoice chips + forwarded-from-Marketing note (≥60 days overdue)
+* `src/components/views/FinanceView.tsx:378` — `Request Transport` modal for Finance
+* `src/components/layout/AppShell.tsx:179` — top nav `overflow-x-auto no-scrollbar snap-x` with `WebkitOverflowScrolling:touch`, `main` adds `py-6 sm:py-8 overflow-x-hidden` for laptop vs 360px mobile no-clipping; taste skill negative constraints applied (no purple hero, no gradient headline, no glow, no bento-everywhere)
+* `src/components/views/WorkspaceStrips.tsx:66` + `FleetView.tsx:401` — pre-existing from §7 but confirmed: Fleet Manager Inbox always visible on both header workspace and Overview
+
+**Pipeline note:** Leads `New→Contacted→Qualified` → Request Survey → Survey `Requested→In Progress→Completed` (Ops fills premises/perimeter/risk/guards/equipment, generates report) → `Proposal Sent` → Draft Contract (Marketing) → Finance validation → GM Active. Non-compliant = Marketing collections `Pending/Overdue` 60 days → surfaces in Finance `Non-Compliant` queue for follow-up (derived from `Invoice.dueDate`, no new model).
+
+**Result:** Every role can request transport to Fleet; Marketing can request site survey before contracting (survey guides contract, Ops returns details); Finance sees forwarded 60-day non-compliant; AppShell + Fleet/Marketing top navs scroll without mobile breakage.
+
 ## What was not changed (Guard Officer)
 
 Per `leave the guard officer` — `UserRole "Guard Officer"` remains in `src/types.ts`, `src/constants/organization.ts:132`, `prisma/seed.ts:142`, tests, and modals. No `prisma migrate` run.
+
+## Verification
+
+* Static `read_file/search` checks only — `muse.bash` unavailable entire session (`bubblewrap: Failed RTM_NEWADDR: Operation not permitted — sandbox enforcement unavailable`). No `tsc --noEmit`/`npm run build`/`check:rbac` or headless browser sign-in executed; next step is heal sandbox then run build + headless 4-role checks + push these W1-W5 to Railway (`git add ... && git commit && git push`) and verify `/fleet`, `/fleet/requests`, Marketing survey, Finance non-compliant on phone + laptop.

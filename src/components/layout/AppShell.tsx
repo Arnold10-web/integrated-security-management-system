@@ -176,7 +176,7 @@ export const AppShell: React.FC = () => {
             </div>
           </div>
 
-          <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar py-2 border-t border-slate-800/80">
+          <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar snap-x py-2 border-t border-slate-800/80" style={{ WebkitOverflowScrolling: "touch" }}>
             {navGroups.map(({ group, modules }, groupIndex) => (
               <React.Fragment key={group.id}>
                 {groupIndex > 0 && <span className="w-px h-6 bg-slate-700/80 mx-1 shrink-0" />}
@@ -219,7 +219,7 @@ export const AppShell: React.FC = () => {
         </div>
       )}
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-x-hidden">
         {showWelcomeBanner && (
           <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white rounded-2xl p-4 sm:p-5 mb-6 shadow-xl border border-slate-700/80 relative overflow-hidden">
             <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />

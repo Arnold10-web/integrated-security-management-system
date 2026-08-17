@@ -12,6 +12,8 @@ import {
   PhoneCall,
   BellRing,
   DollarSign,
+  Truck,
+  MapPinned,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -21,6 +23,7 @@ import { ClientContractsView } from "../organisms";
 import { useDomainStore } from "../../stores/domainStore";
 import { useAuthStore } from "../../stores/authStore";
 import { MARKETING_ROLES } from "../../services/rbacService";
+import { SiteSurveysPanel } from "./SiteSurveysPanel";
 
 const LEAD_SOURCES: LeadSource[] = ["Website", "LinkedIn", "X", "TikTok", "Referral", "Walk-in", "Security Expo", "Direct Mail", "Other"];
 const STAGE_FLOW: LeadStage[] = ["New", "Contacted", "Qualified", "Proposal Sent", "Closed Won", "Closed Lost"];
@@ -71,6 +74,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
   const salesTeam = users.filter((u) => u.status === "Active" && MARKETING_ROLES.includes(u.role));
   const isBDM = activeRole === "Business Development Manager";
   const [showModal, setShowModal] = useState(false);
+  const [showTransportModal, setShowTransportModal] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [contactPerson, setContactPerson] = useState("");
@@ -198,15 +202,36 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           </p>
         </div>
 
-        {canManageMarketing && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 cursor-pointer transition-all shrink-0"
+            onClick={() => setShowTransportModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-xl text-xs font-bold cursor-pointer transition-all"
           >
-            <Plus className="w-4 h-4" />
-            <span>Capture Commercial Lead</span>
+            <Truck className="w-4 h-4" />
+            <span>Request Transport</span>
           </button>
-        )}
+          {canManageMarketing && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 cursor-pointer transition-all shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Capture Commercial Lead</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Site Survey — must precede contract drafting; requested by Marketing, completed by Operations */}
+      <SiteSurveysPanel />
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-start gap-3">
+        <MapPinned className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-xs font-black text-amber-900">Site survey gates the contract</p>
+          <p className="text-[11px] text-amber-800 leading-snug mt-0.5">
+            Request a survey from Operations before proposing a contract. The completed survey (premises, perimeter, risk, guards, equipment) guides the draft, and Ops will send back details here.
+          </p>
+        </div>
       </div>
 
       {/* KPI Overview */}
@@ -937,6 +962,51 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TRANSPORT REQUEST MODAL — available to every role */}
+      {showTransportModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between sticky top-0 bg-white pb-2">
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2"><Truck className="w-5 h-5" /> Request Transport</h3>
+              <button onClick={() => setShowTransportModal(false)} className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 cursor-pointer">✕</button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target as HTMLFormElement);
+                useDomainStore.getState().addTransportRequest({
+                  requestedBy: currentUserId,
+                  requestedByName: currentUserName || "Marketing User",
+                  requesterDepartment: (currentUser as any)?.department ?? "Marketing",
+                  destination: fd.get("destination") as string,
+                  purpose: fd.get("purpose") as string,
+                  travelDate: fd.get("travelDate") as string,
+                  travelTime: (fd.get("travelTime") as string) || undefined,
+                  returnTime: (fd.get("returnTime") as string) || undefined,
+                  vehicleType: (fd.get("vehicleType") as string) || "Any",
+                  passengersCount: Number(fd.get("passengersCount") || 1),
+                });
+                setShowTransportModal(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div><label className="font-bold text-slate-700 block mb-1">Destination *</label><input name="destination" required placeholder="e.g. Mbarara site" className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" /></div>
+              <div><label className="font-bold text-slate-700 block mb-1">Purpose *</label><input name="purpose" required placeholder="e.g. Site inspection" className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="font-bold text-slate-700 block mb-1">Travel Date *</label><input name="travelDate" type="date" required className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" /></div>
+                <div><label className="font-bold text-slate-700 block mb-1">Vehicle Type</label><select name="vehicleType" className="w-full p-2.5 border border-slate-300 rounded-xl bg-white outline-none"><option>Any</option><option>Car</option><option>Motorcycle</option></select></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="font-bold text-slate-700 block mb-1">Departure</label><input name="travelTime" type="time" className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" /></div>
+                <div><label className="font-bold text-slate-700 block mb-1">Return</label><input name="returnTime" type="time" className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" /></div>
+              </div>
+              <div><label className="font-bold text-slate-700 block mb-1">Passengers</label><input name="passengersCount" type="number" min={1} defaultValue={1} className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" /></div>
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200"><button type="button" onClick={() => setShowTransportModal(false)} className="px-4 py-2 bg-slate-100 rounded-xl font-bold cursor-pointer">Cancel</button><button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold cursor-pointer">Submit to Fleet</button></div>
+            </form>
           </div>
         </div>
       )}
