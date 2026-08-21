@@ -1,8 +1,11 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Calendar, UserCheck, UserX } from "lucide-react";
 import type { LeaveRequest } from "../../types";
+import { Pagination } from "../molecules";
 
 type LeaveFilter = "ALL" | "Pending HR Approval" | "Pending GM Approval" | "Approved" | "Rejected";
+
+const PAGE_SIZE = 9;
 
 interface LeaveRequestPanelProps {
   leaveRequests: LeaveRequest[];
@@ -21,7 +24,17 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
   onGmApprove,
   onReject,
 }) => {
+  const [page, setPage] = useState(1);
   const filtered = leaveRequests.filter((l) => filter === "ALL" || l.status === filter);
+
+  // Reset to the first page whenever the active filter changes.
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
+
+  const totalPages = Math.max(Math.ceil(filtered.length / PAGE_SIZE), 1);
+  const safePage = Math.min(page, totalPages);
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const statusCounts: Record<LeaveFilter, number> = {
     ALL: leaveRequests.length,
@@ -85,16 +98,28 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((leave) => (
+        {paged.map((leave) => (
           <div
             key={leave.id}
             className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 hover:border-blue-300 transition-all"
           >
             <div className="flex items-start justify-between">
               <div>
-                <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 font-extrabold text-[10px] rounded-full uppercase tracking-wider">
-                  {leave.leaveType}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 font-extrabold text-[10px] rounded-full uppercase tracking-wider">
+                    {leave.leaveType}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 font-extrabold text-[9px] rounded-full uppercase tracking-wider ${
+                      leave.category === "staff"
+                        ? "bg-purple-100 text-purple-700"
+                        : "bg-slate-100 text-slate-600"
+                    }`}
+                    title={leave.category === "staff" ? "Self-service staff leave" : "Guard duty-cover leave"}
+                  >
+                    {leave.category === "staff" ? "Staff Self-Service" : "Guard Cover"}
+                  </span>
+                </div>
                 <h3 className="font-extrabold text-slate-900 text-base mt-1">
                   {leave.guardName}
                 </h3>
@@ -126,12 +151,20 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
                   {leave.startDate} to {leave.endDate} ({leave.durationDays} Days)
                 </span>
               </div>
-              <div className="flex justify-between text-slate-700">
-                <span className="font-bold text-slate-400">Relief Officer:</span>
-                <span className="font-bold text-blue-700">
-                  {leave.reliefGuardName || "Pending Duty Roster Cover"}
-                </span>
-              </div>
+              {leave.category !== "staff" && (
+                <div className="flex justify-between text-slate-700">
+                  <span className="font-bold text-slate-400">Relief Officer:</span>
+                  <span className="font-bold text-blue-700">
+                    {leave.reliefGuardName || "Pending Duty Roster Cover"}
+                  </span>
+                </div>
+              )}
+              {leave.category === "staff" && leave.requesterRole && (
+                <div className="flex justify-between text-slate-700">
+                  <span className="font-bold text-slate-400">Requested By:</span>
+                  <span className="font-bold text-purple-700">{leave.requesterRole}</span>
+                </div>
+              )}
               <div className="pt-1 text-slate-600 italic">"{leave.reason}"</div>
               {leave.contactAddress && (
                 <div className="flex justify-between text-slate-700">
@@ -205,6 +238,12 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
           </div>
         ))}
       </div>
+
+      {filtered.length > 0 && (
+        <div className="bg-white rounded-2xl px-6 py-3 border border-slate-200 shadow-sm">
+          <Pagination page={safePage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} itemName="leave requests" />
+        </div>
+      )}
     </div>
   );
 };

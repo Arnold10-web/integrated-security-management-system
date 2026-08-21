@@ -14,6 +14,14 @@ import type {
   NotificationRecord,
 } from "../types";
 
+export interface MyLeaveSummary {
+  year: number;
+  entitlement: number;
+  taken: number;
+  pending: number;
+  remaining: number;
+}
+
 export const domainApi = {
   guards: {
     list: () => api.get<Guard[]>("/guards"),
@@ -203,6 +211,12 @@ export const domainApi = {
     list: () => api.get<LeaveRequest[]>("/leave-requests"),
     create: (data: Omit<LeaveRequest, "id">) => api.post<LeaveRequest>("/leave-requests", data),
     act: (id: string, action: "Approved" | "Rejected", comment?: string) => api.put(`/approvals/${id}/act`, { action, comment }),
+  },
+  myLeave: {
+    summary: () => api.get<{ requests: LeaveRequest[]; summary: MyLeaveSummary }>("/my/leave"),
+    request: (data: { leaveType: string; startDate: string; endDate: string; durationDays: number; reason: string; contactAddress?: string }) =>
+      api.post<LeaveRequest>("/leave-requests", data),
+    cancel: (id: string) => api.delete(`/leave-requests/${id}`),
   },
   campaigns: {
     list: () => api.get<Campaign[]>("/campaigns"),

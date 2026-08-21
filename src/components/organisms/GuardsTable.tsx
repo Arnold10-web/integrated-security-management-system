@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AlertTriangle, MapPin, Table, Grid, FolderArchive } from "lucide-react";
 import type { Guard } from "../../types";
 import { StatusBadge } from "../atoms/StatusBadge";
+import { Pagination } from "../molecules";
+
+const PAGE_SIZE = 12;
 
 interface GuardsTableProps {
   guards: Guard[];
@@ -27,6 +30,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
   onStatusFilterChange,
 }) => {
   const [rankFilter, setRankFilter] = useState<string>("ALL");
+  const [page, setPage] = useState(1);
 
   const rankColors: Record<string, string> = {
     "Site In-Charge": "text-cyan-700",
@@ -71,6 +75,15 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
       (g.bankName && g.bankName.toLowerCase().includes(query))
     );
   });
+
+  // Reset to the first page whenever filters or search change.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, rankFilter, viewMode]);
+
+  const totalPages = Math.max(Math.ceil(filteredGuards.length / PAGE_SIZE), 1);
+  const safePage = Math.min(page, totalPages);
+  const pagedGuards = filteredGuards.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -199,7 +212,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium text-slate-700 text-[11px]">
-                {filteredGuards.map((g, idx) => {
+                {pagedGuards.map((g, idx) => {
                   const isDeserter = g.status === "Deserted" || g.isDeserter;
                   return (
                     <tr key={g.id} className={`hover:bg-slate-50 transition-colors ${isDeserter ? "bg-red-50/50" : idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"}`}>
@@ -261,7 +274,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredGuards.map((guard) => {
+          {pagedGuards.map((guard) => {
             const isDeserter = guard.status === "Deserted" || guard.isDeserter;
             return (
               <div
@@ -327,6 +340,12 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {filteredGuards.length > 0 && (
+        <div className="bg-white rounded-2xl px-6 py-3 border border-slate-200 shadow-sm">
+          <Pagination page={safePage} pageSize={PAGE_SIZE} total={filteredGuards.length} onPageChange={setPage} itemName="guards" />
         </div>
       )}
     </div>

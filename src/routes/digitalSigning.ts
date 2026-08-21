@@ -2,11 +2,13 @@ import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import fs from "fs";
 import { PrismaClient } from "../generated/prisma/client.ts";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { isValidSignature, decryptField, hashDocument } from "../utils/digitalContractSecurity.ts";
 import { storeFinalizedPdf, isPdfFile, getTemplatePdfPath, getStampImagePath } from "../services/digitalContractPdfService.ts";
 
 const router = Router();
-const prisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 // Rate limiting for public signing routes
 const signingAttempts = new Map<string, number[]>();
@@ -205,7 +207,7 @@ router.post("/:token", async (req: Request, res: Response) => {
         let pdfBytes: Uint8Array;
 
         // Load the original template PDF and overlay signatures
-        const templateFilePath = contract.template.filePath;
+        const templateFilePath = contract.template.pdfFilePath;
         const resolvedTemplatePath = getTemplatePdfPath(templateFilePath);
 
         if (resolvedTemplatePath && fs.existsSync(resolvedTemplatePath)) {
@@ -218,7 +220,7 @@ router.post("/:token", async (req: Request, res: Response) => {
             .filter((s) => s.signatureData)
             .sort((a, b) => a.signingOrder - b.signingOrder);
 
-          const embedFonts = await import("pdf-lib").then((m) => ({
+          const embedFonts = await import("pdf-lib").then(async (m) => ({
             font: await pdfDoc.embedFont("Helvetica"),
             boldFont: await pdfDoc.embedFont("Helvetica-Bold"),
           }));

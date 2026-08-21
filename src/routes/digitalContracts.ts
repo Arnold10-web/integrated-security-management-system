@@ -2,12 +2,14 @@ import { Router, Request, Response } from "express";
 import multer from "multer";
 import { z } from "zod/v4";
 import { PrismaClient } from "../generated/prisma/client.ts";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { generateSecureToken, encryptField, decryptField } from "../utils/digitalContractSecurity.ts";
 import { storeScannedPdf, isPdfFile, storeFinalizedPdf } from "../services/digitalContractPdfService.ts";
 import { generateContractId, generateAbbreviation } from "../utils/contractIdGenerator.ts";
 
 const router = Router();
-const prisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 const storage = multer.memoryStorage();
 const pdfUpload = multer({

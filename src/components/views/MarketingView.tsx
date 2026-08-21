@@ -283,6 +283,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
 
       {/* Lead Pipeline Funnel Stages — owner-based pipeline */}
       {(!initialTab || initialTab === "pipeline") && (
+        <>
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
@@ -476,10 +477,12 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           <div className="text-center py-6 text-slate-400 italic text-xs">No follow-ups scheduled in the next 7 days. Use the Follow-up button on any open lead to plan outreach.</div>
         )}
       </div>
+        </>
       )}
 
       {/* Social Media & Marketing Campaigns Table */}
       {(!initialTab || initialTab === "campaigns") && (
+        <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-800">Social Media & Campaign Analytics</h3>
@@ -627,12 +630,14 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           </div>
         )}
       </div>
+        </>
       )}
       {(!initialTab || initialTab === "campaigns") && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 text-[10px] text-slate-500 font-semibold">Dedicated page — use top navigation to switch between Pipeline and Campaigns.</div>
       )}
 
       {(!initialTab || initialTab === "pipeline") && (
+        <>
       {/* Marketing-Led Collections & Payment Reminders */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -699,6 +704,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
           </table>
         </div>
       </div>
+        </>
       )}
       {(!initialTab || initialTab === "campaigns") && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 text-[10px] text-slate-500 font-semibold">Dedicated page — use top navigation to switch between Pipeline and Campaigns.</div>
@@ -1006,7 +1012,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
                   travelDate: fd.get("travelDate") as string,
                   travelTime: (fd.get("travelTime") as string) || undefined,
                   returnTime: (fd.get("returnTime") as string) || undefined,
-                  vehicleType: (fd.get("vehicleType") as string) || "Any",
+                  vehicleType: ((fd.get("vehicleType") as string) || "Any") as "Car" | "Motorcycle" | "Any",
                   passengersCount: Number(fd.get("passengersCount") || 1),
                 });
                 setShowTransportModal(false);

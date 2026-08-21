@@ -42,6 +42,7 @@ import {
   DisciplinaryPage,
   HRRegisterPage,
   HRLeavePage,
+  MyLeavePage,
   HRAppraisalsPage,
   HRContractsPage,
   HRRemittancesPage,
@@ -84,6 +85,7 @@ export default function App() {
         <Route path="/hr" element={<Navigate to="/hr/register" replace />} />
         <Route path="/hr/register" element={<HRRegisterPage />} />
         <Route path="/hr/leave" element={<HRLeavePage />} />
+        <Route path="/my-leave" element={<MyLeavePage />} />
         <Route path="/hr/appraisals" element={<HRAppraisalsPage />} />
         <Route path="/hr/contracts" element={<HRContractsPage />} />
         <Route path="/hr/remittances" element={<HRRemittancesPage />} />

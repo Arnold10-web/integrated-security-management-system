@@ -1074,6 +1074,11 @@ model ITAsset {
 
 model LeaveRequest {
   id              String   @id @default(cuid())
+  // category distinguishes guard leave (duty-cover workflow) from staff
+  // self-service leave requested by any system user for themselves.
+  category        String   @default("guard") // "guard" | "staff"
+  requesterUserId String? // staff self-service: the User who owns this request
+  requesterRole   String?
   guardId         String
   guardName       String
   forceNumber     String
@@ -1097,6 +1102,10 @@ model LeaveRequest {
   approvalId      String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([requesterUserId])
+  @@index([category])
+  @@index([status])
 }
 
 model Workflow {

@@ -413,6 +413,30 @@ function actorRoleLabel(user: { role: string; actingRole?: string | null } | und
   return user.actingRole && user.actingRole !== user.role ? `Acting ${user.actingRole}` : user.role;
 }
 
+/* ── Shared list pagination ───────────────────────────────────────────────
+ * High-volume collection endpoints accept ?page=&limit= (page is 1-based).
+ * When no page/limit query is supplied the endpoint keeps returning the full
+ * array so existing clients continue to work unchanged; when paginated, the
+ * response is the envelope { data, total, page, pages }.
+ */
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 200;
+
+function parseListPagination(req: express.Request): { skip?: number; take?: number; page: number; limit: number } {
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limitRaw = Number(req.query.limit);
+  const limit = Math.min(Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+  return { skip: (page - 1) * limit, take: limit, page, limit };
+}
+
+function hasListPagination(req: express.Request): boolean {
+  return req.query.page !== undefined || req.query.limit !== undefined;
+}
+
+function paginatedEnvelope<T>(rows: T[], total: number, page: number, limit: number) {
+  return { data: rows, total, page, pages: Math.max(Math.ceil(total / limit), 1) };
+}
+
 /* Valid user roles mirroring the UserRole union in src/types.ts (§5.4 acting
    delegation is validated against this list). */
 const VALID_USER_ROLES = [
@@ -1238,6 +1262,16 @@ app.get("/api/guards", authenticateToken, requireModuleAccess("guards"), async (
   // Optional query filters: ?region=&status=&search=
   if (typeof req.query.region === "string" && req.query.region) where.region = req.query.region;
   if (typeof req.query.status === "string" && req.query.status) where.status = req.query.status;
+  // ?page=&limit= → paginated envelope; otherwise full list (legacy clients)
+  if (hasListPagination(req)) {
+    const { skip, take, page, limit } = parseListPagination(req);
+    const [rows, total] = await Promise.all([
+      prisma.guard.findMany({ where, orderBy: { createdAt: "desc" }, take, skip }),
+      prisma.guard.count({ where }),
+    ]);
+    res.json(paginatedEnvelope(rows.map((g) => ({ ...g, designation: unmapGuardDesignation(g.designation) })), total, page, limit));
+    return;
+  }
   const guards = await prisma.guard.findMany({
     where,
     orderBy: { createdAt: "desc" },
@@ -1781,7 +1815,16 @@ function contractAllowedEditFields(c: { contractType: string; status: string; ap
   return [...result];
 }
 
-app.get("/api/contracts", authenticateToken, requireAnyRole(...CONTRACT_READ_ROLES), async (_req, res) => {
+app.get("/api/contracts", authenticateToken, requireAnyRole(...CONTRACT_READ_ROLES), async (req, res) => {
+  if (hasListPagination(req)) {
+    const { skip, take, page, limit } = parseListPagination(req);
+    const [rows, total] = await Promise.all([
+      prisma.contract.findMany({ orderBy: { endDate: "asc" }, take, skip }),
+      prisma.contract.count(),
+    ]);
+    res.json(paginatedEnvelope(rows.map((c) => ({ ...c, status: contractEffectiveStatus(c) })), total, page, limit));
+    return;
+  }
   const contracts = await prisma.contract.findMany({ orderBy: { endDate: "asc" } });
   res.json(contracts.map((c) => ({ ...c, status: contractEffectiveStatus(c) })));
 });
@@ -1979,6 +2022,13 @@ app.get("/api/incidents", authenticateToken, requireModuleAccess("incidents"), a
       incidents = incidents.filter((i) => siteNames.has(i.siteName));
     }
   }
+  if (hasListPagination(req)) {
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limitRaw = Number(req.query.limit);
+    const limit = Math.min(Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    res.json(paginatedEnvelope(incidents.slice((page - 1) * limit, page * limit), incidents.length, page, limit));
+    return;
+  }
   res.json(incidents);
 });
 
@@ -2077,7 +2127,16 @@ async function nextInvoiceNumber(): Promise<string> {
   return `INV-2026-${String(max + 1).padStart(4, "0")}`;
 }
 
-app.get("/api/invoices", authenticateToken, requireModuleAccess("invoices"), async (_req, res) => {
+app.get("/api/invoices", authenticateToken, requireModuleAccess("invoices"), async (req, res) => {
+  if (hasListPagination(req)) {
+    const { skip, take, page, limit } = parseListPagination(req);
+    const [rows, total] = await Promise.all([
+      prisma.invoice.findMany({ orderBy: { createdAt: "desc" }, take, skip }),
+      prisma.invoice.count(),
+    ]);
+    res.json(paginatedEnvelope(rows, total, page, limit));
+    return;
+  }
   const invoices = await prisma.invoice.findMany({ orderBy: { createdAt: "desc" } });
   res.json(invoices);
 });
@@ -2676,7 +2735,16 @@ app.get("/api/armoury", authenticateToken, requireModuleAccess("armoury"), async
   res.json(items);
 });
 
-app.get("/api/armoury-logs", authenticateToken, requireModuleAccess("armoury"), async (_req, res) => {
+app.get("/api/armoury-logs", authenticateToken, requireModuleAccess("armoury"), async (req, res) => {
+  if (hasListPagination(req)) {
+    const { skip, take, page, limit } = parseListPagination(req);
+    const [rows, total] = await Promise.all([
+      prisma.armouryLog.findMany({ orderBy: { createdAt: "desc" }, take, skip }),
+      prisma.armouryLog.count(),
+    ]);
+    res.json(paginatedEnvelope(rows, total, page, limit));
+    return;
+  }
   const logs = await prisma.armouryLog.findMany({ orderBy: { createdAt: "desc" } });
   res.json(logs);
 });
@@ -2901,7 +2969,16 @@ app.put("/api/breakdowns/:id", authenticateToken, requireModuleAccess("fleet", "
 
 const PATROL_KEYS = ["siteName", "supervisorName", "guardOnDuty", "inspectionTime", "radioCheckStatus", "uniformTurnout", "weaponEquipmentCheck", "overallRating", "remarks"];
 
-app.get("/api/patrol-inspections", authenticateToken, requireModuleAccess("patrol"), async (_req, res) => {
+app.get("/api/patrol-inspections", authenticateToken, requireModuleAccess("patrol"), async (req, res) => {
+  if (hasListPagination(req)) {
+    const { skip, take, page, limit } = parseListPagination(req);
+    const [rows, total] = await Promise.all([
+      prisma.patrolInspectionLog.findMany({ orderBy: { createdAt: "desc" }, take, skip }),
+      prisma.patrolInspectionLog.count(),
+    ]);
+    res.json(paginatedEnvelope(rows, total, page, limit));
+    return;
+  }
   const rows = await prisma.patrolInspectionLog.findMany({ orderBy: { createdAt: "desc" } });
   res.json(rows);
 });
@@ -2931,7 +3008,16 @@ app.delete("/api/patrol-inspections/:id", authenticateToken, requireModuleAccess
 
 const ROSTER_KEYS = ["guardId", "guardName", "siteId", "siteName", "region", "shiftDate", "shiftType", "status", "checkInTime", "checkOutTime"];
 
-app.get("/api/roster", authenticateToken, requireModuleAccess("roster"), async (_req, res) => {
+app.get("/api/roster", authenticateToken, requireModuleAccess("roster"), async (req, res) => {
+  if (hasListPagination(req)) {
+    const { skip, take, page, limit } = parseListPagination(req);
+    const [rows, total] = await Promise.all([
+      prisma.dutyRoster.findMany({ orderBy: { createdAt: "desc" }, take, skip }),
+      prisma.dutyRoster.count(),
+    ]);
+    res.json(paginatedEnvelope(rows, total, page, limit));
+    return;
+  }
   const rows = await prisma.dutyRoster.findMany({ orderBy: { createdAt: "desc" } });
   res.json(rows);
 });
@@ -3581,7 +3667,16 @@ app.put("/api/armoury-logs/:id/return", authenticateToken, requireModuleAccess("
 
 /* ─────────────── CRUD: Audit Logs ─────────────── */
 
-app.get("/api/audit-logs", authenticateToken, requireAnyRole("IT Officer", "Internal Auditor", "General Manager", "Director"), async (_req, res) => {
+app.get("/api/audit-logs", authenticateToken, requireAnyRole("IT Officer", "Internal Auditor", "General Manager", "Director"), async (req, res) => {
+  if (hasListPagination(req)) {
+    const { skip, take, page, limit } = parseListPagination(req);
+    const [rows, total] = await Promise.all([
+      prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take, skip }),
+      prisma.auditLog.count(),
+    ]);
+    res.json(paginatedEnvelope(rows, total, page, limit));
+    return;
+  }
   const logs = await prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
   res.json(logs);
 });
@@ -3700,14 +3795,56 @@ async function createLeaveApproval(leaveId: string, requesterId: string, request
 async function computeLeaveBalance(guardId: string, currentDuration: number) {
   // §5 leave-balance fix: entitlement/taken/balance derive from the guard's
   // leave history instead of rendering as blank dashes. Annual entitlement is
-  // 30 days; taken = previously approved annual leave + the current request.
+  // 21 days; taken = previously approved annual leave + the current request.
+  const year = new Date().getFullYear();
   const history = await prisma.leaveRequest.findMany({
     where: { guardId, status: "Approved" },
   });
-  const entitlement = 30;
-  const priorTaken = history.reduce((sum, l) => sum + (l.durationDays || 0), 0);
+  const entitlement = ANNUAL_LEAVE_ENTITLEMENT_DAYS;
+  const priorTaken = history
+    .filter((l) => {
+      const d = l.startDate ? new Date(l.startDate) : null;
+      return !d || Number.isNaN(d.getTime()) || d.getFullYear() === year;
+    })
+    .reduce((sum, l) => sum + (l.durationDays || 0), 0);
   const taken = priorTaken + currentDuration;
   return { entitlement, taken, balance: entitlement - taken };
+}
+
+/* Annual leave entitlement per staff member / guard (company policy). */
+const ANNUAL_LEAVE_ENTITLEMENT_DAYS = 21;
+
+/* Days of approved annual leave already spent by a user in the current leave
+ * year, plus what is still committed to pending requests. */
+async function computeUserLeaveSummary(userId: string) {
+  const year = new Date().getFullYear();
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year + 1, 0, 1);
+  const mine = await prisma.leaveRequest.findMany({
+    where: {
+      category: "staff",
+      requesterUserId: userId,
+      leaveType: "Annual Leave",
+      OR: [
+        { status: "Approved" },
+        { status: "Pending HR Approval" },
+        { status: "Pending GM Approval" },
+      ],
+    },
+  });
+  const inYear = (l: { startDate: string }) => {
+    const d = l.startDate ? new Date(l.startDate) : null;
+    return d && !Number.isNaN(d.getTime()) ? d >= yearStart && d < yearEnd : true;
+  };
+  const taken = mine.filter((l) => l.status === "Approved" && inYear(l)).reduce((s, l) => s + (l.durationDays || 0), 0);
+  const pending = mine.filter((l) => l.status !== "Approved").reduce((s, l) => s + (l.durationDays || 0), 0);
+  return {
+    year,
+    entitlement: ANNUAL_LEAVE_ENTITLEMENT_DAYS,
+    taken,
+    pending,
+    remaining: Math.max(ANNUAL_LEAVE_ENTITLEMENT_DAYS - taken - pending, 0),
+  };
 }
 
 async function actOnLeaveApproval(leaveId: string, action: "Approved" | "Rejected", user: JwtPayload, comment?: string) {
@@ -3824,36 +3961,112 @@ async function actOnLeaveApproval(leaveId: string, action: "Approved" | "Rejecte
 app.get("/api/leave-requests", authenticateToken, requireModuleAccess("leave"), async (req, res) => {
   const user = (req as any).user as JwtPayload;
   const requests = await prisma.leaveRequest.findMany({ orderBy: { createdAt: "desc" } });
+  let visible = requests;
   if (isRegionalManager(user)) {
     const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { region: true } });
     const region = dbUser?.region;
     if (region) {
       const guards = await prisma.guard.findMany({ where: { region }, select: { id: true } });
       const guardIds = new Set(guards.map((g) => g.id));
-      res.json(requests.filter((r) => guardIds.has(r.guardId)));
-      return;
+      visible = requests.filter((r) => guardIds.has(r.guardId));
     }
-  }
-  if (hasEffectiveRole(user, "Guard Officer")) {
+  } else if (hasEffectiveRole(user, "Guard Officer")) {
     const me = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
     const myGuard = await prisma.guard.findFirst({
       where: { OR: [{ linkedUserId: user.userId }, { fullName: me?.name ?? "__none__" }] },
       select: { id: true },
     });
-    if (myGuard) {
-      res.json(requests.filter((r) => r.guardId === myGuard.id));
-      return;
-    }
-    res.json([]);
+    visible = myGuard ? requests.filter((r) => r.guardId === myGuard.id) : [];
+  }
+  if (hasListPagination(req)) {
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limitRaw = Number(req.query.limit);
+    const limit = Math.min(Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    res.json(paginatedEnvelope(visible.slice((page - 1) * limit, page * limit), visible.length, page, limit));
     return;
   }
-  res.json(requests);
+  res.json(visible);
 });
 
 app.post("/api/leave-requests", authenticateToken, async (req, res) => {
   const user = (req as any).user as JwtPayload | undefined;
   if (!user) {
     res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  /* Staff self-service: any authenticated employee may request leave for
+   * themselves (no guardId in the body). The request follows the same
+   * HR Manager → optional GM approval workflow as guard leave. */
+  const isSelfService = !req.body?.guardId || req.body?.selfService === true;
+  if (isSelfService) {
+    const parsed = z.object({
+      leaveType: z.string().min(1),
+      startDate: z.string().min(1),
+      endDate: z.string().min(1),
+      durationDays: z.number().int().positive(),
+      reason: z.string().min(1),
+      contactAddress: z.string().optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+      return;
+    }
+    const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
+    if (!dbUser) {
+      res.status(404).json({ error: "User record not found" });
+      return;
+    }
+    const summary = await computeUserLeaveSummary(user.userId);
+    if (parsed.data.leaveType === "Annual Leave" && parsed.data.durationDays > summary.remaining) {
+      res.status(400).json({
+        error: `Insufficient annual leave balance: you have ${summary.remaining} of ${summary.entitlement} day(s) left for ${summary.year} (${summary.taken} spent, ${summary.pending} pending). Requested ${parsed.data.durationDays} day(s).`,
+      });
+      return;
+    }
+    const start = new Date(parsed.data.startDate);
+    const end = new Date(parsed.data.endDate);
+    const resumptionDate = !Number.isNaN(end.getTime())
+      ? new Date(end.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+      : undefined;
+    const leave = await prisma.leaveRequest.create({
+      data: {
+        category: "staff",
+        requesterUserId: dbUser.id,
+        requesterRole: actorRoleLabel(user),
+        guardId: dbUser.id,
+        guardName: dbUser.name,
+        forceNumber: dbUser.forceNumber || `STAFF-${dbUser.id.slice(-6).toUpperCase()}`,
+        leaveType: parsed.data.leaveType,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        durationDays: parsed.data.durationDays,
+        reason: parsed.data.reason,
+        contactAddress: parsed.data.contactAddress,
+        appliedDate: new Date().toISOString().split("T")[0],
+        status: "Pending HR Approval",
+        entitlement: ANNUAL_LEAVE_ENTITLEMENT_DAYS,
+        taken: summary.taken + (parsed.data.leaveType === "Annual Leave" ? parsed.data.durationDays : 0),
+        balance: summary.remaining - (parsed.data.leaveType === "Annual Leave" ? parsed.data.durationDays : 0),
+        resumptionDate,
+      },
+    });
+    const approval = await createLeaveApproval(leave.id, user.userId, dbUser.name, "");
+    if (approval) {
+      await prisma.leaveRequest.update({ where: { id: leave.id }, data: { approvalId: approval.id } });
+    }
+    await prisma.auditLog.create({
+      data: {
+        timestamp: new Date(),
+        userName: user.userId,
+        userRole: actorRoleLabel(user),
+        action: "Leave Requested",
+        module: "HR",
+        details: `${dbUser.name} requested ${parsed.data.leaveType} from ${parsed.data.startDate} to ${parsed.data.endDate}`,
+      },
+    });
+    await notifyRole("HR Manager", "info", "New Leave Request", `${dbUser.name} (${actorRoleLabel(user)}) requested ${parsed.data.leaveType} for ${parsed.data.durationDays} day(s) from ${parsed.data.startDate}.`, "HR");
+    const result = await prisma.leaveRequest.findUnique({ where: { id: leave.id } });
+    res.status(201).json(result);
     return;
   }
   const allowedRequesters = ["Guard Officer", "Regional Manager", "Operations Manager", "HR Manager", "HR Assistant"];
@@ -3910,6 +4123,71 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
   await notifyRole("HR Manager", "info", "New Leave Request", `${parsed.data.guardName} (${parsed.data.forceNumber}) requested ${parsed.data.leaveType} for ${parsed.data.durationDays} day(s) from ${parsed.data.startDate}.`, "HR");
   const result = await prisma.leaveRequest.findUnique({ where: { id: leave.id } });
   res.status(201).json(result);
+});
+
+/* ── My Leave: self-service summary for the signed-in user (any role) ── */
+app.get("/api/my/leave", authenticateToken, async (req, res) => {
+  const user = (req as any).user as JwtPayload;
+  const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
+  if (!dbUser) {
+    res.status(404).json({ error: "User record not found" });
+    return;
+  }
+  // Own staff requests + any guard-leave requests linked to this user's guard record.
+  const myGuard = await prisma.guard.findFirst({
+    where: { OR: [{ linkedUserId: dbUser.id }, { fullName: dbUser.name }] },
+    select: { id: true },
+  });
+  const where = myGuard
+    ? { OR: [{ requesterUserId: dbUser.id }, { guardId: myGuard.id }] }
+    : { requesterUserId: dbUser.id };
+  const [requests, summary] = await Promise.all([
+    prisma.leaveRequest.findMany({ where, orderBy: { createdAt: "desc" } }),
+    computeUserLeaveSummary(dbUser.id),
+  ]);
+  if (hasListPagination(req)) {
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limitRaw = Number(req.query.limit);
+    const limit = Math.min(Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    res.json({ ...paginatedEnvelope(requests.slice((page - 1) * limit, page * limit), requests.length, page, limit), summary });
+    return;
+  }
+  res.json({ requests, summary });
+});
+
+/* Owner withdrawal: a requester may cancel their own still-pending request. */
+app.delete("/api/leave-requests/:id", authenticateToken, async (req, res) => {
+  const user = (req as any).user as JwtPayload;
+  const leave = await prisma.leaveRequest.findUnique({ where: { id: req.params.id } });
+  if (!leave) {
+    res.status(404).json({ error: "Leave request not found" });
+    return;
+  }
+  const isOwner = leave.requesterUserId === user.userId;
+  const canManage = hasEffectiveRole(user, "HR Manager") || isRegionalManager(user);
+  if (!isOwner && !canManage) {
+    res.status(403).json({ error: "You may only withdraw your own leave requests" });
+    return;
+  }
+  if (!["Pending HR Approval", "Pending GM Approval"].includes(leave.status)) {
+    res.status(400).json({ error: `Only pending requests can be withdrawn (current status: ${leave.status})` });
+    return;
+  }
+  await prisma.leaveRequest.delete({ where: { id: leave.id } });
+  if (leave.approvalId) {
+    await prisma.approval.update({ where: { id: leave.approvalId }, data: { status: "Cancelled" } }).catch(() => {});
+  }
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Leave Request Withdrawn",
+      module: "HR",
+      details: `${leave.guardName} withdrew their ${leave.leaveType} request (${leave.startDate} → ${leave.endDate})`,
+    },
+  });
+  res.json({ ok: true });
 });
 
 app.put("/api/leave-requests/:id/approve", authenticateToken, async (req, res) => {
@@ -5485,10 +5763,20 @@ const createNotificationSchema = z.object({
 
 app.get("/api/notifications", authenticateToken, async (req, res) => {
   const user = (req as any).user as JwtPayload;
+  const where = {
+    OR: [{ userId: user.userId }, { targetRole: user.role }],
+  };
+  if (hasListPagination(req)) {
+    const { skip, take, page, limit } = parseListPagination(req);
+    const [rows, total] = await Promise.all([
+      prisma.notification.findMany({ where, orderBy: { createdAt: "desc" }, take, skip }),
+      prisma.notification.count({ where }),
+    ]);
+    res.json(paginatedEnvelope(rows, total, page, limit));
+    return;
+  }
   const notifications = await prisma.notification.findMany({
-    where: {
-      OR: [{ userId: user.userId }, { targetRole: user.role }],
-    },
+    where,
     orderBy: { createdAt: "desc" },
     take: 100,
   });

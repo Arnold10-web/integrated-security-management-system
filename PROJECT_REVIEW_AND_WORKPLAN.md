@@ -40,7 +40,7 @@ Fix 1–4 were the gate before feature work; the rest have been staged.
 ### What is not right
 - **`server.ts` is a god file.** Auth, 40+ CRUD endpoints, Zod schemas, RBAC tables, file uploads, force-number allocation, seed, and Vite dev-server wiring all live in one file. No router modules, no controller/service layer, no `src/server/**`.
 - **`domainStore.ts` is the frontend twin-god.** 385-line interface, 80+ actions, `syncApi(...).catch(()=>{})` sprinkled into every mutation. It imports `useAuthStore`, `useAuditStore`, `useNotificationStore` and calls `audit()` + `notif()` *inside* state updates — side-effects with no rollback if the API call fails.
-- **No API layer boundary.** `src/services/apiClient.ts` / `domainApi.ts` exist but `domainStore` mostly bypasses them via the generic `syncApi` helper. Pagination, optimistic updates, and cache invalidation are all missing — every `GET /api/guards` loads the whole table and filtering happens client-side.
+- **No API layer boundary.** `src/services/apiClient.ts` / `domainApi.ts` exist but `domainStore` mostly bypasses them via the generic `syncApi` helper. Optimistic updates and cache invalidation are still missing. **Pagination: → Improved (2026-08-21)** — server-side `?page=&limit=` pagination with a backward-compatible `{ data, total, page, pages }` envelope now covers the high-volume list endpoints (`guards`, `incidents`, `invoices`, `contracts`, `armoury-logs`, `patrol-inspections`, `roster`, `audit-logs`, `notifications`, `leave-requests`); omitting params still returns the full legacy array so existing clients keep working, and client-side filtering remains for small tables.
 - **`server.ts` imports Vite at runtime** (`createViteServer`), tying prod to a dev dependency.
 - **No request context / dependency injection.** `prisma` is a module-global singleton; no `req.prisma` / `req.user` typing beyond `(req as any).user`; `prisma` is never `$disconnect()`-ed on `SIGTERM`.
 
@@ -194,7 +194,7 @@ The product promise is *least-privilege by department (§15.1)*; the mechanism w
 
 | Decision | Outcome |
 |---|---|
-| Leave | Submit → **HR Manager** approves (staff & guards; HR Assistant is NOT an approver). **GM optionally** adds final approval for *staff* leave only. Regional/Ops steps removed. |
+| Leave | Submit → **HR Manager** approves (staff & guards; HR Assistant is NOT an approver). **GM optionally** adds final approval for *staff* leave only. Regional/Ops steps removed. **(2026-08-21)** Every role also gets a universal self-service **My Leave** module (`/my-leave`, `GET /api/my/leave`): request own leave, view days spent vs remaining against the **21-day annual entitlement**, withdraw own pending requests. Annual-leave requests exceeding the remaining balance are rejected server-side (HTTP 400). Staff self-service rows are stored on `LeaveRequest` with `category="staff"` + `requesterUserId`; guard duty-cover rows keep `category="guard"`. |
 | Contracts | No Ops approval step. Chain: **Site Survey** (Ops/RM fills) → Marketing drafts from survey data → Finance validates → GM (≥100M) → Active. |
 | Contract value | Visible to Operations Manager in his view-only snapshot. |
 | Contract access | **No self-service search for anyone.** All contract information goes through the **Records Officer inquiry** path (interactive form → RO searches → responds with confirmation or browser print-to-PDF). |
@@ -260,6 +260,11 @@ Requester ─interactive form: client, site, search hints, purpose (confirm exis
 ```
 Guard/Staff submits ─► HR Manager approves ─► [staff only, optional] GM approves ─► Approved
 Rejected at any step with reason. No Regional/Ops/Assistant steps.
+
+Self-service path (2026-08-21): any authenticated user ─► My Leave page (/my-leave) ─►
+  POST /api/leave-requests {no guardId} → category="staff" → same HR → optional GM chain.
+  GET /api/my/leave → { requests[], summary{year, entitlement:21, taken, pending, remaining} }.
+  DELETE /api/leave-requests/:id → owner may withdraw while still pending.
 ```
 
 ### 5. Requisition (any staff → GM)

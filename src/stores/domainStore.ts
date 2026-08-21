@@ -102,7 +102,7 @@ function computeMockLeaveBalance(
   leaveRequests: { guardId: string; status: string; durationDays: number }[],
   current?: { guardId: string; durationDays: number } | undefined
 ): LeaveBalanceComputed {
-  const entitlement = 30;
+  const entitlement = 21;
   const prior = current
     ? leaveRequests.filter((l) => l.guardId === current.guardId && l.status === "Approved")
     : [];
@@ -1869,7 +1869,13 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   addLeaveRequest: (r) => {
     const req: LeaveRequest = { ...r, id: `lr-${Date.now()}`, status: "Pending HR Approval", requestedByRole: actor()?.role };
     set((s) => ({ leaveRequests: [req, ...s.leaveRequests] }));
-    syncApi("post", "/leave-requests", r);
+    // Staff self-service requests must not send a guardId — the server treats
+    // its absence (or selfService flag) as the current user's own leave.
+    const body =
+      req.category === "staff"
+        ? (({ guardId: _guardId, ...rest }) => rest)(r)
+        : r;
+    syncApi("post", "/leave-requests", body);
     audit("Leave Request Submitted", `${req.guardName} requested ${req.leaveType} from ${req.startDate} to ${req.endDate}`, "HR");
     notif("info", "Leave Requested", `${req.guardName} — ${req.leaveType} (${req.startDate} to ${req.endDate})`, "HR");
     notif("info", "Pending HR Action", `${req.guardName} — pending approval for ${req.leaveType}`, "HR");

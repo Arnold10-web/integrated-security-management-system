@@ -1,5 +1,6 @@
 export { GuardsTable } from "./GuardsTable";
 export { LeaveRequestPanel } from "./LeaveRequestPanel";
+export { MyLeaveSection } from "./MyLeaveSection";
 export { StaffAppraisalPanel } from "./StaffAppraisalPanel";
 export { ContractsPanel } from "./ContractsPanel";
 export { ClientContractsView } from "./ClientContractsView";

@@ -70,7 +70,7 @@ export const EmbeddedSigningWidget: React.FC<EmbeddedSigningProps> = ({ signingT
                 <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
                 <p className="text-sm text-slate-700 font-semibold">{error}</p>
                 <button
-                  onClick={() => { setError(null); setLoading(true); iframeRef.current?.reload(); }}
+                  onClick={() => { setError(null); setLoading(true); if (iframeRef.current) iframeRef.current.src = signingUrl; }}
                   className="mt-3 px-4 py-2 bg-cyan-600 text-white rounded-lg text-xs font-semibold"
                 >
                   Retry

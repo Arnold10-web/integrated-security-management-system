@@ -271,6 +271,10 @@ export interface HRRemittanceRecord {
 
 export interface LeaveRequest {
   id: string;
+  /** "guard" = duty-cover guard leave; "staff" = self-service staff leave */
+  category?: "guard" | "staff";
+  requesterUserId?: string;
+  requesterRole?: string;
   guardId: string;
   guardName: string;
   forceNumber: string;

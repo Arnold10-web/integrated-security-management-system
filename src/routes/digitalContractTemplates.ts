@@ -2,10 +2,12 @@ import { Router, Request, Response } from "express";
 import multer from "multer";
 import { z } from "zod/v4";
 import { PrismaClient } from "../generated/prisma/client.ts";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { storeTemplatePdf, deleteTemplatePdf, getTemplatePdfPath, isPdfFile, storeStampImage, getStampImagePath, deleteStampImage } from "../services/digitalContractPdfService.ts";
 
 const router = Router();
-const prisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 // ── PDF Upload for Templates ──
 const storage = multer.memoryStorage();
@@ -84,6 +86,7 @@ router.post("/", pdfUpload.single("pdf"), async (req: Request, res: Response) =>
         category: parsed.data.category,
         description: parsed.data.description,
         pdfFileName: req.file.originalname,
+        pdfFilePath: "", // populated immediately after the PDF is stored below
         fileSize: req.file.size,
         pageCount: 1, // Will be updated by frontend PDF.js
         createdBy: user?.userId || "system",

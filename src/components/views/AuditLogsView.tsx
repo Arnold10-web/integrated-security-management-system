@@ -1,6 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Clock, Search, Download } from "lucide-react";
 import { AuditLog } from "../../types";
+import { Pagination } from "../molecules";
+
+const PAGE_SIZE = 15;
 
 interface AuditLogsViewProps {
   logs: AuditLog[];
@@ -8,6 +11,7 @@ interface AuditLogsViewProps {
 
 export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
 
   const filteredLogs = logs.filter(
     (l) =>
@@ -15,6 +19,15 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
       l.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
       l.userName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Reset to the first page whenever the search term changes.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm]);
+
+  const totalPages = Math.max(Math.ceil(filteredLogs.length / PAGE_SIZE), 1);
+  const safePage = Math.min(page, totalPages);
+  const pagedLogs = filteredLogs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -79,7 +92,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
                 <tr>
                   <td colSpan={5} className="p-6 text-center text-slate-400 italic text-xs">No audit log entries match the search criteria.</td>
                 </tr>
-              ) : (filteredLogs.map((log) => (
+              ) : (pagedLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="py-3 px-4 font-mono text-slate-500 font-medium whitespace-nowrap">{log.timestamp}</td>
                   <td className="py-3 px-4 font-extrabold text-slate-900">{log.action}</td>
@@ -94,6 +107,11 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
             </tbody>
           </table>
         </div>
+        {filteredLogs.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-200">
+            <Pagination page={safePage} pageSize={PAGE_SIZE} total={filteredLogs.length} onPageChange={setPage} itemName="events" />
+          </div>
+        )}
       </div>
     </div>
   );

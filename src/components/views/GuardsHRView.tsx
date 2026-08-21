@@ -170,7 +170,7 @@ export const GuardsHRView: React.FC<Props> = ({ guards, activeRole, initialTab, 
   };
   const approveL = (id: string) => {
     const target = leaves.find((l) => l.id === id);
-    const entitlement = 30;
+    const entitlement = 21;
     const priorTaken = target ? leaves.filter((l) => l.guardId === target.guardId && l.status === "Approved").reduce((s, l) => s + (l.durationDays || 0), 0) : 0;
     const taken = priorTaken + (target?.durationDays ?? 0);
     const balance = entitlement - taken;

@@ -19,6 +19,7 @@ import { ContractInquiryPanel } from "../components/views/ContractInquiryPanel";
 import { GeneralManagerWorkspaceView } from "../components/views/GeneralManagerWorkspaceView";
 import { IncidentsView } from "../components/views/IncidentsView";
 import { GuardsHRView } from "../components/views/GuardsHRView";
+import { MyLeaveSection } from "../components/organisms/MyLeaveSection";
 import { ActingRequestPanel } from "../components/views/ActingRequestPanel";
 import { ClientSitesView } from "../components/views/ClientSitesView";
 import { FinanceView } from "../components/views/FinanceView";
@@ -400,6 +401,12 @@ export const HRPage: React.FC = () => {
 
 export const HRRegisterPage: React.FC = () => <HRGuardsViewWithTab initialTab="guards" />;
 export const HRLeavePage: React.FC = () => <HRGuardsViewWithTab initialTab="leave" />;
+
+export const MyLeavePage: React.FC = () => {
+  const currentUser = useAuthStore((s) => s.currentUser);
+  if (!currentUser) return null;
+  return <MyLeaveSection currentUser={currentUser} />;
+};
 export const HRAppraisalsPage: React.FC = () => <HRGuardsViewWithTab initialTab="appraisals" />;
 export const HRContractsPage: React.FC = () => <HRGuardsViewWithTab initialTab="contracts" />;
 export const HRRemittancesPage: React.FC = () => <HRGuardsViewWithTab initialTab="remittances" />;

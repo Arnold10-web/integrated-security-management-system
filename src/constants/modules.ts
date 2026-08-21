@@ -23,7 +23,6 @@ import {
   Target,
   GitBranch,
   Star,
-  CreditCard,
   BarChart3,
   Scale,
   Award,
@@ -122,6 +121,14 @@ export const APP_MODULES: AppModule[] = [
     label: "Leave Tracker",
     department: "HR",
     icon: Clock,
+    group: "hr",
+  },
+  {
+    id: "my_leave",
+    path: "/my-leave",
+    label: "My Leave",
+    department: "HR",
+    icon: Calendar,
     group: "hr",
   },
   {
@@ -404,8 +411,16 @@ export const APP_MODULES: AppModule[] = [
 /**
  * Strict departmental module access by role (client-side gate).
  * Server-side RBAC must mirror this once API auth is enforced.
+ *
+ * "my_leave" is universal self-service: every role can view and manage their
+ * own leave entitlement, so it is appended to whatever the role grants.
  */
 export function getAllowedModuleIds(role: UserRole): string[] {
+  const roleModules = getAllowedModuleIdsByRole(role);
+  return Array.from(new Set([...roleModules, "my_leave"]));
+}
+
+function getAllowedModuleIdsByRole(role: UserRole): string[] {
   switch (role) {
     case "General Manager":
     case "Director":
