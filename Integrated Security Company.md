@@ -585,6 +585,7 @@ Views are decomposed using Atomic Design:
 | Fleet Licence Approvals (v2.6) | **DONE** | Driver/Rider licence details captured at recruitment (HR) → `Pending FM Approval` → Fleet Manager approves → `Active Duty` with approved-by/at; licence-expiry CRITICAL/soon alerts on the Fleet register |
 | Contract Scans & Template (v2.6) | **DONE** | Multi-page contract scan manager (add page, thumbnail list, reorder up/down, delete, persisted `scanPages`); printable contract template with autoprint |
 | ID Camera + Holder Signature (v2.6) | **DONE** | Records Officer captures the ID holder's photo via web camera (or upload) and the holder's signature on a signature pad before issuance; both persisted on the guard record |
+| Digital Contracts (v2.8) | **DONE** | PDF-based contract system: fixed legal PDF templates uploaded by Records Officer, contracts created from templates with auto-generated IDs (`CC-YYYY-ABBREV-NNN`, `SC-FORCENUMBER-NNN`, `SCAN-YYYY-ABBREV-NNN`), sequential signing (internal signers → client signers via secure link), company stamp overlay, signature certificate page appended to original template PDF, SHA-256 tamper-evident hashes, eIDAS + ESIGN Act compliant. Replaces old HTML-based e-signature system. |
 
 ### 8.9 Phase 2 — Planned Modules
 
@@ -728,6 +729,60 @@ Contracts live in a single central vault owned by **HR / Records Officer**. Reco
 Every status transition is recorded in the audit log (`contractAudit`) with the acting user, role, and timestamp; `approvedBy`/`approvedAt` capture the final approval for completed chains.
 
 **Contract scans & printable template (v2.6).** Contracts carry a persisted multi-page scan set (`Contract.scanPages` — array of `{ id, pageNo, name, dataUrl }`). The scan manager lets a user **add a page** (file → base64), see a **thumbnail list**, **reorder pages** up/down, and **delete** a page. Edit-allowlists include `scanPages` for staff contracts (HR), client Drafts (BDM/Supervisor), and archival (Records Officer — Records Officer replaces the scan set wholesale when archiving). A **Print Template** button renders a print-ready contract (parties, term & value, SLA, records & approvals, signature blocks) that auto-prints from the browser.
+
+### 9.8 Digital Contracts System (v2.8)
+
+The Digital Contracts module replaces the old HTML-based e-signature system with a PDF-based workflow. Fixed legal contract PDFs are uploaded as templates, contracts are created from those templates with auto-generated IDs, signed sequentially, and stored with tamper-evident SHA-256 hashes.
+
+**Key principle:** The uploaded PDF template is the source of truth. The system never modifies the contract wording — it only fills in client-specific fields and overlays signatures + company stamp.
+
+**Template management (Records Officer):**
+- Upload fixed legal PDF templates (e.g., 14-page client security services contract)
+- Company details (name, location, bank details, advocates) are baked into the template
+- Upload company stamp image (PNG/JPG) — overlaid on all finalized contracts
+- Templates are stored at `digital_contracts/templates/`
+
+**Contract creation (BDM / Sales Supervisor / HR Manager):**
+- 6-step wizard: Select Template → Client Details → Service Details (APPENDIX A) → Contract Dates → Signatories → Review
+- Auto-generated Contract IDs:
+  - Client: `CC-YYYY-ABBREV-NNN` (e.g., `CC-2026-URA-001`)
+  - Staff: `SC-FORCENUMBER-NNN` (e.g., `SC-SG-2024-001-001`)
+  - Scanned: `SCAN-YYYY-ABBREV-NNN` (e.g., `SCAN-2023-KAM-001`)
+- Abbreviation auto-generated from company name, user can override
+
+**Approval workflow (Client Contracts only):**
+- General Manager reviews and approves contract content before signing begins
+- Staff Contracts skip this step
+
+**Sequential signing:**
+- 4 signature blocks: Company Representative, Company Witness, Client Representative, Client Witness
+- Signers sign in strict order — each signer must complete before the next can access their link
+- Internal signers sign first, then client signers receive secure links
+- Signing links: 64-char hex token, 14-day expiry, rate-limited (30 req/15 min), single-use
+- Client signers use standalone page (`/digital-sign/{token}`) — no login required, works on any device
+
+**Finalization:**
+- When all 4 signers complete, the system loads the original template PDF (all pages preserved)
+- A Signature Certificate page is appended with all 4 signature images, names, titles, and timestamps
+- Company stamp image is overlaid on the signature certificate page
+- SHA-256 hash computed for tamper evidence
+- Finalized PDF stored at `digital_contracts/contracts/`
+
+**Role access:**
+| Role | Access |
+|------|--------|
+| Records Officer | Upload templates, upload company stamp, view signed, archive, manage inquiries |
+| BDM / Sales Supervisor | Create Client Contracts from templates |
+| HR Manager | Create Staff Contracts from templates |
+| General Manager | Approve + Sign Client Contracts |
+| Finance Manager | Sign Client Contracts only |
+| Public (no login) | Client signers access secure links to sign |
+
+**Contract lifecycle:** `Draft → PendingApproval (Client only) → PendingSigning → PartiallySigned → FullySigned → Archived`
+
+**Scanned old contracts:** Old paper contracts can be digitized by uploading scanned PDFs with `SCAN-YYYY-ABBREV-NNN` IDs.
+
+**Detailed documentation:** See `docs/DIGITAL_CONTRACTS.md`
 
 ---
 

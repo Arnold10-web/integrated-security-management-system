@@ -1330,66 +1330,141 @@ model Contract {
   siteSurveyAt     String?
   createdBy        String?
   scanPages        Json?
-  // ── E-Contracts extension (scoped to ISCMS Contract lifecycle) ──
-  templateId       String?
-  templateBody     String? // snapshot copied at signing-request creation time — immutable after
-  documentHash     String? // SHA-256 of compiledHtml + signature + contractId (tamper evidence)
-  finalizedPdfPath String? // absolute path under secure_storage/
   isArchived       Boolean              @default(false)
   archivedAt       DateTime?
-  template         ContractTemplate?    @relation(fields: [templateId], references: [id])
-  signers          ContractSigner[]
-  esignAuditLogs   ContractEsignAudit[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
   @@index([endDate])
   @@index([region])
   @@index([status])
+}
+
+// ── Digital Contract System (PDF-based) ──
+
+model PdfContractTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  category        String   // "Client", "Staff", "Custom"
+  description     String?
+  pdfFilePath     String   // Path to uploaded PDF template
+  pdfFileName     String   // Original filename
+  fileSize        Int      // File size in bytes
+  pageCount       Int      // Number of pages in the PDF
+  version         Int      @default(1)
+  isActive        Boolean  @default(true)
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  contracts       DigitalContract[]
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model DigitalContract {
+  id                  String   @id @default(cuid())
+  contractId          String   @unique // Auto-generated: CC-2026-URA-001, SC-SG-2024-001-001, SCAN-2023-KAM-001
+  contractType        String   // "Client", "Staff", "Scanned"
+  title               String
+  category            String   // "Client", "Staff", "Custom"
+  templateId          String
+  template            PdfContractTemplate @relation(fields: [templateId], references: [id])
+  filledFields        Json     // { "clientName": "Acme Corp", ... }
+  status              String   @default("Draft") // Draft, PendingApproval, PendingSigning, PartiallySigned, FullySigned, Archived
+  signingOrder        Json     // Array of signer IDs in signing order
+  currentSignerIndex  Int      @default(0) // Index of current signer in signingOrder
+
+  // Finalized document
+  finalizedPdfPath    String? // Path to the final signed PDF
+  documentHash        String? // SHA-256 hash for tamper evidence
+
+  // For old/scanned contracts
+  isScanned           Boolean  @default(false)
+  scannedPdfPath      String?  // Path to scanned PDF
+  scannedAt           DateTime?
+
+  // Archive status
+  isArchived          Boolean  @default(false)
+  archivedAt          DateTime?
+
+  // Metadata
+  partyName           String?
+  clientAbbreviation  String?  // Auto-generated abbreviation for client contracts
+  forceNumber         String?  // Force number for staff contracts
+  startDate           DateTime?
+  endDate             DateTime?
+  valueUgx            Int?
+
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  signers             DigitalContractSigner[]
+  auditLogs           DigitalContractAudit[]
+
+  @@index([contractId])
+  @@index([category])
+  @@index([status])
   @@index([templateId])
+  @@index([endDate])
 }
 
-model ContractTemplate {
-  id        String     @id @default(cuid())
-  name      String
-  bodyHtml  String     @db.Text
-  version   Int        @default(1)
-  createdBy String?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  contracts Contract[]
-}
+model DigitalContractSigner {
+  id              String   @id @default(cuid())
+  contractId      String
+  contract        DigitalContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
-model ContractSigner {
-  id            String    @id @default(cuid())
-  contractId    String
-  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  secureToken   String    @unique
-  signerEmail   String // encrypted at rest via app-level AES (DB_ENCRYPTION_KEY) — see esignSecurity.ts
-  signerName    String?
-  variableData  Json? // JSON is encrypted at rest via same key when non-empty
-  signatureData String?   @db.Text
-  isCompleted   Boolean   @default(false)
-  signedAt      DateTime?
-  expiresAt     DateTime
-  createdAt     DateTime  @default(now())
+  // Signer info
+  signerName      String
+  signerTitle     String?  // Job title/position
+  signerEmail     String?  // For notifications (encrypted at rest)
+
+  // Signing order
+  signingOrder    Int      // 1, 2, 3, etc.
+
+  // Secure signing link
+  secureToken     String   @unique
+  expiresAt       DateTime
+
+  // Signature data
+  signatureData   String?  @db.Text // Base64 PNG signature
+  signedAt        DateTime?
+  ipAddress       String?
+  userAgent       String?
+
+  // Status
+  isCompleted     Boolean  @default(false)
+  declinedAt      DateTime?
+  declineReason   String?
+
+  createdAt       DateTime @default(now())
 
   @@index([contractId])
   @@index([secureToken])
-  @@index([expiresAt])
+  @@index([signingOrder])
 }
 
-model ContractEsignAudit {
-  id         String   @id @default(cuid())
-  contractId String
-  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  eventType  String
-  ipAddress  String?
-  userAgent  String?  @db.Text
-  cryptoHash String?
-  createdAt  DateTime @default(now())
+model DigitalContractAudit {
+  id              String   @id @default(cuid())
+  contractId      String
+  contract        DigitalContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  eventType       String   // "Created", "SentForSigning", "Viewed", "Signed", "Completed", "Archived"
+  description     String?
+  performedBy     String?  // User ID or "Signer:Name"
+
+  // Cryptographic evidence
+  cryptoHash      String?  // SHA-256 of contract state at this event
+
+  ipAddress       String?
+  userAgent       String?
+
+  createdAt       DateTime @default(now())
 
   @@index([contractId])
+  @@index([eventType])
 }
 
 model ForceNumberSequence {

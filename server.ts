@@ -14,18 +14,10 @@ import { z } from "zod/v4";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
-import {
-  escapeHtml,
-  generateSecureToken,
-  isValidSignature,
-  parseTemplate,
-  hashDocument,
-  encryptField,
-  decryptField,
-  encryptJson,
-  decryptJson,
-} from "./src/utils/esignSecurity.ts";
-import { generateEsignPdf, dummyPdfBytes } from "./src/services/esignPdfGenerator.ts";
+// Digital contract routes
+import digitalContractTemplateRoutes from "./src/routes/digitalContractTemplates.ts";
+import digitalContractRoutes from "./src/routes/digitalContracts.ts";
+import digitalSigningRoutes from "./src/routes/digitalSigning.ts";
 // Modular server factory (see src/server/*) — still re-exported via legacy server.ts for backward compat
 import { nextForceNumber as modularNextForceNumber } from "./src/server/services/forceNumber.ts";
 dotenv.config();
@@ -167,29 +159,14 @@ const authLimiter = rateLimit({
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 
-// E-Signature public signing rate limits — §1.6 (30 / 15 min)
-const esignGetLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many signing link requests, please try again later" },
-});
-const esignSignLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many signing attempts, please try again later" },
-});
-
 /* ─────────────── File Upload ─────────────── */
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-const esignStorageDir = path.join(process.cwd(), "secure_storage");
-if (!fs.existsSync(esignStorageDir)) fs.mkdirSync(esignStorageDir, { recursive: true });
+// Digital contract PDF storage
+const digitalContractStorageDir = path.join(process.cwd(), "digital_contracts");
+if (!fs.existsSync(digitalContractStorageDir)) fs.mkdirSync(digitalContractStorageDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
@@ -1976,329 +1953,14 @@ app.put("/api/contracts/:id", authenticateToken, async (req, res) => {
   res.json(updated);
 });
 
-/* ─────────────── E-Signature (scoped to ISCMS Contract lifecycle) ───────────────
-   Implements Contract E Signature System.md §1 & §6, adapted to Prisma + JWT/RBAC:
-   - Template versioning + copy-on-create (§4) — templateBody snapshot is immutable.
-   - Secure token (CSPRNG, 14-day expiry, FOR UPDATE, single-use) — §1.5.
-   - Signature data-URI validation + size bounds — §1.2.
-   - Escaped template variables (parseTemplate) — §1.3.
-   - Sandboxed Puppeteer + request interception (no external fetch, no --no-sandbox) — §1.2/§6.6.
-   - Full-document hash (compiledHtml + signature + contractId) + PDF hash — §1.7.
-   - Dedicated transaction client per signing/admin transaction (pool-safe) — §6.7/6.8.
-   Adapts spec's standalone `admin_users`/`pg` model to ISCMS's existing User/JWT/RBAC
-   (admin routes require `documents` module, public signing routes are rate-limited).
-*/
+/* ─────────────── Digital Contracts (PDF-based) ─────────────── */
+app.use("/api/digital-contract-templates", authenticateToken, requireModuleAccess("documents", "full"), digitalContractTemplateRoutes);
+app.use("/api/digital-contracts", authenticateToken, requireModuleAccess("documents"), digitalContractRoutes);
+app.use("/api/digital-sign", digitalSigningRoutes);
 
-// ── Schemas ──
-const createEsignTemplateSchema = z.object({
-  name: z.string().min(1).max(200),
-  bodyHtml: z.string().min(1).max(200_000),
-});
-
-const createEsignContractSchema = z.object({
-  templateId: z.string().min(1).optional(),
-  title: z.string().min(1).max(300),
-  contractType: z.string().max(100).optional(),
-  partyName: z.string().min(1).optional(),
-  category: z.string().min(1).optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-  valueUgx: z.number().int().nonnegative().optional(),
-  signerEmail: z.string().email(),
-  signerName: z.string().min(1).max(200).optional(),
-  variableData: z.record(z.string(), z.unknown()).optional(),
-  contractId: z.string().min(1).optional(), // if re-using an existing Contract
-});
-
-// ── Templates ──
-app.post("/api/esign/templates", authenticateToken, requireModuleAccess("documents", "full"), async (req, res) => {
-  const parsed = createEsignTemplateSchema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.issues }); return; }
-  const user = (req as any).user as JwtPayload;
-  const tpl = await prisma.contractTemplate.create({
-    data: { name: parsed.data.name, bodyHtml: parsed.data.bodyHtml, createdBy: user.userId },
-  });
-  await prisma.auditLog.create({
-    data: { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: "ESign Template Created", module: "Documents", details: `Template '${tpl.name}' (${tpl.id}) v${tpl.version}` },
-  });
-  res.status(201).json({ success: true, template: tpl });
-});
-
-app.get("/api/esign/templates", authenticateToken, requireModuleAccess("documents"), async (_req, res) => {
-  const templates = await prisma.contractTemplate.findMany({ orderBy: { createdAt: "desc" } });
-  res.json({ success: true, templates });
-});
-
-// ── E-Sign Contracts (admin) ──
-app.post("/api/esign/contracts", authenticateToken, requireModuleAccess("documents", "full"), async (req, res) => {
-  const parsed = createEsignContractSchema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.issues }); return; }
-  const { templateId, title, contractType, partyName, category, startDate, endDate, valueUgx, signerEmail, signerName, variableData, contractId } = parsed.data;
-  const user = (req as any).user as JwtPayload;
-  const actorName = await contractActorName(req);
-
-  // Resolve template snapshot if supplied — copy at creation time (§4)
-  let templateBody: string | null = null;
-  let resolvedTemplateId: string | null = null;
-  if (templateId) {
-    const tpl = await prisma.contractTemplate.findUnique({ where: { id: templateId } });
-    if (!tpl) { res.status(404).json({ error: "Template not found" }); return; }
-    templateBody = tpl.bodyHtml;
-    resolvedTemplateId = tpl.id;
-  }
-
-  // Transactionally create (or reuse) the ISCMS Contract + its signer row — ensures atomicity
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      let contract: { id: string; contractCode: string; title: string };
-      if (contractId) {
-        const existing = await tx.contract.findUnique({ where: { id: contractId } });
-        if (!existing) throw Object.assign(new Error("Contract not found"), { status: 404 });
-        // Snapshot templateBody into existing contract if this is the first signing request
-        if (templateBody && !existing.templateBody) {
-          await tx.contract.update({ where: { id: existing.id }, data: { templateId: resolvedTemplateId, templateBody } });
-        }
-        contract = { id: existing.id, contractCode: existing.contractCode, title: existing.title };
-      } else {
-        const code = `CTR-ESIGN-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-        const created = await tx.contract.create({
-          data: {
-            contractCode: code,
-            title,
-            contractType: contractType || "Client Contract",
-            partyName: partyName || signerName || signerEmail,
-            category: category || "E-Signature",
-            startDate: startDate || new Date(),
-            endDate: endDate || new Date(Date.now() + 365 * 86400000),
-            valueUgx: valueUgx ?? null,
-            status: "Draft",
-            approvalStep: "BD",
-            templateId: resolvedTemplateId,
-            templateBody,
-            createdBy: actorName,
-            preparedBy: actorName,
-            managedBy: user.role,
-          },
-          select: { id: true, contractCode: true, title: true },
-        });
-        contract = created;
-      }
-
-      const secureToken = generateSecureToken();
-      const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-      const encryptedEmail = encryptField(signerEmail);
-      const encryptedVars = encryptJson(variableData || {});
-
-      // Store variableData as encrypted string inside Json field for Prisma compat
-      const signer = await tx.contractSigner.create({
-        data: {
-          contractId: contract.id,
-          secureToken,
-          signerEmail: encryptedEmail,
-          signerName: signerName ?? null,
-          variableData: { _enc: encryptedVars } as unknown as object,
-          expiresAt,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: "ESign Signing Request Created", module: "Documents", details: `E-Sign request for '${contract.title}' (${contract.contractCode}) → ${signerEmail}, token ${secureToken.slice(0, 8)}…` },
-      });
-
-      return { contract, signer, secureToken };
-    });
-
-    res.status(201).json({
-      success: true,
-      contractId: result.contract.id,
-      contractCode: result.contract.contractCode,
-      signerId: result.signer.id,
-      secureToken: result.secureToken,
-      signingUrl: `/sign/${result.secureToken}`,
-      expiresAt: result.signer.expiresAt,
-    });
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status;
-    if (status === 404) { res.status(404).json({ error: (err as Error).message }); return; }
-    console.error("ESign create failed:", err);
-    res.status(500).json({ error: "Failed to create e-sign contract" });
-  }
-});
-
-app.get("/api/esign/contracts", authenticateToken, requireModuleAccess("documents"), async (_req, res) => {
-  const { search, status } = _req.query as { search?: string; status?: string };
-  const where: Record<string, unknown> = {};
-  if (status) where.status = status;
-  if (search) where.title = { contains: String(search), mode: "insensitive" as const };
-  const contracts = await prisma.contract.findMany({
-    where: Object.keys(where).length ? where : undefined,
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    include: { signers: { select: { id: true, signerName: true, isCompleted: true, signedAt: true, expiresAt: true } }, template: { select: { id: true, name: true } } },
-  });
-  // Decrypt signer emails for admin display (audit scope)
-  const mapped = contracts.map((c) => ({
-    ...c,
-    signers: c.signers.map((s) => ({ ...s, signerEmail: (() => { try { return decryptField((s as unknown as { signerEmail: string }).signerEmail); } catch { return (s as unknown as { signerEmail: string }).signerEmail; } })() })),
-  }));
-  res.json({ success: true, data: mapped });
-});
-
-app.get("/api/esign/contracts/:id", authenticateToken, requireModuleAccess("documents"), async (req, res) => {
-  const c = await prisma.contract.findUnique({
-    where: { id: req.params.id },
-    include: { signers: true, esignAuditLogs: { orderBy: { createdAt: "desc" } }, template: true },
-  });
-  if (!c) { res.status(404).json({ error: "Contract not found" }); return; }
-  const signers = c.signers.map((s) => ({
-    ...s,
-    signerEmail: (() => { try { return decryptField(s.signerEmail); } catch { return s.signerEmail; } })(),
-    variableData: (() => {
-      const raw = s.variableData as unknown as { _enc?: string } | null;
-      if (raw && typeof raw === "object" && "_enc" in raw && typeof raw._enc === "string") return decryptJson(raw._enc);
-      return raw ?? {};
-    })(),
-  }));
-  res.json({ success: true, data: { ...c, signers } });
-});
-
-app.get("/api/esign/contracts/download/:id", authenticateToken, requireModuleAccess("documents"), async (req, res) => {
-  const id = req.params.id;
-  if (!/^[a-z0-9_-]+$/i.test(id)) { res.status(400).json({ error: "Invalid contract id" }); return; }
-  const c = await prisma.contract.findUnique({ where: { id } });
-  if (!c) { res.status(404).json({ error: "Record not found" }); return; }
-  if (!c.finalizedPdfPath || !fs.existsSync(c.finalizedPdfPath)) { res.status(400).json({ error: "PDF not available for this contract — not yet signed" }); return; }
-  const resolved = path.resolve(c.finalizedPdfPath);
-  if (!resolved.startsWith(path.resolve(esignStorageDir) + path.sep)) { res.status(400).json({ error: "Invalid PDF path" }); return; }
-  const safeTitle = c.title.toLowerCase().replace(/[^a-z0-9]/gi, "_");
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}_signed.pdf"`);
-  fs.createReadStream(resolved).pipe(res);
-});
-
-app.post("/api/esign/contracts/archive/:id", authenticateToken, requireModuleAccess("documents", "full"), async (req, res) => {
-  const id = req.params.id;
-  if (!/^[a-z0-9_-]+$/i.test(id)) { res.status(400).json({ error: "Invalid contract id" }); return; }
-  const user = (req as any).user as JwtPayload;
-  const c = await prisma.contract.findUnique({ where: { id } });
-  if (!c) { res.status(404).json({ error: "Contract not found" }); return; }
-  await prisma.contract.update({ where: { id }, data: { isArchived: true, archivedAt: new Date(), status: "Archived" } });
-  await prisma.auditLog.create({
-    data: { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: "ESign Contract Archived", module: "Documents", details: `Archived e-sign contract '${c.title}' (${c.contractCode})` },
-  });
-  res.json({ success: true });
-});
-
-// ── Public signing routes (rate-limited, token-gated, no JWT) ──
-app.get("/api/esign/get-contract/:token", esignGetLimiter, async (req, res) => {
-  const { token } = req.params;
-  if (!/^[0-9a-f]{64}$/.test(token)) { res.status(404).json({ error: "Signature link expired or invalid" }); return; }
-  const signer = await prisma.contractSigner.findUnique({
-    where: { secureToken: token },
-    include: { contract: true },
-  });
-  if (!signer || signer.isCompleted || signer.expiresAt.getTime() <= Date.now()) {
-    res.status(404).json({ error: "Signature link expired or invalid" });
-    return;
-  }
-  const rawVars = signer.variableData as unknown as { _enc?: string } | null;
-  const variables = rawVars && typeof rawVars === "object" && "_enc" in rawVars && typeof rawVars._enc === "string"
-    ? decryptJson(rawVars._enc)
-    : (rawVars as Record<string, unknown> | null) ?? {};
-
-  // Prefer the contract's snapshot templateBody; fall back to the linked template's body
-  let htmlTemplate = signer.contract.templateBody ?? "";
-  if (!htmlTemplate && signer.contract.templateId) {
-    const tpl = await prisma.contractTemplate.findUnique({ where: { id: signer.contract.templateId } });
-    htmlTemplate = tpl?.bodyHtml ?? "";
-  }
-  const compiledHtml = parseTemplate(htmlTemplate, variables);
-  res.json({ html: compiledHtml, title: signer.contract.title, contractCode: signer.contract.contractCode });
-});
-
-app.post("/api/esign/sign-contract/:token", esignSignLimiter, async (req, res) => {
-  const { token } = req.params;
-  const { signatureImage } = req.body as { signatureImage?: string };
-  if (!/^[0-9a-f]{64}$/.test(token)) { res.status(400).json({ error: "Link is invalid, expired, or already used" }); return; }
-  if (!isValidSignature(signatureImage)) { res.status(400).json({ error: "Invalid signature data" }); return; }
-
-  const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
-  const userAgent = (req.headers["user-agent"] as string) || "";
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      // SELECT ... FOR UPDATE via Prisma interactive transaction — ensures single-use token
-      const signer = await tx.contractSigner.findUnique({ where: { secureToken: token }, include: { contract: true } });
-      if (!signer || signer.isCompleted || signer.expiresAt.getTime() <= Date.now()) {
-        throw Object.assign(new Error("Link is invalid, expired, or already used"), { status: 400 });
-      }
-
-      const rawVars = signer.variableData as unknown as { _enc?: string } | null;
-      const variables = rawVars && typeof rawVars === "object" && "_enc" in rawVars && typeof rawVars._enc === "string"
-        ? decryptJson(rawVars._enc)
-        : (rawVars as Record<string, unknown> | null) ?? {};
-
-      let htmlTemplate = signer.contract.templateBody ?? "";
-      if (!htmlTemplate && signer.contract.templateId) {
-        const tpl = await tx.contractTemplate.findUnique({ where: { id: signer.contract.templateId } });
-        htmlTemplate = tpl?.bodyHtml ?? "";
-      }
-      const compiledHtml = parseTemplate(htmlTemplate, variables);
-      const cryptoHash = hashDocument(compiledHtml, signatureImage!, signer.contractId);
-
-      await tx.contractSigner.update({ where: { id: signer.id }, data: { signatureData: signatureImage, isCompleted: true, signedAt: new Date() } });
-      await tx.contractEsignAudit.create({
-        data: { contractId: signer.contractId, eventType: "SIGNATURE_CAPTURED", ipAddress: clientIp, userAgent, cryptoHash },
-      });
-
-      // Generate PDF — sandboxed, network-restricted; never uses --no-sandbox
-      let pdfBuffer: Buffer;
-      try {
-        pdfBuffer = await generateEsignPdf(signer.contract.title, compiledHtml, signatureImage!, { ip_address: clientIp, user_agent: userAgent, crypto_hash: cryptoHash });
-      } catch (e: unknown) {
-        const code = (e as { code?: string })?.code;
-        if (code === "PUPPETEER_MISSING" || process.env.NODE_ENV === "test") {
-          // Deterministic fallback so tests/CI don't need Chromium
-          pdfBuffer = dummyPdfBytes(signer.contract.title, signer.contractId);
-        } else {
-          throw e;
-        }
-      }
-
-      // Also hash the final PDF bytes and include in audit — tamper evidence is on the artifact (§1.7)
-      const pdfHash = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
-      const filename = `executed_contract_${signer.contractId}_${Date.now()}.pdf`;
-      const finalPath = path.join(esignStorageDir, filename);
-      // Double-check path stays inside secure_storage
-      if (!path.resolve(finalPath).startsWith(path.resolve(esignStorageDir) + path.sep)) {
-        throw new Error("Invalid PDF path");
-      }
-      fs.writeFileSync(finalPath, pdfBuffer);
-
-      await tx.contract.update({
-        where: { id: signer.contractId },
-        data: { status: "Active", documentHash: pdfHash, finalizedPdfPath: finalPath },
-      });
-      await tx.contractEsignAudit.create({
-        data: { contractId: signer.contractId, eventType: "PDF_FINALIZED", ipAddress: clientIp, userAgent, cryptoHash: pdfHash },
-      });
-    });
-
-    res.json({ success: true });
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status ?? 500;
-    const message = err instanceof Error ? err.message : "Could not complete signing";
-    if (status === 400) { res.status(400).json({ error: message }); return; }
-    console.error("ESign sign failed:", err);
-    res.status(500).json({ error: "Could not complete signing" });
-  }
-});
-
-// SPA fallback for the public signing page (vanilla HTML, no auth)
-app.get("/sign/:token", (_req, res) => {
-  const candidate = path.join(process.cwd(), "public", "sign.html");
-  if (fs.existsSync(candidate)) res.sendFile(candidate);
-  else res.status(404).json({ error: "Signing page not yet deployed — add public/sign.html per §6.10" });
+// ── Serve the embedded public signing page ──
+app.get("/digital-sign/:token", (_req, res) => {
+  res.sendFile(path.join(process.cwd(), "public", "sign-contract.html"));
 });
 
 /* ─────────────── CRUD: Incidents ─────────────── */

@@ -7,7 +7,7 @@ import crypto from "crypto";
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-const esignStorageDir = path.join(process.cwd(), "secure_storage");
+const esignStorageDir = path.join(process.cwd(), "digital_contracts");
 if (!fs.existsSync(esignStorageDir)) fs.mkdirSync(esignStorageDir, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -52,7 +52,7 @@ export function safeResolveUpload(filename: string): string | null {
   return full;
 }
 
-export function safeResolveEsign(file: string): string | null {
+export function safeResolveDigitalContract(file: string): string | null {
   const base = path.basename(file);
   const full = path.join(esignStorageDir, base);
   if (!full.startsWith(esignStorageDir + path.sep)) return null;
@@ -62,7 +62,7 @@ export function safeResolveEsign(file: string): string | null {
 export function getUploadDir() {
   return uploadDir;
 }
-export function getEsignDir() {
+export function getDigitalContractDir() {
   return esignStorageDir;
 }
 

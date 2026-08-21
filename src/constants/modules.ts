@@ -368,7 +368,7 @@ export const APP_MODULES: AppModule[] = [
   {
     id: "esign",
     path: "/esign",
-    label: "E-Contracts",
+    label: "Digital Contracts",
     department: "Legal & Contracts",
     icon: FileText,
     group: "administration",
@@ -417,7 +417,7 @@ export function getAllowedModuleIds(role: UserRole): string[] {
       return ["hr_register", "hr_leave", "hr_appraisals", "hr_contracts", "hr_remittances", "hr_staff", "hr_payroll", "recruitment"];
 
     case "Records Officer":
-      return ["identity", "hr_register", "hr_staff", "records_contracts", "documents"];
+      return ["identity", "hr_register", "hr_staff", "records_contracts", "documents", "esign"];
 
     case "Business Development Manager":
     case "Sales and Marketing Supervisor":

@@ -5,7 +5,7 @@
 
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { EsignManagementView } from "../components/views/EsignManagementView";
+import { DigitalContractsView } from "../components/views/DigitalContractsView";
 import { useAuthStore } from "../stores/authStore";
 import { useDomainStore } from "../stores/domainStore";
 import { useAuditStore } from "../stores/auditStore";
@@ -784,7 +784,7 @@ export const PerformanceReviewsPage: React.FC = () => {
 };
 
 export const EsignPage: React.FC = () => {
-  return <EsignManagementView />;
+  return <DigitalContractsView />;
 };
 
 export const GuardPortalPage: React.FC = () => {

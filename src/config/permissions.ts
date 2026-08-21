@@ -241,10 +241,11 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
     "Sales and Marketing Supervisor": "full",
     "HR Manager": "view",
     "Finance Manager": "view",
-    "General Manager": "view",
+    "General Manager": "full",
     "Director": "view",
     "IT Officer": "view",
     "Administrative Officer": "view",
+    "Records Officer": "full",
   },
 };
 
