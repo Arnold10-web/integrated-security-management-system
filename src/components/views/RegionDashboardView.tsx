@@ -38,7 +38,7 @@ import {
 } from "recharts";
 import type {
   RegionalOffice,
-  Guard,
+  SecurityOfficer,
   ClientSite,
   Incident,
   DutyRoster,
@@ -55,7 +55,7 @@ import type {
 } from "../../types";
 import { formatRegionLabel } from "../../constants/regions";
 import {
-  resolveGuardRegion,
+  resolveSecurityOfficerRegion,
   resolveIncidentRegion,
   resolveRosterRegion,
   resolvePatrolRegion,
@@ -68,7 +68,7 @@ import {
 interface RegionDashboardViewProps {
   regionName: string;
   offices?: RegionalOffice[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   incidents: Incident[];
   roster: DutyRoster[];
@@ -114,7 +114,7 @@ function slaColor(status: string): string {
 export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
   regionName,
   offices = [],
-  guards,
+  securityOfficers,
   sites,
   incidents,
   roster,
@@ -138,31 +138,31 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
     );
 
     const regionSites = sites.filter((s) => s.region === region);
-    const regionGuards = guards.filter((g) => resolveGuardRegion(g, sites) === region);
+    const regionalSecurityOfficers = securityOfficers.filter((g) => resolveSecurityOfficerRegion(g, sites) === region);
     const regionIncidents = incidents.filter((i) => resolveIncidentRegion(i, sites) === region);
     const regionRoster = roster.filter((r) => resolveRosterRegion(r, sites) === region);
     const regionPatrols = patrolInspections.filter((p) => resolvePatrolRegion(p, sites) === region);
     const regionContracts = contracts.filter((c) => c.region === region);
     const regionDeployments = deployments.filter((d) => resolveDeploymentRegion(d, sites) === region);
     const regionOrders = deploymentOrders.filter((o) => o.region === region);
-    const regionLeave = leaveRequests.filter((l) => resolveLeaveRegion(l, guards, sites) === region);
+    const regionLeave = leaveRequests.filter((l) => resolveLeaveRegion(l, securityOfficers, sites) === region);
     const regionComplaints = complaints.filter((c) => resolveComplaintRegion(c, sites) === region);
-    const regionDisciplinary = disciplinaryActions.filter((d) => resolveDisciplinaryRegion(d, guards, sites) === region);
+    const regionDisciplinary = disciplinaryActions.filter((d) => resolveDisciplinaryRegion(d, securityOfficers, sites) === region);
 
-    const guardIds = new Set(regionGuards.map((g) => g.id));
+    const securityOfficerForceNumbers = new Set(regionalSecurityOfficers.map((g) => g.id));
     const regionArmouryIssued = armoury.filter(
-      (a) => a.assignedToGuardId && guardIds.has(a.assignedToGuardId)
+      (a) => a.assignedToForceNumber && securityOfficerForceNumbers.has(a.assignedToForceNumber)
     );
     const handlerIds = new Set(
-      regionGuards.filter((g) => g.designation === "K9 Handler").map((g) => g.id)
+      regionalSecurityOfficers.filter((g) => g.designation === "K9 Handler").map((g) => g.id)
     );
     const regionK9s = k9s.filter((k) => k.assignedHandlerId && handlerIds.has(k.assignedHandlerId));
 
-    const deployed = regionGuards.filter((g) => g.lifecycleStage === "DEPLOYED").length;
-    const onDuty = regionGuards.filter((g) => g.status === "On Duty").length;
-    const onLeave = regionGuards.filter((g) => g.status === "On Leave").length;
-    const suspended = regionGuards.filter((g) => g.status === "Suspended").length;
-    const deserted = regionGuards.filter((g) => g.status === "Deserted").length;
+    const deployed = regionalSecurityOfficers.filter((g) => g.lifecycleStage === "DEPLOYED").length;
+    const onDuty = regionalSecurityOfficers.filter((g) => g.status === "On Duty").length;
+    const onLeave = regionalSecurityOfficers.filter((g) => g.status === "On Leave").length;
+    const suspended = regionalSecurityOfficers.filter((g) => g.status === "Suspended").length;
+    const deserted = regionalSecurityOfficers.filter((g) => g.status === "Deserted").length;
 
     const compliantSites = regionSites.filter((s) => s.slaStatus === "Compliant").length;
     const atRiskSites = regionSites.filter((s) => s.slaStatus !== "Compliant").length;
@@ -186,19 +186,19 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
 
     const pendingLeave = regionLeave.filter((l) => l.status.startsWith("Pending"));
 
-    const totalShiftGuardDemand = regionSites.reduce((sum, s) => sum + s.dayShiftGuards + s.nightShiftGuards, 0);
-    const armedGuardsRequired = regionSites.reduce((sum, s) => sum + s.armedGuardsRequired, 0);
+    const totalShiftSecurityOfficerDemand = regionSites.reduce((sum, s) => sum + s.dayShiftSecurityOfficers + s.nightShiftSecurityOfficers, 0);
+    const armedSecurityOfficersRequired = regionSites.reduce((sum, s) => sum + s.armedSecurityOfficersRequired, 0);
     const k9Sites = regionSites.filter((s) => s.k9Required).length;
 
-    const guardStatusData = [
+    const securityOfficerStatusData = [
       { name: "On Duty", value: onDuty, color: "#059669" },
-      { name: "Off Duty", value: regionGuards.length - onDuty - onLeave - suspended - deserted, color: "#94a3b8" },
+      { name: "Off Duty", value: regionalSecurityOfficers.length - onDuty - onLeave - suspended - deserted, color: "#94a3b8" },
       { name: "On Leave", value: onLeave, color: "#f59e0b" },
       { name: "Suspended", value: suspended, color: "#ef4444" },
       { name: "Deserted", value: deserted, color: "#7f1d1d" },
     ].filter((d) => d.value > 0);
 
-    const lifecycleKeys: Guard["lifecycleStage"][] = [
+    const lifecycleKeys: SecurityOfficer["lifecycleStage"][] = [
       "ENROLLED",
       "HANDED_TO_OPERATIONS",
       "IN_TRAINING",
@@ -207,7 +207,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
     ];
     const lifecycleData = lifecycleKeys.map((stage) => ({
       name: (stage ?? "DEPLOYED").replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
-      value: regionGuards.filter((g) => g.lifecycleStage === stage).length,
+      value: regionalSecurityOfficers.filter((g) => g.lifecycleStage === stage).length,
     }));
 
     const slaData = ["Compliant", "Understaffed", "Attention Needed"].map((k) => ({
@@ -241,28 +241,28 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
       incidents: regionIncidents.filter((inc) => (inc.incidentDate ?? "").startsWith(key)).length,
     }));
 
-    const guardsBySite = regionSites.map((s) => ({
+    const securityOfficersBySite = regionSites.map((s) => ({
       site: s.siteName,
-      assigned: regionGuards.filter((g) => g.assignedSite === s.siteName).length,
-      demand: s.dayShiftGuards + s.nightShiftGuards,
+      assigned: regionalSecurityOfficers.filter((g) => g.assignedSite === s.siteName).length,
+      demand: s.dayShiftSecurityOfficers + s.nightShiftSecurityOfficers,
     }));
 
     const rankBreakdown = [
-      { rank: "Guard", value: regionGuards.filter((g) => g.designation === "Guard").length, color: "#64748b" },
-      { rank: "Site In-Charge", value: regionGuards.filter((g) => g.designation === "Site In-Charge").length, color: "#06b6d4" },
-      { rank: "Inspector", value: regionGuards.filter((g) => g.designation === "Inspector").length, color: "#8b5cf6" },
-      { rank: "K9 Handler", value: regionGuards.filter((g) => g.designation === "K9 Handler").length, color: "#059669" },
-      { rank: "Armorer", value: regionGuards.filter((g) => g.designation === "Armorer").length, color: "#f59e0b" },
+      { rank: "Security Officer", value: regionalSecurityOfficers.filter((g) => g.designation === "Security Officer").length, color: "#64748b" },
+      { rank: "Site In-Charge", value: regionalSecurityOfficers.filter((g) => g.designation === "Site In-Charge").length, color: "#06b6d4" },
+      { rank: "Inspector", value: regionalSecurityOfficers.filter((g) => g.designation === "Inspector").length, color: "#8b5cf6" },
+      { rank: "K9 Handler", value: regionalSecurityOfficers.filter((g) => g.designation === "K9 Handler").length, color: "#059669" },
+      { rank: "Armorer", value: regionalSecurityOfficers.filter((g) => g.designation === "Armorer").length, color: "#f59e0b" },
     ].filter((d) => d.value > 0);
 
-    const zoneInspectors = regionGuards.filter((g) => g.designation === "Inspector");
+    const zoneInspectors = regionalSecurityOfficers.filter((g) => g.designation === "Inspector");
 
     const perSiteArmed = regionSites.map((s) => ({
       site: s.siteName,
       armed: (s.dayShiftArmed || 0) + (s.nightShiftArmed || 0),
       unarmed:
-        Math.max(0, s.dayShiftGuards - (s.dayShiftArmed || 0)) +
-        Math.max(0, s.nightShiftGuards - (s.nightShiftArmed || 0)),
+        Math.max(0, s.dayShiftSecurityOfficers - (s.dayShiftArmed || 0)) +
+        Math.max(0, s.nightShiftSecurityOfficers - (s.nightShiftArmed || 0)),
     }));
 
     const deploymentOrdersOpen = regionOrders.filter((o) => o.status === "Open").length;
@@ -285,7 +285,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
       .filter((s) => s.slaStatus !== "Compliant")
       .sort((a, b) => {
         const rank = (s: ClientSite) =>
-          (s.slaStatus === "Understaffed" ? 2 : 1) * 100 + (s.dayShiftGuards + s.nightShiftGuards);
+          (s.slaStatus === "Understaffed" ? 2 : 1) * 100 + (s.dayShiftSecurityOfficers + s.nightShiftSecurityOfficers);
         return rank(b) - rank(a);
       })
       .slice(0, 4);
@@ -293,7 +293,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
     return {
       office,
       regionSites,
-      regionGuards,
+      regionalSecurityOfficers,
       regionIncidents,
       regionRoster,
       regionPatrols,
@@ -317,16 +317,16 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
       contractValue,
       expiringContracts,
       pendingLeave,
-      totalShiftGuardDemand,
-      armedGuardsRequired,
+      totalShiftSecurityOfficerDemand,
+      armedSecurityOfficersRequired,
       k9Sites,
-      guardStatusData,
+      securityOfficerStatusData,
       lifecycleData,
       slaData,
       severityData,
       rosterData,
       incidentTrendData,
-      guardsBySite,
+      securityOfficersBySite,
       rankBreakdown,
       zoneInspectors,
       perSiteArmed,
@@ -338,14 +338,14 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
       activeDeployments,
       regionVehicles,
       topRiskSites,
-      guardTotal: regionGuards.length,
+      securityOfficerTotal: regionalSecurityOfficers.length,
       siteTotal: regionSites.length,
     };
-  }, [regionName, offices, guards, sites, incidents, roster, patrolInspections, armoury, k9s, contracts, leaveRequests, deployments, deploymentOrders, complaints, disciplinaryActions, vehicles]);
+  }, [regionName, offices, securityOfficers, sites, incidents, roster, patrolInspections, armoury, k9s, contracts, leaveRequests, deployments, deploymentOrders, complaints, disciplinaryActions, vehicles]);
 
   const {
     office,
-    guardTotal,
+    securityOfficerTotal,
     siteTotal,
     deployed,
     onDuty,
@@ -359,16 +359,16 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
     contractValue,
     expiringContracts,
     pendingLeave,
-    totalShiftGuardDemand,
-    armedGuardsRequired,
+    totalShiftSecurityOfficerDemand,
+    armedSecurityOfficersRequired,
     k9Sites,
-    guardStatusData,
+    securityOfficerStatusData,
     lifecycleData,
     slaData,
     severityData,
     rosterData,
     incidentTrendData,
-    guardsBySite,
+    securityOfficersBySite,
     rankBreakdown,
     zoneInspectors,
     perSiteArmed,
@@ -432,7 +432,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-                  Regional operations command view — guard strength, site coverage, incidents, attendance,
+                  Regional operations command view — security officer strength, site coverage, incidents, attendance,
                   contracts and field supervision in {formatRegionLabel(region as never)}.
                 </p>
               </div>
@@ -500,8 +500,8 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPI
           icon={Users}
-          label="Guard Strength"
-          value={String(guardTotal)}
+          label="Security Officer Strength"
+          value={String(securityOfficerTotal)}
           tone="bg-cyan-50 text-cyan-700"
           sub={
             <>
@@ -569,7 +569,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
           label="Armoury Issued"
           value={String(regionArmouryIssued.length)}
           tone="bg-slate-50 text-slate-700"
-          sub={<span>{armedGuardsRequired} armed posts required</span>}
+          sub={<span>{armedSecurityOfficersRequired} armed posts required</span>}
         />
         <KPI
           icon={Dog}
@@ -620,26 +620,26 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900">Guard Status Breakdown</h3>
-              <p className="text-[11px] text-slate-500">Active duty posture for all guards in region</p>
+              <h3 className="text-sm font-black text-slate-900">Security Officer Status Breakdown</h3>
+              <p className="text-[11px] text-slate-500">Active duty posture for all security officers in region</p>
             </div>
           </div>
-          {guardStatusData.length > 0 ? (
+          {securityOfficerStatusData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={guardStatusData}>
+              <BarChart data={securityOfficerStatusData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
                 <Tooltip />
-                <Bar dataKey="value" name="Guards" radius={[6, 6, 0, 0]}>
-                  {guardStatusData.map((d, i) => (
+                <Bar dataKey="value" name="Security Officers" radius={[6, 6, 0, 0]}>
+                  {securityOfficerStatusData.map((d, i) => (
                     <Cell key={i} fill={d.color} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyState label="No guard records for this region yet" />
+            <EmptyState label="No security officer records for this region yet" />
           )}
         </div>
 
@@ -751,7 +751,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
               <TrendingUp className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900">Guard Lifecycle Pipeline</h3>
+              <h3 className="text-sm font-black text-slate-900">Security Officer Lifecycle Pipeline</h3>
               <p className="text-[11px] text-slate-500">From enrolment to deployment</p>
             </div>
           </div>
@@ -761,7 +761,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
               <XAxis dataKey="name" tick={{ fontSize: 9 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
               <Tooltip />
-              <Bar dataKey="value" name="Guards" radius={[6, 6, 0, 0]} fill="#0ea5e9">
+              <Bar dataKey="value" name="Security Officers" radius={[6, 6, 0, 0]} fill="#0ea5e9">
                 {lifecycleData.map((_, i) => (
                   <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                 ))}
@@ -813,17 +813,17 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
               <Building2 className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900">Guards Assigned vs Required</h3>
-              <p className="text-[11px] text-slate-500">{totalShiftGuardDemand} total shift positions across {siteTotal} sites</p>
+              <h3 className="text-sm font-black text-slate-900">Security Officers Assigned vs Required</h3>
+              <p className="text-[11px] text-slate-500">{totalShiftSecurityOfficerDemand} total shift positions across {siteTotal} sites</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={guardsBySite}>
+            <BarChart data={securityOfficersBySite}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="site" tick={{ fontSize: 9 }} interval={0} angle={-20} textAnchor="end" height={60} />
               <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
               <Tooltip />
-              <Bar dataKey="assigned" name="Guards Assigned" radius={[6, 6, 0, 0]} fill="#06b6d4" />
+              <Bar dataKey="assigned" name="Security Officers Assigned" radius={[6, 6, 0, 0]} fill="#06b6d4" />
               <Bar dataKey="demand" name="Shift Positions" radius={[6, 6, 0, 0]} fill="#cbd5e1" />
             </BarChart>
           </ResponsiveContainer>
@@ -850,7 +850,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
                     </span>
                   </div>
                   <div className="text-[10px] text-slate-500 mt-1">
-                    {s.dayShiftGuards + s.nightShiftGuards} guards on roster · {s.armedGuardsRequired} armed required
+                    {s.dayShiftSecurityOfficers + s.nightShiftSecurityOfficers} security officers on roster · {s.armedSecurityOfficersRequired} armed required
                   </div>
                   <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-slate-500">
                     <ChevronRight className="w-3 h-3 text-slate-400" />
@@ -878,7 +878,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-black text-slate-900">Field Rank & Supervision</h3>
-              <p className="text-[11px] text-slate-500">Guard → Site In-Charge → Inspector</p>
+              <p className="text-[11px] text-slate-500">Security Officer → Site In-Charge → Inspector</p>
             </div>
           </div>
           {rankBreakdown.length > 0 ? (
@@ -918,7 +918,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-black text-slate-900">Armed Posture per Site</h3>
-              <p className="text-[11px] text-slate-500">Armed vs unarmed guard slots per client site in the region</p>
+              <p className="text-[11px] text-slate-500">Armed vs unarmed security officer slots per client site in the region</p>
             </div>
           </div>
           {perSiteArmed.length > 0 ? (
@@ -1007,7 +1007,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-black text-slate-900 truncate">{p.siteName}</div>
                     <div className="text-[10px] text-slate-500">
-                      {p.supervisorName} • {p.guardOnDuty} • {p.inspectionTime}
+                      {p.supervisorName} • {p.securityOfficerOnDuty} • {p.inspectionTime}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
@@ -1042,7 +1042,7 @@ export const RegionDashboardView: React.FC<RegionDashboardViewProps> = ({
                     <CalendarClock className="w-4 h-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-black text-slate-900 truncate">{l.guardName}</div>
+                    <div className="text-xs font-black text-slate-900 truncate">{l.securityOfficerName}</div>
                     <div className="text-[10px] text-slate-500">
                       {l.leaveType} • {l.startDate} → {l.endDate} ({l.durationDays}d)
                     </div>

@@ -1,8 +1,8 @@
 import { useState } from "react";
-import type { StaffAppraisal, Guard } from "../types";
+import type { StaffAppraisal, SecurityOfficer } from "../types";
 import { computeOverallRating } from "../services/calculationService";
 
-export function useStaffAppraisalForm(guards: Guard[], initialAppraisals: StaffAppraisal[] = []) {
+export function useStaffAppraisalForm(securityOfficers: SecurityOfficer[], initialAppraisals: StaffAppraisal[] = []) {
   const [appraisals, setAppraisals] = useState<StaffAppraisal[]>(initialAppraisals);
   const [showAppraisalModal, setShowAppraisalModal] = useState(false);
   const [appraisalSearch, setAppraisalSearch] = useState("");
@@ -10,7 +10,7 @@ export function useStaffAppraisalForm(guards: Guard[], initialAppraisals: StaffA
   const [appraisalRatingFilter, setAppraisalRatingFilter] = useState("ALL");
   const [selectedAppraisalForReport, setSelectedAppraisalForReport] = useState<StaffAppraisal | null>(null);
 
-  const [appraisalGuardId, setAppraisalGuardId] = useState("");
+  const [appraisalForceNumber, setAppraisalForceNumber] = useState("");
   const [appraisalPeriod, setAppraisalPeriod] = useState<StaffAppraisal["reviewPeriod"]>("Annual 2026");
   const [appraisalType, setAppraisalType] = useState<StaffAppraisal["reviewType"]>("Annual Evaluation");
   const [evaluatorNameInput, setEvaluatorNameInput] = useState("Sarah Akello");
@@ -30,7 +30,7 @@ export function useStaffAppraisalForm(guards: Guard[], initialAppraisals: StaffA
 
   const handleCreateAppraisal = (e: React.FormEvent) => {
     e.preventDefault();
-    const guard = guards.find((g) => g.id === appraisalGuardId) || guards[0];
+    const securityOfficer = securityOfficers.find((g) => g.id === appraisalForceNumber) || securityOfficers[0];
     const overallRating = computeOverallRating(
       disciplineScore,
       punctualityScore,
@@ -41,11 +41,10 @@ export function useStaffAppraisalForm(guards: Guard[], initialAppraisals: StaffA
 
     const newAppraisal: StaffAppraisal = {
       id: `apr-${Date.now()}`,
-      guardId: guard ? guard.id : "grd-101",
-      guardName: guard ? guard.fullName : "John Bosco Kateregga",
-      forceNumber: guard ? guard.forceNumber : "SG-2024-001",
-      designation: guard ? guard.designation : "Guard",
-      siteName: guard ? guard.assignedSite : "Kampala Station",
+      securityOfficerName: securityOfficer ? securityOfficer.fullName : "John Bosco Kateregga",
+      forceNumber: securityOfficer ? securityOfficer.forceNumber : "SG-2024-001",
+      designation: securityOfficer ? securityOfficer.designation : "",
+      siteName: securityOfficer ? securityOfficer.assignedSite : "Kampala Station",
       reviewPeriod: appraisalPeriod,
       reviewType: appraisalType,
       evaluatorName: evaluatorNameInput || "Sarah Akello",
@@ -89,8 +88,8 @@ export function useStaffAppraisalForm(guards: Guard[], initialAppraisals: StaffA
     setAppraisalRatingFilter,
     selectedAppraisalForReport,
     setSelectedAppraisalForReport,
-    appraisalGuardId,
-    setAppraisalGuardId,
+    appraisalForceNumber,
+    setAppraisalForceNumber,
     appraisalPeriod,
     setAppraisalPeriod,
     appraisalType,

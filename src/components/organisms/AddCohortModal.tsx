@@ -58,7 +58,7 @@ export const AddCohortModal: React.FC<AddCohortModalProps> = ({ show, onClose, o
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-emerald-600" />
-            Create New Security Guard Intake Cohort
+            Create New Security Officer Intake Cohort
           </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer">
             ✕

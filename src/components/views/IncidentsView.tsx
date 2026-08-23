@@ -21,7 +21,7 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
     inc.title.toLowerCase().includes(search.toLowerCase()) ||
     inc.siteName.toLowerCase().includes(search.toLowerCase()) ||
     inc.incidentCode.toLowerCase().includes(search.toLowerCase()) ||
-    inc.reportedByGuard.toLowerCase().includes(search.toLowerCase())
+    inc.reportedBySecurityOfficer.toLowerCase().includes(search.toLowerCase())
   );
 
   // Form states
@@ -39,7 +39,7 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
       incidentCode: `INC-2026-00${Math.floor(Math.random() * 90 + 10)}`,
       title,
       siteName,
-      reportedByGuard: reportedBy,
+      reportedBySecurityOfficer: reportedBy,
       incidentDate: new Date().toISOString().replace("T", " ").substring(0, 16),
       category,
       severity,
@@ -112,7 +112,7 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
                 </div>
                 <h3 className="text-base font-black text-slate-900 mt-1">{inc.title}</h3>
                 <p className="text-xs text-slate-500">
-                  Site: <strong>{inc.siteName}</strong> • Reported by: <strong>{inc.reportedByGuard}</strong> on {inc.incidentDate}
+                  Site: <strong>{inc.siteName}</strong> • Reported by: <strong>{inc.reportedBySecurityOfficer}</strong> on {inc.incidentDate}
                 </p>
               </div>
 
@@ -216,7 +216,7 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
                   required
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Include timeline, guard response, weapon/K9 involvement..."
+                  placeholder="Include timeline, security officer response, weapon/K9 involvement..."
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                 />
               </div>

@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from "react";
 import { ShieldAlert, Plus, ArrowRightLeft, FileSpreadsheet } from "lucide-react";
-import { ArmouryItem, ArmouryLog, Guard, UserRole } from "../../types";
+import { ArmouryItem, ArmouryLog, SecurityOfficer, UserRole } from "../../types";
 import { IssueWeaponModal, ReturnWeaponModal, AddArmouryItemModal, ArmouryAlertsPanel, ArmouryDispatchTable, ArmouryVaultTable } from "../organisms";
 
 interface ArmouryViewProps {
   items: ArmouryItem[];
   logs: ArmouryLog[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   activeRole: UserRole;
   onIssueItem: (
     assetId: string,
-    guardId: string,
+    forceNumber: string,
     locationName: string,
     ammoRoundsOut: number,
     dateOut: string,
@@ -34,7 +34,7 @@ interface ArmouryViewProps {
 export const ArmouryView: React.FC<ArmouryViewProps> = ({
   items,
   logs,
-  guards,
+  securityOfficers,
   activeRole,
   onIssueItem,
   onReturnItem,
@@ -80,7 +80,7 @@ export const ArmouryView: React.FC<ArmouryViewProps> = ({
           category: "OVERDUE_RETURNS",
           severity: isOverdue ? "CRITICAL" : "HIGH",
           title: isOverdue ? "FIREARM RETURN OVERDUE (Past 12-Hour Shift Deadline)" : "Shift End Asset Return Approaching",
-          description: `Firearm/Gear ${log.assetName} (${log.firearmSerialNumber}) issued to Guard ${log.guardName} at ${log.locationName} on ${log.dateOut} ${log.timeOut} has not been returned to the vault.`,
+          description: `Firearm/Gear ${log.assetName} (${log.firearmSerialNumber}) issued to Security Officer ${log.securityOfficerName} at ${log.locationName} on ${log.dateOut} ${log.timeOut} has not been returned to the vault.`,
           badgeText: isOverdue ? `Overdue (${diffDays > 0 ? diffDays + ' Days' : 'Past Shift'})` : "Active Deployment",
           actionText: "Process Return Now",
           onAction: () => handleOpenReturnModal(log),
@@ -126,7 +126,7 @@ export const ArmouryView: React.FC<ArmouryViewProps> = ({
           category: "RESERVES",
           severity: "MEDIUM",
           title: `Zero Available Vault Reserve (${item.assetTag})`,
-          description: `All ${item.totalQuantity} units of ${item.name} are currently issued out on guard deployments.`,
+          description: `All ${item.totalQuantity} units of ${item.name} are currently issued out on security officer deployments.`,
           badgeText: "0 Available in Vault",
           actionText: "Filter Asset",
           onAction: () => {
@@ -156,7 +156,7 @@ export const ArmouryView: React.FC<ArmouryViewProps> = ({
   const filteredLogs = logs.filter((log) => {
     const term = logSearchTerm.toLowerCase();
     return (
-      log.guardName.toLowerCase().includes(term) ||
+      log.securityOfficerName.toLowerCase().includes(term) ||
       log.firearmSerialNumber.toLowerCase().includes(term) ||
       log.locationName.toLowerCase().includes(term) ||
       log.serialNumberLog.toLowerCase().includes(term) ||
@@ -174,17 +174,17 @@ export const ArmouryView: React.FC<ArmouryViewProps> = ({
       "SL No",
       "Date Out",
       "Time Out",
-      "Guard Name",
+      "Security Officer Name",
       "Location Name",
       "Asset Name",
       "Firearm Serial No",
       "Rounds Out",
-      "Guard Sign Out",
+      "Security Officer Sign Out",
       "Armourer In-Charge",
       "Date In",
       "Time In",
       "Rounds In",
-      "Guard Sign In",
+      "Security Officer Sign In",
       "Substitute Receiver / Notes",
     ];
 
@@ -192,7 +192,7 @@ export const ArmouryView: React.FC<ArmouryViewProps> = ({
       index + 1,
       log.dateOut,
       log.timeOut,
-      `"${log.guardName}"`,
+      `"${log.securityOfficerName}"`,
       `"${log.locationName}"`,
       `"${log.assetName}"`,
       `"${log.serialNumberLog}"`,
@@ -235,7 +235,7 @@ export const ArmouryView: React.FC<ArmouryViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Official Serialized Firearm Register • Guard Sign-out/Sign-in Logs • Ammunition Ledger • Armourer In-Charge Audits
+                Official Serialized Firearm Register • Security Officer Sign-out/Sign-in Logs • Ammunition Ledger • Armourer In-Charge Audits
               </p>
             </div>
           </div>
@@ -298,7 +298,7 @@ export const ArmouryView: React.FC<ArmouryViewProps> = ({
         show={showIssueModal}
         onClose={() => setShowIssueModal(false)}
         items={items}
-        guards={guards}
+        securityOfficers={securityOfficers}
         onIssueItem={onIssueItem}
       />
       <ReturnWeaponModal

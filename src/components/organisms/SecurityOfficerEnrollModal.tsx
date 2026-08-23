@@ -1,16 +1,16 @@
 import React from "react";
 import { UserCheck } from "lucide-react";
-import type { GuardFormState } from "../../hooks/useGuardForm";
+import type { SecurityOfficerFormState } from "../../hooks/useSecurityOfficerForm";
 import { SITE_ZONES } from "../../types";
 
-interface GuardEnrollModalProps {
-  form: GuardFormState;
-  setForm: (partial: Partial<GuardFormState>) => void;
+interface SecurityOfficerEnrollModalProps {
+  form: SecurityOfficerFormState;
+  setForm: (partial: Partial<SecurityOfficerFormState>) => void;
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
 }
 
-export const GuardEnrollModal: React.FC<GuardEnrollModalProps> = ({ form, setForm, onSubmit, onClose }) => {
+export const SecurityOfficerEnrollModal: React.FC<SecurityOfficerEnrollModalProps> = ({ form, setForm, onSubmit, onClose }) => {
   const presetPhotos = [
     { label: "Officer A", url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80" },
     { label: "Officer B", url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80" },
@@ -26,7 +26,7 @@ export const GuardEnrollModal: React.FC<GuardEnrollModalProps> = ({ form, setFor
           <div>
             <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
               <UserCheck className="w-5 h-5 text-blue-600" />
-              <span>Enroll New Security Guard Officer & Capture HR Biodata</span>
+              <span>Enroll New Security Officer & Capture HR Biodata</span>
             </h3>
             <p className="text-[11px] text-slate-500">
               Standard HR Recruitment Form (NIN, TIN, NSSF, Parents, Next of Kin, LC1 Village & Referees)
@@ -83,8 +83,8 @@ export const GuardEnrollModal: React.FC<GuardEnrollModalProps> = ({ form, setFor
               <div className="grid grid-cols-2 gap-4">
                 <InputField label="Force Number" value={form.forceNumber} onChange={(v) => setForm({ forceNumber: v })} required />
                 <InputField label="Full Name" value={form.fullName} onChange={(v) => setForm({ fullName: v })} required />
-                <SelectField label="Designation" value={form.designation} onChange={(v) => setForm({ designation: v as GuardFormState["designation"] })}
-                  options={["Guard", "Site In-Charge", "Inspector", "K9 Handler", "Armorer"]} />
+                <SelectField label="Designation" value={form.designation} onChange={(v) => setForm({ designation: v as SecurityOfficerFormState["designation"] })}
+                  options={["Security Officer", "Site In-Charge", "Inspector", "K9 Handler", "Armorer"]} />
                 <InputField label="Phone Number" value={form.phone} onChange={(v) => setForm({ phone: v })} required />
                 <InputField label="National ID (NIN)" value={form.nationalId} onChange={(v) => setForm({ nationalId: v })} required />
                 <SelectField label="Assigned Site" value={form.assignedSite} onChange={(v) => setForm({ assignedSite: v })}
@@ -95,7 +95,7 @@ export const GuardEnrollModal: React.FC<GuardEnrollModalProps> = ({ form, setFor
                   <SelectField label="Zone" value={form.zone || "Central Business"} onChange={(v) => setForm({ zone: v })}
                     options={SITE_ZONES as unknown as string[]} />
                 )}
-                <InputField label="Location" value={form.guardLocation} onChange={(v) => setForm({ guardLocation: v })} />
+                <InputField label="Location" value={form.securityOfficerLocation} onChange={(v) => setForm({ securityOfficerLocation: v })} />
                 <SelectField label="Assigned Gender" value={form.gender || "Male"} onChange={(v) => setForm({ gender: v as "Male" | "Female" })}
                   options={["Male", "Female"]} />
               </div>

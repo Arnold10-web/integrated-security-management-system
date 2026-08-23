@@ -1,5 +1,5 @@
 /**
- * Uniform company-wide force-number allocation for ALL staff (guards, staff, drivers, riders).
+ * Uniform company-wide force-number allocation for ALL staff (securityOfficers, staff, drivers, riders).
  * Format: PSG<YYY>/<SEQ>  — e.g. PSG025/001 (025 = 3-digit year suffix for 2025, 001 = sequence number).
  * The sequence is PER-YEAR (resets to 001 each year): PSG025/001, PSG025/002 … then PSG026/001 next year.
  * The same <SEQ> may exist in different years — the year prefix makes each force number unique company-wide.

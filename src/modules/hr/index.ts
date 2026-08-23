@@ -1,1 +1,1 @@
-export { GuardsHRView } from '../../components/views/GuardsHRView';
+export { SecurityOfficersHRView } from '../../components/views/SecurityOfficersHRView';

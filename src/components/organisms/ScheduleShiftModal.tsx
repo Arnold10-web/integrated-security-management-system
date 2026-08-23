@@ -1,16 +1,16 @@
 import React, { useState } from "react";
-import type { Guard, ClientSite, DutyRoster } from "../../types";
+import type { SecurityOfficer, ClientSite, DutyRoster } from "../../types";
 
 interface ScheduleShiftModalProps {
   show: boolean;
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   onClose: () => void;
   onSubmit: (entry: Omit<DutyRoster, "id">) => void;
 }
 
-export const ScheduleShiftModal: React.FC<ScheduleShiftModalProps> = ({ show, guards, sites, onClose, onSubmit }) => {
-  const [selectedGuardId, setSelectedGuardId] = useState("");
+export const ScheduleShiftModal: React.FC<ScheduleShiftModalProps> = ({ show, securityOfficers, sites, onClose, onSubmit }) => {
+  const [selectedSecurityOfficerId, setSelectedSecurityOfficerId] = useState("");
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [shiftType, setShiftType] = useState<DutyRoster["shiftType"]>("Day Shift (06:00-18:00)");
 
@@ -25,23 +25,23 @@ export const ScheduleShiftModal: React.FC<ScheduleShiftModalProps> = ({ show, gu
   };
 
   const resetFields = () => {
-    setSelectedGuardId("");
+    setSelectedSecurityOfficerId("");
     setSelectedSiteId("");
     setShiftType("Day Shift (06:00-18:00)");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const guard = guards.find((g) => g.id === selectedGuardId);
+    const securityOfficer = securityOfficers.find((g) => g.id === selectedSecurityOfficerId);
     const site = sites.find((s) => s.id === selectedSiteId);
-    if (!guard || !site) return;
+    if (!securityOfficer || !site) return;
 
     onSubmit({
-      guardId: guard.id,
-      guardName: guard.fullName,
+      forceNumber: securityOfficer.id,
+      securityOfficerName: securityOfficer.fullName,
       siteId: site.id,
       siteName: site.siteName,
-      region: inferRegion(guard.location ?? ""),
+      region: inferRegion(securityOfficer.location ?? ""),
       shiftDate: new Date().toISOString().split("T")[0],
       shiftType,
       status: "Scheduled",
@@ -55,18 +55,18 @@ export const ScheduleShiftModal: React.FC<ScheduleShiftModalProps> = ({ show, gu
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-        <h3 className="text-lg font-black text-slate-900">Schedule Guard Duty Shift</h3>
+        <h3 className="text-lg font-black text-slate-900">Schedule Security Officer Duty Shift</h3>
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div>
-            <label className="font-bold text-slate-700 block mb-1">Select Guard Officer</label>
+            <label className="font-bold text-slate-700 block mb-1">Select Security Officer</label>
             <select
               required
-              value={selectedGuardId}
-              onChange={(e) => setSelectedGuardId(e.target.value)}
+              value={selectedSecurityOfficerId}
+              onChange={(e) => setSelectedSecurityOfficerId(e.target.value)}
               className="w-full p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold"
             >
-              <option value="">-- Choose Guard --</option>
-              {guards.map((g) => (
+              <option value="">-- Choose Security Officer --</option>
+              {securityOfficers.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.fullName} ({g.forceNumber}) - {g.designation}
                 </option>

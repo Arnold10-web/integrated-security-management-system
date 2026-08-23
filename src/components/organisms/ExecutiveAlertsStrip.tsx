@@ -4,7 +4,7 @@ import { AlertTriangle, AlertCircle, DollarSign } from "lucide-react";
 interface ExecutiveAlertsStripProps {
   criticalIncidents: number;
   nonCompliantSites: number;
-  suspendedGuards: number;
+  suspendedSecurityOfficers: number;
   overdueRevenue: number;
   onNavigate: (tabId: string) => void;
 }
@@ -12,11 +12,11 @@ interface ExecutiveAlertsStripProps {
 export const ExecutiveAlertsStrip: React.FC<ExecutiveAlertsStripProps> = ({
   criticalIncidents,
   nonCompliantSites,
-  suspendedGuards,
+  suspendedSecurityOfficers,
   overdueRevenue,
   onNavigate,
 }) => {
-  if (!(criticalIncidents > 0 || nonCompliantSites > 0 || suspendedGuards > 0 || overdueRevenue > 0)) return null;
+  if (!(criticalIncidents > 0 || nonCompliantSites > 0 || suspendedSecurityOfficers > 0 || overdueRevenue > 0)) return null;
 
   return (
     <div className="bg-white rounded-2xl border border-rose-200 shadow-sm p-4 space-y-2">
@@ -45,12 +45,12 @@ export const ExecutiveAlertsStrip: React.FC<ExecutiveAlertsStripProps> = ({
             </div>
           </button>
         )}
-        {suspendedGuards > 0 && (
+        {suspendedSecurityOfficers > 0 && (
           <button onClick={() => onNavigate("hr")} className="flex items-center gap-2 p-2.5 bg-orange-50 rounded-xl border border-orange-200 hover:bg-orange-100 transition-colors text-left cursor-pointer">
             <AlertCircle className="w-5 h-5 text-orange-600 shrink-0" />
             <div className="text-[11px]">
-              <span className="font-black text-orange-800">{suspendedGuards}</span>
-              <span className="text-orange-600 ml-1">Guard(s) Suspended</span>
+              <span className="font-black text-orange-800">{suspendedSecurityOfficers}</span>
+              <span className="text-orange-600 ml-1">Security Officer(s) Suspended</span>
               <span className="block text-[10px] text-orange-500 mt-0.5">Review →</span>
             </div>
           </button>

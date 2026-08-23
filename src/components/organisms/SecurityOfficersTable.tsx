@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, MapPin, Table, Grid, FolderArchive } from "lucide-react";
-import type { Guard } from "../../types";
+import { AlertTriangle, MapPin, Table, Grid, FolderArchive, FileText } from "lucide-react";
+import type { SecurityOfficer } from "../../types";
 import { StatusBadge } from "../atoms/StatusBadge";
 import { Pagination } from "../molecules";
 
 const PAGE_SIZE = 12;
 
-interface GuardsTableProps {
-  guards: Guard[];
-  onViewBiodata: (guard: Guard) => void;
-  onArchiveGuard?: (id: string) => void;
+interface SecurityOfficersTableProps {
+  securityOfficers: SecurityOfficer[];
+  onViewBiodata: (securityOfficer: SecurityOfficer) => void;
+  onArchiveSecurityOfficer?: (id: string) => void;
+  onEmploymentContract?: (securityOfficer: SecurityOfficer) => void;
   viewMode: "spreadsheet" | "grid";
   onViewModeChange: (mode: "spreadsheet" | "grid") => void;
   searchTerm: string;
@@ -18,10 +19,11 @@ interface GuardsTableProps {
   onStatusFilterChange: (filter: "ALL" | "DESERTERS" | "ACTIVE" | "ARCHIVED") => void;
 }
 
-export const GuardsTable: React.FC<GuardsTableProps> = ({
-  guards,
+export const SecurityOfficersTable: React.FC<SecurityOfficersTableProps> = ({
+  securityOfficers,
   onViewBiodata,
-  onArchiveGuard,
+  onArchiveSecurityOfficer,
+  onEmploymentContract,
   viewMode,
   onViewModeChange,
   searchTerm,
@@ -39,9 +41,9 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
     Armorer: "text-amber-700",
   };
 
-  const availableRanks = Array.from(new Set(guards.map((g) => g.designation))).sort();
+  const availableRanks = Array.from(new Set(securityOfficers.map((g) => g.designation))).sort();
 
-  const stageBadge = (g: Guard) => {
+  const stageBadge = (g: SecurityOfficer) => {
     const stage = g.lifecycleStage ?? "DEPLOYED";
     const colors: Record<string, string> = {
       ENROLLED: "bg-slate-100 text-slate-700 border-slate-300",
@@ -57,10 +59,10 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
     );
   };
 
-  const filteredGuards = guards.filter((g) => {
-    const isDeserterGuard = g.status === "Deserted" || g.isDeserter;
-    if (statusFilter === "DESERTERS" && !isDeserterGuard) return false;
-    if (statusFilter === "ACTIVE" && isDeserterGuard) return false;
+  const filteredSecurityOfficers = securityOfficers.filter((g) => {
+    const isDeserterSecurityOfficer = g.status === "Deserted" || g.isDeserter;
+    if (statusFilter === "DESERTERS" && !isDeserterSecurityOfficer) return false;
+    if (statusFilter === "ACTIVE" && isDeserterSecurityOfficer) return false;
     if (rankFilter !== "ALL" && g.designation !== rankFilter) return false;
 
     const query = searchTerm.toLowerCase();
@@ -81,9 +83,9 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
     setPage(1);
   }, [searchTerm, statusFilter, rankFilter, viewMode]);
 
-  const totalPages = Math.max(Math.ceil(filteredGuards.length / PAGE_SIZE), 1);
+  const totalPages = Math.max(Math.ceil(filteredSecurityOfficers.length / PAGE_SIZE), 1);
   const safePage = Math.min(page, totalPages);
-  const pagedGuards = filteredGuards.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedSecurityOfficers = filteredSecurityOfficers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -93,7 +95,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
             <h2 className="text-xl font-extrabold text-slate-900">
               {statusFilter === "DESERTERS"
                 ? "Deserters Registry"
-                : "Guard Officers & Personnel Master Directory"}
+                : "Security Officers & Personnel Master Directory"}
             </h2>
             {statusFilter === "DESERTERS" && (
               <span className="px-2.5 py-0.5 bg-red-100 text-red-800 font-extrabold text-[10px] rounded-full uppercase tracking-wider">
@@ -137,7 +139,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-500">Filter:</span>
           {(["ALL", "ACTIVE", "DESERTERS", "ARCHIVED"] as const).map((f) => {
-            const labels = { ALL: `All (${guards.length})`, ACTIVE: `Active (${guards.length - guards.filter((g) => g.status === "Deserted" || g.isDeserter || g.status === "Archived").length})`, DESERTERS: `Deserters (${guards.filter((g) => g.status === "Deserted" || g.isDeserter).length})`, ARCHIVED: `Archived (${guards.filter((g) => g.status === "Archived").length})` };
+            const labels = { ALL: `All (${securityOfficers.length})`, ACTIVE: `Active (${securityOfficers.length - securityOfficers.filter((g) => g.status === "Deserted" || g.isDeserter || g.status === "Archived").length})`, DESERTERS: `Deserters (${securityOfficers.filter((g) => g.status === "Deserted" || g.isDeserter).length})`, ARCHIVED: `Archived (${securityOfficers.filter((g) => g.status === "Archived").length})` };
             const colors: Record<string, string> = {
               ALL: statusFilter === "ALL" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200",
               ACTIVE: statusFilter === "ACTIVE" ? "bg-emerald-700 text-white" : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
@@ -166,10 +168,10 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
               rankFilter === "ALL" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            All Ranks ({guards.length})
+            All Ranks ({securityOfficers.length})
           </button>
           {availableRanks.map((r) => {
-            const count = guards.filter((g) => g.designation === r).length;
+            const count = securityOfficers.filter((g) => g.designation === r).length;
             return (
               <button
                 key={r}
@@ -191,7 +193,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="bg-slate-900 text-white p-3 text-xs font-bold flex items-center justify-between border-b border-slate-800">
             <span>HR PERSONNEL MASTER REGISTER</span>
-            <span className="text-[10px] text-slate-400">Records: {filteredGuards.length}</span>
+            <span className="text-[10px] text-slate-400">Records: {filteredSecurityOfficers.length}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -212,7 +214,7 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium text-slate-700 text-[11px]">
-                {pagedGuards.map((g, idx) => {
+                {pagedSecurityOfficers.map((g, idx) => {
                   const isDeserter = g.status === "Deserted" || g.isDeserter;
                   return (
                     <tr key={g.id} className={`hover:bg-slate-50 transition-colors ${isDeserter ? "bg-red-50/50" : idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"}`}>
@@ -254,9 +256,18 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
                       <td className="p-3 text-center border-r border-slate-200 whitespace-nowrap">{stageBadge(g)}</td>
                       <td className="p-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {onArchiveGuard && (
+                          {onEmploymentContract && (
                             <button
-                              onClick={() => { if (window.confirm(`Archive guard ${g.fullName} (${g.forceNumber})?`)) onArchiveGuard(g.id); }}
+                              onClick={() => onEmploymentContract(g)}
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10px] rounded-lg cursor-pointer transition-all flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3 text-emerald-700" />
+                              <span>Contract</span>
+                            </button>
+                          )}
+                          {onArchiveSecurityOfficer && (
+                            <button
+                              onClick={() => { if (window.confirm(`Archive security officer ${g.fullName} (${g.forceNumber})?`)) onArchiveSecurityOfficer(g.id); }}
                               className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-900 border border-gray-300 font-bold text-[10px] rounded-lg cursor-pointer transition-all flex items-center gap-1"
                             >
                               <FolderArchive className="w-3 h-3 text-gray-700" />
@@ -274,11 +285,11 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {pagedGuards.map((guard) => {
-            const isDeserter = guard.status === "Deserted" || guard.isDeserter;
+          {pagedSecurityOfficers.map((securityOfficer) => {
+            const isDeserter = securityOfficer.status === "Deserted" || securityOfficer.isDeserter;
             return (
               <div
-                key={guard.id}
+                key={securityOfficer.id}
                 className={`bg-white rounded-2xl p-5 border shadow-sm space-y-4 relative overflow-hidden ${isDeserter ? "border-red-300 bg-red-50/20" : "border-slate-200"}`}
               >
                 {isDeserter && (
@@ -287,49 +298,58 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
                   </div>
                 )}
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => onViewBiodata(guard)}>
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => onViewBiodata(securityOfficer)}>
                     <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-base shadow-sm">
-                      {guard.fullName.substring(0, 2).toUpperCase()}
+                      {securityOfficer.fullName.substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-slate-900 text-sm hover:underline">{guard.fullName}</h3>
-                      <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{guard.forceNumber}</span>
+                      <h3 className="font-extrabold text-slate-900 text-sm hover:underline">{securityOfficer.fullName}</h3>
+                      <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{securityOfficer.forceNumber}</span>
                     </div>
                   </div>
-                  <StatusBadge status={isDeserter ? "Deserted" : guard.status} />
+                  <StatusBadge status={isDeserter ? "Deserted" : securityOfficer.status} />
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${guard.designation === "Site In-Charge" ? "bg-cyan-50 border-cyan-200 text-cyan-800" : guard.designation === "Inspector" ? "bg-purple-50 border-purple-200 text-purple-800" : "bg-slate-100 border-slate-200 text-slate-700"}`}>
-                    {guard.designation}
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${securityOfficer.designation === "Site In-Charge" ? "bg-cyan-50 border-cyan-200 text-cyan-800" : securityOfficer.designation === "Inspector" ? "bg-purple-50 border-purple-200 text-purple-800" : "bg-slate-100 border-slate-200 text-slate-700"}`}>
+                    {securityOfficer.designation}
                   </span>
-                  {guard.zone && (
+                  {securityOfficer.zone && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-50 border border-slate-200 text-slate-500">
-                      Zone: {guard.zone}
+                      Zone: {securityOfficer.zone}
                     </span>
                   )}
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1.5">
                   <div className="flex justify-between">
                     <span className="font-bold text-slate-400">Station:</span>
-                    <span className="font-bold text-slate-900">{guard.assignedSite}</span>
+                    <span className="font-bold text-slate-900">{securityOfficer.assignedSite}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold text-slate-400">Location:</span>
-                    <span className="text-slate-700">{guard.location || "Kampala Central"}</span>
+                    <span className="text-slate-700">{securityOfficer.location || "Kampala Central"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold text-slate-400">Bank:</span>
-                    <span className="font-bold text-slate-800">{guard.bankName || "Stanbic"}</span>
+                    <span className="font-bold text-slate-800">{securityOfficer.bankName || "Stanbic"}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-slate-400">Pipeline:</span>
-                    {stageBadge(guard)}
+                    {stageBadge(securityOfficer)}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                  {onArchiveGuard && (
+                  {onEmploymentContract && (
                     <button
-                      onClick={() => { if (window.confirm(`Archive guard ${guard.fullName} (${guard.forceNumber})?`)) onArchiveGuard(guard.id); }}
+                      onClick={() => onEmploymentContract(securityOfficer)}
+                      className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 inline mr-1" />
+                      Contract
+                    </button>
+                  )}
+                  {onArchiveSecurityOfficer && (
+                    <button
+                      onClick={() => { if (window.confirm(`Archive security officer ${securityOfficer.fullName} (${securityOfficer.forceNumber})?`)) onArchiveSecurityOfficer(securityOfficer.id); }}
                       className="py-2 px-3 bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200 text-xs font-bold rounded-xl cursor-pointer"
                     >
                       <FolderArchive className="w-3.5 h-3.5 inline mr-1" />
@@ -343,9 +363,9 @@ export const GuardsTable: React.FC<GuardsTableProps> = ({
         </div>
       )}
 
-      {filteredGuards.length > 0 && (
+      {filteredSecurityOfficers.length > 0 && (
         <div className="bg-white rounded-2xl px-6 py-3 border border-slate-200 shadow-sm">
-          <Pagination page={safePage} pageSize={PAGE_SIZE} total={filteredGuards.length} onPageChange={setPage} itemName="guards" />
+          <Pagination page={safePage} pageSize={PAGE_SIZE} total={filteredSecurityOfficers.length} onPageChange={setPage} itemName="securityOfficers" />
         </div>
       )}
     </div>

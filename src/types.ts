@@ -15,7 +15,7 @@ export type UserRole =
   | "Fleet Manager"
   | "Training Officer"
   | "Investigations Officer"
-  | "Guard Officer"
+  | "Security Officer"
   | "Armorer"
   | "K9 Supervisor"
   | "K9 Handler"
@@ -50,14 +50,14 @@ export interface User {
   actingExpiresAt?: string;
   actingGrantedBy?: string;
   actingGrantedAt?: string;
-  // Staff identity card (plastic) — mirrors the guard paper-ID lifecycle.
+  // Staff identity card (plastic) — mirrors the security officer paper-ID lifecycle.
   idCardStatus?: string;
   idCardNumber?: string;
   idCardIssuedDate?: string;
   idCardExpiryDate?: string;
   idCardIssuerName?: string;
   idCardIssuerSignatureUrl?: string;
-  // Staff biodata — captured the same way as guard biodata (§HR personnel).
+  // Staff biodata — captured the same way as security officer biodata (§HR personnel).
   photoUrl?: string;
   signatureUrl?: string;
   dateOfBirth?: string;
@@ -90,6 +90,12 @@ export interface User {
   neighbours?: string[];
   fatherAlive?: boolean;
   fatherResidence?: string;
+  tin?: string;
+  nssfNo?: string;
+  bankAccountName?: string;
+  bankAccount?: string;
+  bankName?: string;
+  bankBranch?: string;
 }
 
 /** §11 — HR-initiated acting-privilege request, executed by the IT Officer.
@@ -120,7 +126,7 @@ export interface RegionalOffice {
   regionalManagerName: string;
   phone: string;
   email: string;
-  activeGuardsCount: number;
+  activeSecurityOfficersCount: number;
   clientSitesCount: number;
   armouryVaultStatus: "Fully Operational" | "Restricted Vault" | "Main Hub Vault";
   vehiclesAssigned: number;
@@ -154,20 +160,20 @@ export interface AdminRequisition {
   rejectionReason?: string;
 }
 
-export type GuardLifecycleStage =
+export type SecurityOfficerLifecycleStage =
   | "ENROLLED"
   | "HANDED_TO_OPERATIONS"
   | "IN_TRAINING"
   | "PASSED_OUT"
   | "DEPLOYED";
 
-export interface Guard {
+export interface SecurityOfficer {
   id: string;
-  forceNumber: string; // FORCE/NO (Unique Force Number — canonical identifier for guards and all staff)
+  forceNumber: string; // FORCE/NO (Unique Force Number — canonical identifier for security officers and all staff)
   fullName: string; // NAME
   photoUrl?: string; // Personnel Passport Photo / Biodata Image
   signatureUrl?: string; // ID holder's captured signature (signature pad)
-  designation: "Guard" | "K9 Handler" | "Armorer" | "Site In-Charge" | "Inspector";
+  designation: "Security Officer" | "K9 Handler" | "Armorer" | "Site In-Charge" | "Inspector";
   phone: string; // TEL NO
   nationalId: string; // NIN (National Identification Number)
   tin?: string; // Tax Identification Number (TIN)
@@ -178,9 +184,10 @@ export interface Guard {
   zone?: string; // Zone supervised (Inspector) / site zone (Site In-Charge)
   bankAccount?: string; // BANK ACCOUNT
   bankName?: string; // BANK NAME
+  monthlySalaryUgx?: number;
   finishedProbation?: boolean; // FINISHED PROBATION
   status: "On Duty" | "Off Duty" | "On Leave" | "Suspended" | "Deserted" | "Archived";
-  lifecycleStage?: GuardLifecycleStage;
+  lifecycleStage?: SecurityOfficerLifecycleStage;
   isDeserter?: boolean;
   desertionDate?: string;
   desertionNotes?: string;
@@ -241,7 +248,6 @@ export interface Guard {
 
 export interface HRRemittanceRecord {
   id: string;
-  guardId: string;
   name: string;             // name
   forceNo: string;          // ForceNo
   daysNormal: number;       // DaysNormal
@@ -271,19 +277,18 @@ export interface HRRemittanceRecord {
 
 export interface LeaveRequest {
   id: string;
-  /** "guard" = duty-cover guard leave; "staff" = self-service staff leave */
-  category?: "guard" | "staff";
+  /** "security_officer" = duty-cover security-officer leave; "staff" = self-service staff leave */
+  category?: "security_officer" | "staff";
   requesterUserId?: string;
   requesterRole?: string;
-  guardId: string;
-  guardName: string;
+  securityOfficerName: string;
   forceNumber: string;
   leaveType: "Annual Leave" | "Sick Leave" | "Emergency Leave" | "Maternity/Paternity" | "Compassionate Leave" | "Unpaid Leave" | "Paternity Leave" | "Maternity Leave" | "Compensatory Leave" | "Study Leave";
   startDate: string;
   endDate: string;
   durationDays: number;
   reason: string;
-  reliefGuardName?: string;
+  reliefSecurityOfficerName?: string;
   reliefForceNumber?: string;
   appliedDate: string;
   status: "Approved" | "Pending HR Approval" | "Pending GM Approval" | "Rejected" | "Completed";
@@ -301,8 +306,7 @@ export interface LeaveRequest {
 
 export interface StaffAppraisal {
   id: string;
-  guardId: string;
-  guardName: string;
+  securityOfficerName: string;
   forceNumber: string;
   designation: string;
   siteName: string;
@@ -345,11 +349,11 @@ export interface ClientSite {
   location: string;
   zone: SiteZone;
   region?: string;
-  dayShiftGuards: number;
-  nightShiftGuards: number;
+  dayShiftSecurityOfficers: number;
+  nightShiftSecurityOfficers: number;
   dayShiftArmed: number;
   nightShiftArmed: number;
-  armedGuardsRequired: number;
+  armedSecurityOfficersRequired: number;
   k9Required: boolean;
   contactPerson: string;
   contactPhone: string;
@@ -372,7 +376,7 @@ export interface ContractRecord {
   title: string;
   contractType: "Staff Contract" | "Client Contract";
   partyName: string; // Staff member or Client company name
-  category: "Guard Employment SLA" | "Executive Employment" | "Corporate Client Service Agreement" | "Retail Site Agreement" | "Vendor SLA";
+  category: "Security Officer Employment SLA" | "Executive Employment" | "Corporate Client Service Agreement" | "Retail Site Agreement" | "Vendor SLA";
   startDate: string;
   endDate: string;
   valueUgx?: number;
@@ -402,8 +406,8 @@ export interface ContractRecord {
 
 export interface DutyRoster {
   id: string;
-  guardId: string;
-  guardName: string;
+  securityOfficerName: string;
+  forceNumber: string;
   siteId: string;
   siteName: string;
   region?: string;
@@ -424,16 +428,16 @@ export interface ArmouryItem {
   totalQuantity: number;
   availableQuantity: number;
   condition: "Excellent" | "Good" | "Requires Service" | "Decommissioned";
-  assignedToGuardId?: string;
-  assignedToGuardName?: string;
+  assignedToForceNumber?: string;
+  assignedToSecurityOfficerName?: string;
   location: "Main Vault" | "Issued Out" | "Armoury Maintenance";
 }
 
 export interface ArmouryLog {
   id: string;
   serialNumberLog: string; // Serial Number of Log / Dispatch Sl. No
-  guardId: string;
-  guardName: string; // Name of Guard
+  securityOfficerName: string; // Name of Security Officer
+  forceNumber: string;
   locationName: string; // Name of Location (Post / Duty Site)
   firearmSerialNumber: string; // Fire Arm Serial Number
   assetName: string; // Firearm Model Name
@@ -605,8 +609,8 @@ export interface SiteSurvey {
   entryPoints?: number;
   riskLevel?: string;
   highValueAssets?: string;
-  dayGuardsNeeded?: number;
-  nightGuardsNeeded?: number;
+  daySecurityOfficersNeeded?: number;
+  nightSecurityOfficersNeeded?: number;
   armedDay?: boolean;
   armedNight?: boolean;
   equipmentNeeded?: string;
@@ -712,7 +716,7 @@ export interface Incident {
   incidentCode: string;
   title: string;
   siteName: string;
-  reportedByGuard: string;
+  reportedBySecurityOfficer: string;
   incidentDate: string;
   category: "Security Breach" | "Theft Attempt" | "Weapon Discharge" | "K9 Alert" | "Unauthorized Entry" | "Medical Emergency";
   severity: "Low" | "Medium" | "High" | "Critical";
@@ -784,7 +788,7 @@ export interface Expense {
 
 export interface CashierTransaction {
   id: string;
-  guardName: string;
+  securityOfficerName: string;
   forceNumber: string;
   type: "Salary Advance" | "Meal Allowance" | "Housing Grant" | "Loan Repayment";
   amount: number;
@@ -877,8 +881,7 @@ export interface Complaint {
 export interface DisciplinaryAction {
   id: string;
   actionCode: string;
-  guardId: string;
-  guardName: string;
+  securityOfficerName: string;
   forceNumber: string;
   actionType: "Warning Letter" | "Suspension" | "Termination" | "Desertion";
   reason: string;
@@ -891,13 +894,32 @@ export interface DisciplinaryAction {
   approvedAt?: string;
   linkedIncidentCode?: string;
   linkedComplaintCode?: string;
-  offenceCategory?: "Category 1" | "Category 2";
+  offenceCategory?: "Category 1" | "Category 2" | "Category 3";
+  fineAmountUgx?: number;
+  receivedBy?: string;
   offence?: string;
   offenceDate?: string;
   offenceTime?: string;
   zone?: string;
   actionTaken?: string;
+  hearingDate?: string;
+  employeeResponse?: string;
+  responseRecordedBy?: string;
+  responseRecordedAt?: string;
+  resolutionNotes?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  archivedPdfPath?: string;
   createdAt: string;
+  /* Display-only enrichment (populated client-side for the charge sheet view) */
+  securityOfficerDesignation?: string;
+  securityOfficerSite?: string;
+  priorHistory?: string[];
+  linkedIncidentTitle?: string;
+  linkedIncidentDescription?: string;
+  linkedComplaintClient?: string;
+  linkedComplaintSite?: string;
+  linkedComplaintDescription?: string;
 }
 
 export interface SiteDeployment {
@@ -906,8 +928,8 @@ export interface SiteDeployment {
   siteId: string;
   siteName: string;
   clientName: string;
-  guardId: string;
-  guardName: string;
+  securityOfficerName: string;
+  forceNumber: string;
   shiftType: string;
   deployedBy: string;
   deployedAt: string;
@@ -928,7 +950,7 @@ export interface DeploymentOrder {
   targetEndDate: string;
   requestedBy: string;
   status: "Open" | "Assigned" | "Filled" | "Cancelled";
-  assignedGuardIds: string[];
+  assignedSecurityOfficerForceNumbers: string[];
   notes?: string;
 }
 
@@ -975,7 +997,7 @@ export interface PatrolInspectionLog {
   inspectionCode: string;
   siteName: string;
   supervisorName: string;
-  guardOnDuty: string;
+  securityOfficerOnDuty: string;
   inspectionTime: string;
   radioCheckStatus: "Responsive & Clear" | "Delayed Response" | "Unresponsive";
   uniformTurnout: "Compliant" | "Minor Flaw" | "Non-Compliant";
@@ -1075,6 +1097,30 @@ export interface ApprovalAction {
   actedAt?: string;
 }
 
+export interface SecurityOfficerEmploymentContract {
+  id: string;
+  contractCode: string;
+  forceNumber: string;
+  securityOfficerName: string;
+  monthlySalaryUgx: number;
+  startDate: string;
+  probationMonths: number;
+  interpreterName?: string | null;
+  interpreterLanguage?: string | null;
+  status: "Draft" | "Pending Officer Signature" | "Pending HR Signature" | "Fully Signed" | "Terminated";
+  officerSignatureUrl?: string | null;
+  officerSignedAt?: string | null;
+  hrSignerName?: string | null;
+  hrSignatureUrl?: string | null;
+  hrSignedAt?: string | null;
+  witnessName?: string | null;
+  witnessDesignation?: string | null;
+  pdfPath?: string | null;
+  checksum?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+}
+
 export interface DocumentRecord {
   id: string;
   code: string;
@@ -1114,7 +1160,7 @@ export interface Candidate {
   phone: string;
   resumePath?: string;
   source?: string;
-  roleType?: "Security Guard" | "Driver" | "Rider" | "Office / Admin";
+  roleType?: "" | "Driver" | "Rider" | "Office / Admin";
   licenceNumber?: string;
   licenceClass?: "Class B & DL (Light/Heavy)" | "Class A (Motorcycles)" | "Class CM (Armored/Heavy)";
   licenceExpiryDate?: string;
@@ -1139,8 +1185,7 @@ export interface Candidate {
 
 export interface PerformanceReviewRecord {
   id: string;
-  guardId: string;
-  guardName: string;
+  securityOfficerName: string;
   forceNumber: string;
   reviewPeriod: string;
   reviewType: string;
@@ -1184,8 +1229,8 @@ export interface NotificationRecord {
 }
 
 export interface AnalyticsSummary {
-  totalGuards: number;
-  activeGuards: number;
+  totalSecurityOfficers: number;
+  activeSecurityOfficers: number;
   totalSites: number;
   openIncidents: number;
   totalVehicles: number;

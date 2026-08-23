@@ -88,7 +88,7 @@ export const FinanceWorkspaceStrip: React.FC = () => {
         <Kpi icon={AlertCircle} label="Pending Expense Approvals" value={`UGX ${(pendingExpenses / 1_000_000).toFixed(1)}M`} tone="bg-indigo-100 text-indigo-700" />
       </div>
       <p className="mt-3 text-[10px] text-slate-400 font-semibold">
-        Collection rate {collectionRate}% · cashier advances are attributed to guards by force number for payroll reconciliation.
+        Collection rate {collectionRate}% · cashier advances are attributed to security officers by force number for payroll reconciliation.
       </p>
     </StripShell>
   );

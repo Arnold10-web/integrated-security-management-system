@@ -4,12 +4,12 @@ import type { TrainingCohort } from "../../types";
 
 interface TrainingCohortCardGridProps {
   cohorts: TrainingCohort[];
-  onViewGuards: (cohortId: string) => void;
+  onViewSecurityOfficers: (cohortId: string) => void;
   onDeleteCohort?: (id: string) => void;
   onUpdateCohort?: (id: string, updates: Partial<TrainingCohort>) => void;
 }
 
-export const TrainingCohortCardGrid: React.FC<TrainingCohortCardGridProps> = ({ cohorts, onViewGuards, onDeleteCohort, onUpdateCohort }) => {
+export const TrainingCohortCardGrid: React.FC<TrainingCohortCardGridProps> = ({ cohorts, onViewSecurityOfficers, onDeleteCohort, onUpdateCohort }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<TrainingCohort>>({});
 
@@ -114,11 +114,11 @@ export const TrainingCohortCardGrid: React.FC<TrainingCohortCardGridProps> = ({ 
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500 font-medium">Enrolled Recruits:</span>
-                <span className="font-bold text-slate-900">{cohort.totalRecruits} Guards</span>
+                <span className="font-bold text-slate-900">{cohort.totalRecruits} Security Officers</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500 font-medium">Graduated & Passed Out:</span>
-                <span className="font-bold text-emerald-600">{cohort.passedOutCount} Guards</span>
+                <span className="font-bold text-emerald-600">{cohort.passedOutCount} Security Officers</span>
               </div>
             </div>
 
@@ -142,10 +142,10 @@ export const TrainingCohortCardGrid: React.FC<TrainingCohortCardGridProps> = ({ 
           <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
             <span className="text-[11px] text-slate-500 font-medium">Kyankwanzi Training Ledger</span>
             <button
-              onClick={() => onViewGuards(cohort.id)}
+              onClick={() => onViewSecurityOfficers(cohort.id)}
               className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1 cursor-pointer"
             >
-              <span>View Guards</span>
+              <span>View Security Officers</span>
               <ChevronRight className="w-3.5 h-3.5 text-emerald-400" />
             </button>
           </div>

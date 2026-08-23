@@ -4,17 +4,18 @@
  *  - Disciplinary chain (IO -> Regional Manager -> Ops Manager -> HR Manager)
  *  - Deployments (Ops Manager / Regional Manager hand-off)
  *  - Campaign budget approvals (Marketing proposes -> General Manager sole approval, no threshold)
- *  - Guard availability by region (Marketing read-only aggregate)
- *  - Guard lifecycle (Ops/RM/HR) + ID issuance (Records Officer)
+ *  - Security Officer availability by region (Marketing read-only aggregate)
+ *  - Security Officer lifecycle (Ops/RM/HR) + ID issuance (Records Officer)
  *  - Expense approval chain (any staff submits -> General Manager sole approval, no threshold)
  */
 
 import React, { useState } from "react";
-import { Shield, AlertTriangle, UserCheck, BadgeCheck, MapPin, CreditCard, GitBranch, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Shield, AlertTriangle, UserCheck, BadgeCheck, MapPin, CreditCard, GitBranch, FileText, Clock, CheckCircle, XCircle, ScrollText } from "lucide-react";
 import { useAuthStore } from "../../stores/authStore";
 import { useDomainStore } from "../../stores/domainStore";
 import type { DisciplinaryAction, UserRole } from "../../types";
 import { DESERTION_REPORTING_ROLES, MARKETING_ROLES, isRoleIn } from "../../services/rbacService";
+import { ChargeSheetModal } from "../organisms/ChargeSheetModal";
 
 const GENERAL_MANAGER: UserRole = "General Manager";
 const INVESTIGATIONS_OFFICER: UserRole = "Investigations Officer";
@@ -55,6 +56,21 @@ const CATEGORY_2_OFFENCES = [
   "Negligent firing or loss of a bullet",
   "Failure to report within the time limit",
 ];
+
+const CATEGORY_3_OFFENCES = [
+  "Late for duty",
+  "Improperly dressed or dirty uniform",
+  "Abusive language",
+  "Sleeping on duty",
+];
+
+type OffenceCategory = "Category 1" | "Category 2" | "Category 3";
+
+const FINE_DEFAULTS: Record<OffenceCategory, number | undefined> = {
+  "Category 1": undefined,
+  "Category 2": 50000,
+  "Category 3": 20000,
+};
 
 const badge = (color: string, label: string) => (
   <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${color}`}>{label}</span>
@@ -163,7 +179,7 @@ export const ComplaintsPanel: React.FC = () => {
           </div>
           <select className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)}>
             <option>Service Quality</option>
-            <option>Conduct of Guards</option>
+            <option>Conduct of Security Officers</option>
             <option>Billing / Invoicing</option>
             <option>Response Time</option>
             <option>Equipment & Armoury</option>
@@ -223,39 +239,71 @@ export const ComplaintsPanel: React.FC = () => {
 export const DisciplinaryPanel: React.FC = () => {
   const actions = useDomainStore((s) => s.disciplinaryActions);
   const addDisciplinaryAction = useDomainStore((s) => s.addDisciplinaryAction);
+  const recordChargeSheetResponse = useDomainStore((s) => s.recordChargeSheetResponse);
   const regionalApproveDisciplinary = useDomainStore((s) => s.regionalApproveDisciplinary);
   const opsApproveDisciplinary = useDomainStore((s) => s.opsApproveDisciplinary);
   const hrApproveDisciplinary = useDomainStore((s) => s.hrApproveDisciplinary);
   const rejectDisciplinaryAction = useDomainStore((s) => s.rejectDisciplinaryAction);
-  const guards = useDomainStore((s) => s.guards);
+  const securityOfficers = useDomainStore((s) => s.securityOfficers);
+  const incidents = useDomainStore((s) => s.incidents);
+  const complaints = useDomainStore((s) => s.complaints);
   const currentUser = useAuthStore((s) => s.currentUser);
   const role = currentUser?.role;
 
   const [showForm, setShowForm] = useState(false);
-  const [guardId, setGuardId] = useState("");
+  const [forceNumber, setForceNumber] = useState("");
   const [actionType, setActionType] = useState<DisciplinaryAction["actionType"]>("Warning Letter");
   const [reason, setReason] = useState("");
   const [severity, setSeverity] = useState("Medium");
-  const [offenceCategory, setOffenceCategory] = useState<"Category 1" | "Category 2">("Category 1");
+  const [offenceCategory, setOffenceCategory] = useState<OffenceCategory>("Category 1");
+  const [fineAmountUgx, setFineAmountUgx] = useState<string>("");
+  const [receivedBy, setReceivedBy] = useState("");
   const [offence, setOffence] = useState("");
   const [offenceDate, setOffenceDate] = useState("");
   const [offenceTime, setOffenceTime] = useState("");
   const [zone, setZone] = useState("");
   const [actionTaken, setActionTaken] = useState("");
+  const [linkedIncidentCode, setLinkedIncidentCode] = useState("");
+  const [linkedComplaintCode, setLinkedComplaintCode] = useState("");
+  const [viewingSheet, setViewingSheet] = useState<DisciplinaryAction | null>(null);
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const [responseHearingDate, setResponseHearingDate] = useState("");
+  const [responseText, setResponseText] = useState("");
 
   const canInitiate = role === INVESTIGATIONS_OFFICER;
   const isRegional = role === "Regional Manager";
   const isOps = role === "Operations Manager";
   const isHR = role === "HR Manager";
 
+  // Enrich a charge sheet with display-only context for the document view.
+  const enrich = (a: DisciplinaryAction): DisciplinaryAction => {
+    const g = securityOfficers.find((x) => x.id === a.forceNumber);
+    const inc = incidents.find((i) => i.incidentCode === a.linkedIncidentCode);
+    const cmp = complaints.find((c) => c.complaintCode === a.linkedComplaintCode);
+    return {
+      ...a,
+      securityOfficerDesignation: g?.designation,
+      securityOfficerSite: g?.assignedSite,
+      priorHistory: actions
+        .filter((x) => x.forceNumber === a.forceNumber && x.id !== a.id)
+        .map((x) => `${x.actionCode} — ${x.actionType}${x.offence ? ` (${x.offence})` : ""} — ${x.status}`),
+      linkedIncidentTitle: inc?.title,
+      linkedIncidentDescription: inc?.description,
+      linkedComplaintClient: cmp?.clientName,
+      linkedComplaintSite: cmp?.siteName,
+      linkedComplaintDescription: cmp?.description,
+    };
+  };
+
+  const selectedSecurityOfficerHistory = actions.filter((x) => x.forceNumber === forceNumber);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const g = guards.find((x) => x.id === guardId);
+    const g = securityOfficers.find((x) => x.id === forceNumber);
     if (!g) return;
     addDisciplinaryAction({
       actionCode: `DISC-${Date.now()}`,
-      guardId,
-      guardName: g.fullName,
+      securityOfficerName: g.fullName,
       forceNumber: g.forceNumber,
       actionType,
       reason: reason || offence || "Disciplinary grounds recorded on charge sheet.",
@@ -266,11 +314,55 @@ export const DisciplinaryPanel: React.FC = () => {
       offenceTime: offenceTime || undefined,
       zone: zone || undefined,
       actionTaken: actionTaken || undefined,
+      fineAmountUgx: fineAmountUgx ? Number(fineAmountUgx) : undefined,
+      receivedBy: receivedBy || undefined,
+      linkedIncidentCode: linkedIncidentCode || undefined,
+      linkedComplaintCode: linkedComplaintCode || undefined,
     });
-    setGuardId(""); setReason(""); setOffence(""); setOffenceDate(""); setOffenceTime(""); setZone(""); setActionTaken(""); setShowForm(false);
+    setForceNumber(""); setReason(""); setOffence(""); setOffenceDate(""); setOffenceTime(""); setZone(""); setActionTaken(""); setFineAmountUgx(""); setReceivedBy(""); setLinkedIncidentCode(""); setLinkedComplaintCode(""); setShowForm(false);
   };
 
-  const offenceList = offenceCategory === "Category 1" ? CATEGORY_1_OFFENCES : CATEGORY_2_OFFENCES;
+  const submitResponse = (id: string) => {
+    if (!responseText.trim()) return;
+    recordChargeSheetResponse(id, { hearingDate: responseHearingDate || undefined, employeeResponse: responseText.trim() });
+    setRespondingTo(null); setResponseHearingDate(""); setResponseText("");
+  };
+
+  const offenceList =
+    offenceCategory === "Category 1" ? CATEGORY_1_OFFENCES :
+    offenceCategory === "Category 2" ? CATEGORY_2_OFFENCES :
+    CATEGORY_3_OFFENCES;
+
+  const chainSteps = ["Initiated", "Pending Ops Approval", "Pending HR Approval", "Finalized"];
+  const stepIndex = (status?: string) => {
+    if (!status) return -1;
+    if (status === "Rejected") return -2;
+    return chainSteps.indexOf(status);
+  };
+  const ChainProgress: React.FC<{ status?: string }> = ({ status }) => {
+    const idx = stepIndex(status);
+    if (idx === -2) {
+      return <span className="text-[9px] font-black uppercase tracking-wider text-red-600">Chain terminated — rejected</span>;
+    }
+    const labels = ["IO", "RM", "Ops", "HR"];
+    return (
+      <div className="flex items-center gap-1">
+        {labels.map((l, i) => (
+          <React.Fragment key={l}>
+            <span
+              title={chainSteps[i]}
+              className={`w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center ${
+                i < idx ? "bg-emerald-600 text-white" : i === idx ? "bg-amber-500 text-white ring-2 ring-amber-200" : "bg-slate-200 text-slate-400"
+              }`}
+            >
+              {i < idx ? "✓" : l[0]}
+            </span>
+            {i < labels.length - 1 && <span className={`w-3 h-[2px] ${i < idx ? "bg-emerald-500" : "bg-slate-200"}`} />}
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className={card}>
@@ -286,9 +378,9 @@ export const DisciplinaryPanel: React.FC = () => {
       {showForm && canInitiate && (
         <form onSubmit={submit} className="mb-4 space-y-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
           <div className="grid grid-cols-2 gap-3">
-            <select className={inputCls} value={guardId} onChange={(e) => setGuardId(e.target.value)} required>
-              <option value="">Select Guard...</option>
-              {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber})</option>)}
+            <select className={inputCls} value={forceNumber} onChange={(e) => setForceNumber(e.target.value)} required>
+              <option value="">Select Security Officer...</option>
+              {securityOfficers.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber})</option>)}
             </select>
             <select className={inputCls} value={actionType} onChange={(e) => setActionType(e.target.value as DisciplinaryAction["actionType"])}>
               <option>Warning Letter</option>
@@ -297,6 +389,12 @@ export const DisciplinaryPanel: React.FC = () => {
               <option>Desertion</option>
             </select>
           </div>
+          {selectedSecurityOfficerHistory.length > 0 && (
+            <div className={`rounded-xl p-2.5 text-[10px] font-semibold ${selectedSecurityOfficerHistory.some((h) => h.status === "Finalized") ? "bg-red-50 border border-red-200 text-red-800" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+              <span className="font-black uppercase tracking-wider">Prior record ({selectedSecurityOfficerHistory.length}): </span>
+              {selectedSecurityOfficerHistory.map((h) => `${h.actionType}${h.offence ? ` (${h.offence})` : ""} — ${h.status}`).join(" · ")}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <select className={inputCls} value={severity} onChange={(e) => setSeverity(e.target.value)}>
               <option>Low</option>
@@ -304,9 +402,15 @@ export const DisciplinaryPanel: React.FC = () => {
               <option>High</option>
               <option>Critical</option>
             </select>
-            <select className={inputCls} value={offenceCategory} onChange={(e) => { setOffenceCategory(e.target.value as "Category 1" | "Category 2"); setOffence(""); }}>
+            <select className={inputCls} value={offenceCategory} onChange={(e) => {
+              const next = e.target.value as OffenceCategory;
+              setOffenceCategory(next);
+              setOffence("");
+              setFineAmountUgx(FINE_DEFAULTS[next] !== undefined ? String(FINE_DEFAULTS[next]) : "");
+            }}>
               <option value="Category 1">Category 1 Offences</option>
               <option value="Category 2">Category 2 Offences</option>
+              <option value="Category 3">Category 3 Offences (minor)</option>
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -314,20 +418,31 @@ export const DisciplinaryPanel: React.FC = () => {
               <option value="">Select offence...</option>
               {offenceList.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
-            <select className={inputCls} value={actionType} onChange={(e) => setActionType(e.target.value as DisciplinaryAction["actionType"])}>
-              <option>Warning Letter</option>
-              <option>Suspension</option>
-              <option>Termination</option>
-              <option>Desertion</option>
+            <select className={inputCls} value={linkedIncidentCode} onChange={(e) => setLinkedIncidentCode(e.target.value)}>
+              <option value="">Link incident (optional)...</option>
+              {incidents.map((i) => <option key={i.id} value={i.incidentCode}>{i.incidentCode} — {i.title}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <input className={inputCls} type="date" value={offenceDate} onChange={(e) => setOffenceDate(e.target.value)} />
             <input className={inputCls} type="time" value={offenceTime} onChange={(e) => setOffenceTime(e.target.value)} />
           </div>
-          <input className={inputCls} placeholder="Zone / location of offence" value={zone} onChange={(e) => setZone(e.target.value)} />
-          <input className={inputCls} placeholder="Action taken (e.g. Weapon impounded, hearing scheduled)" value={actionTaken} onChange={(e) => setActionTaken(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <input className={inputCls} placeholder="Zone / location of offence" value={zone} onChange={(e) => setZone(e.target.value)} />
+            <select className={inputCls} value={linkedComplaintCode} onChange={(e) => setLinkedComplaintCode(e.target.value)}>
+              <option value="">Link complaint (optional)...</option>
+              {complaints.filter((c) => c.referredForInvestigation || c.status === "Referred").map((c) => (
+                <option key={c.id} value={c.complaintCode}>{c.complaintCode} — {c.clientName}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <input className={inputCls} type="number" min="0" placeholder={`Fine UGX${fineAmountUgx && Number(fineAmountUgx) > 0 ? ` (${Number(fineAmountUgx).toLocaleString("en-UG")}/=)` : " (auto by category)"}`} value={fineAmountUgx} onChange={(e) => setFineAmountUgx(e.target.value)} />
+            <input className={inputCls} placeholder="Received by (name / signature on service)" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
+          </div>
+          <input className={inputCls} placeholder={offenceCategory === "Category 3" ? "Action taken (e.g. Fine 20,000/=, Sent Home)" : "Action taken (e.g. Weapon impounded, hearing scheduled)"} value={actionTaken} onChange={(e) => setActionTaken(e.target.value)} />
           <textarea className={inputCls} placeholder="Reason / grounds" value={reason} onChange={(e) => setReason(e.target.value)} required rows={2} />
+          <p className="text-[10px] text-slate-500 font-semibold">Note: Category 1 offences and Suspension/Termination/Desertion decisions require the employee's hearing response to be recorded before HR can finalize. Standard fines: Category 2 = 50,000/= · Category 3 = 20,000/= or Sent Home.</p>
           <div className="flex justify-end">
             <button type="submit" className={btn("primary", true)}>Initiate</button>
           </div>
@@ -342,13 +457,15 @@ export const DisciplinaryPanel: React.FC = () => {
             <div key={a.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/50">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-black text-xs text-slate-900">{a.guardName}</span>
+                  <span className="font-black text-xs text-slate-900">{a.securityOfficerName}</span>
                   <span className="text-[10px] text-slate-400 font-mono">{a.forceNumber}</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 border border-red-500/30 font-bold uppercase">{a.actionType}</span>
                   {statusBadge(a.status)}
                   {a.linkedIncidentCode && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/30 font-mono font-bold">Incident {a.linkedIncidentCode}</span>}
+                  {a.linkedComplaintCode && <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 border border-purple-500/30 font-mono font-bold">Complaint {a.linkedComplaintCode}</span>}
                   {a.initiatedBy && <span className="text-[10px] text-slate-500 font-semibold">by {a.initiatedBy}</span>}
                 </div>
+                <ChainProgress status={a.status} />
               </div>
               <p className="text-[11px] text-slate-600 mt-1">{a.reason}</p>
               {a.offenceCategory && (
@@ -364,24 +481,79 @@ export const DisciplinaryPanel: React.FC = () => {
               {a.actionTaken && (
                 <p className="text-[11px] text-slate-600 mt-1"><span className="font-bold text-slate-800">Action taken:</span> {a.actionTaken}</p>
               )}
+              {a.employeeResponse && (
+                <p className="text-[11px] text-blue-800 bg-blue-50 border border-blue-200 rounded-lg p-2 mt-1 italic">“{a.employeeResponse}”{a.responseRecordedBy ? <span className="not-italic font-bold text-slate-500"> — {a.responseRecordedBy}{a.responseRecordedAt ? `, ${a.responseRecordedAt}` : ""}</span> : null}</p>
+              )}
+              {a.status === "Rejected" && (a.rejectedBy || a.resolutionNotes) && (
+                <p className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg p-2 mt-1">
+                  <span className="font-black uppercase">Rejected</span>{a.rejectedBy ? ` by ${a.rejectedBy}` : ""}{a.rejectedAt ? ` (${a.rejectedAt})` : ""}{a.resolutionNotes ? ` — ${a.resolutionNotes}` : ""}
+                </p>
+              )}
               <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <button
+                  className={btn("ghost", true)}
+                  onClick={() => setViewingSheet(enrich(a))}
+                  title="View / print the formal charge sheet"
+                >
+                  <ScrollText className="w-3 h-3 inline mr-1" />Charge Sheet
+                </button>
+                {canInitiate && !["Finalized", "Rejected"].includes(a.status) && (
+                  <button
+                    className={btn("primary", true)}
+                    onClick={() => { setRespondingTo(respondingTo === a.id ? null : a.id); setResponseHearingDate(a.hearingDate || ""); setResponseText(a.employeeResponse || ""); }}
+                  >
+                    {a.employeeResponse ? "Edit Response" : "Record Response"}
+                  </button>
+                )}
+                {respondingTo === a.id && canInitiate && (
+                  <div className="w-full flex flex-col gap-2 p-3 rounded-xl bg-blue-50 border border-blue-200 mt-1">
+                    <div className="grid grid-cols-2 gap-2">
+                      <input className={inputCls} type="date" value={responseHearingDate} onChange={(e) => setResponseHearingDate(e.target.value)} placeholder="Hearing date" />
+                      <p className="text-[10px] font-bold text-slate-500 self-center">Force No. {a.forceNumber} — hearing response</p>
+                    </div>
+                    <textarea
+                      className={inputCls}
+                      rows={3}
+                      placeholder="Employee's response / defense as stated at the hearing…"
+                      value={responseText}
+                      onChange={(e) => setResponseText(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button type="button" className={btn("ghost", true)} onClick={() => setRespondingTo(null)}>Cancel</button>
+                      <button type="button" className={btn("success", true)} disabled={!responseText.trim()} onClick={() => submitResponse(a.id)}>Save Response</button>
+                    </div>
+                  </div>
+                )}
+                {a.archivedPdfPath && (
+                  <a
+                    href={`/uploads/${encodeURIComponent(a.archivedPdfPath)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`inline-flex items-center ${btn("success", true)}`}
+                    title="Canonical PDF filed in the Records vault"
+                  >
+                    <FileText className="w-3 h-3 inline mr-1" />Archived PDF
+                  </a>
+                )}
                 {a.status === "Initiated" && isRegional && (
                   <button className={btn("success", true)} onClick={() => regionalApproveDisciplinary(a.id)}>Regional Approve</button>
                 )}
-                {a.status === "Pending Regional Approval" && isOps && (
+                {a.status === "Pending Ops Approval" && isOps && (
                   <button className={btn("success", true)} onClick={() => opsApproveDisciplinary(a.id)}>Ops Approve</button>
                 )}
                 {a.status === "Pending HR Approval" && isHR && (
                   <button className={btn("success", true)} onClick={() => hrApproveDisciplinary(a.id)}>HR Finalize</button>
                 )}
                 {a.status !== "Finalized" && a.status !== "Rejected" && (isRegional || isOps || isHR) && (
-                  <button className={btn("danger", true)} onClick={() => rejectDisciplinaryAction(a.id, "Rejected at review")}>Reject</button>
+                  <button className={btn("danger", true)} onClick={() => { const notes = window.prompt("Rejection reason:"); if (notes !== null) rejectDisciplinaryAction(a.id, notes); }}>Reject</button>
                 )}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <ChargeSheetModal action={viewingSheet} onClose={() => setViewingSheet(null)} />
     </div>
   );
 };
@@ -395,7 +567,7 @@ export const DeploymentsPanel: React.FC = () => {
   const assignDeploymentOrder = useDomainStore((s) => s.assignDeploymentOrder);
   const cancelDeploymentOrder = useDomainStore((s) => s.cancelDeploymentOrder);
   const endDeployment = useDomainStore((s) => s.endDeployment);
-  const guards = useDomainStore((s) => s.guards);
+  const securityOfficers = useDomainStore((s) => s.securityOfficers);
   const sites = useDomainStore((s) => s.sites);
   const currentUser = useAuthStore((s) => s.currentUser);
   const role = currentUser?.role;
@@ -415,7 +587,7 @@ export const DeploymentsPanel: React.FC = () => {
 
   // ── Order assignment (RM only) ──
   const [assigningId, setAssigningId] = useState<string | null>(null);
-  const [selectedGuards, setSelectedGuards] = useState<string[]>([]);
+  const [selectedSecurityOfficers, setSelectedSecurityOfficers] = useState<string[]>([]);
 
   const issueOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -438,11 +610,11 @@ export const DeploymentsPanel: React.FC = () => {
 
   const openAssign = (orderId: string) => {
     setAssigningId((v) => (v === orderId ? null : orderId));
-    setSelectedGuards([]);
+    setSelectedSecurityOfficers([]);
   };
 
   const availablePool = (orderRegion?: string) =>
-    guards.filter(
+    securityOfficers.filter(
       (g) =>
         g.lifecycleStage === "PASSED_OUT" &&
         (g.region === orderRegion || (!orderRegion && !g.region)) &&
@@ -450,14 +622,14 @@ export const DeploymentsPanel: React.FC = () => {
     );
 
   const assignOrder = (orderId: string) => {
-    assignDeploymentOrder(orderId, selectedGuards);
+    assignDeploymentOrder(orderId, selectedSecurityOfficers);
     setAssigningId(null);
-    setSelectedGuards([]);
+    setSelectedSecurityOfficers([]);
   };
 
-  const toggleGuard = (guardId: string, cap: number) => {
-    setSelectedGuards((prev) =>
-      prev.includes(guardId) ? prev.filter((g) => g !== guardId) : prev.length >= cap ? prev : [...prev, guardId]
+  const toggleSecurityOfficer = (forceNumber: string, cap: number) => {
+    setSelectedSecurityOfficers((prev) =>
+      prev.includes(forceNumber) ? prev.filter((g) => g !== forceNumber) : prev.length >= cap ? prev : [...prev, forceNumber]
     );
   };
 
@@ -468,7 +640,7 @@ export const DeploymentsPanel: React.FC = () => {
       {/* ── Deployment Orders ── */}
       <div className={card}>
         <div className="flex items-center justify-between mb-4">
-          <SectionTitle icon={GitBranch} title="Deployment Orders" sub="Ops issues a request → Regional Manager fills it from the region guard pool" />
+          <SectionTitle icon={GitBranch} title="Deployment Orders" sub="Ops issues a request → Regional Manager fills it from the region security officer pool" />
           {isOps && (
             <button className={btn()} onClick={() => setShowIssue((v) => !v)}>
               {showIssue ? "Close" : "+ Issue Order"}
@@ -517,19 +689,19 @@ export const DeploymentsPanel: React.FC = () => {
                         {statusBadge(o.status)}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        {o.shiftType} · {o.requiredHeadcount} guard(s) · {o.clientName} · {o.region ?? "HQ"} · by {o.requestedBy}
+                        {o.shiftType} · {o.requiredHeadcount} securityOfficer(s) · {o.clientName} · {o.region ?? "HQ"} · by {o.requestedBy}
                       </p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        {o.targetStartDate} → {o.targetEndDate} · assigned {o.assignedGuardIds.length}/{o.requiredHeadcount}
+                        {o.targetStartDate} → {o.targetEndDate} · assigned {o.assignedSecurityOfficerForceNumbers.length}/{o.requiredHeadcount}
                         {o.notes ? ` · ${o.notes}` : ""}
                       </p>
 
-                      {/* Two-step progress: Step 1 Ops issues (count) → Step 2 RM assigns (guards) */}
+                      {/* Two-step progress: Step 1 Ops issues (count) → Step 2 RM assigns (securityOfficers) */}
                       <div className="mt-2 flex items-center gap-2">
                         <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${o.status === "Cancelled" ? "bg-slate-400" : o.status === "Filled" ? "bg-emerald-600" : "bg-blue-600"}`}
-                            style={{ width: `${o.requiredHeadcount > 0 ? Math.min(100, (o.assignedGuardIds.length / o.requiredHeadcount) * 100) : 0}%` }}
+                            style={{ width: `${o.requiredHeadcount > 0 ? Math.min(100, (o.assignedSecurityOfficerForceNumbers.length / o.requiredHeadcount) * 100) : 0}%` }}
                           />
                         </div>
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">
@@ -540,7 +712,7 @@ export const DeploymentsPanel: React.FC = () => {
                     <div className="flex items-center gap-1.5 shrink-0">
                       {o.status === "Open" && isRM && (
                         <button className={btn("primary", true)} onClick={() => openAssign(o.id)}>
-                          {assigningId === o.id ? "Close" : "Assign Guards"}
+                          {assigningId === o.id ? "Close" : "Assign "}
                         </button>
                       )}
                       {(o.status === "Open" || o.status === "Assigned") && canDeploy && (
@@ -552,24 +724,24 @@ export const DeploymentsPanel: React.FC = () => {
                   {assigningId === o.id && o.status === "Open" && (
                     <div className="mt-3 p-3 rounded-xl bg-white border border-slate-200">
                       <p className="text-[11px] font-black text-slate-700 mb-2">
-                        Step 2 — select up to {o.requiredHeadcount} guard(s) from the {o.region ?? "unassigned"} pool ({pool.length} available):
+                        Step 2 — select up to {o.requiredHeadcount} securityOfficer(s) from the {o.region ?? "unassigned"} pool ({pool.length} available):
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto">
                         {pool.map((g) => {
-                          const atCap = selectedGuards.length >= o.requiredHeadcount && !selectedGuards.includes(g.id);
+                          const atCap = selectedSecurityOfficers.length >= o.requiredHeadcount && !selectedSecurityOfficers.includes(g.id);
                           return (
                             <label key={g.id} className={`flex items-center gap-2 p-2 rounded-lg border text-xs ${atCap ? "border-slate-200 opacity-40 cursor-not-allowed" : "border-slate-200 cursor-pointer hover:bg-slate-50"}`}>
-                              <input type="checkbox" checked={selectedGuards.includes(g.id)} disabled={atCap} onChange={() => toggleGuard(g.id, o.requiredHeadcount)} />
+                              <input type="checkbox" checked={selectedSecurityOfficers.includes(g.id)} disabled={atCap} onChange={() => toggleSecurityOfficer(g.id, o.requiredHeadcount)} />
                               <span className="truncate">{g.fullName} <span className="text-slate-400">({g.forceNumber})</span></span>
                             </label>
                           );
                         })}
-                        {pool.length === 0 && <p className="text-[11px] text-slate-400 col-span-full">No available guards in this region pool.</p>}
+                        {pool.length === 0 && <p className="text-[11px] text-slate-400 col-span-full">No available security officers in this region pool.</p>}
                       </div>
                       <div className="flex items-center justify-between mt-3">
-                        <span className="text-[10px] font-bold text-slate-500">{selectedGuards.length}/{o.requiredHeadcount} selected</span>
-                        <button className={btn("success", true)} disabled={selectedGuards.length === 0} onClick={() => assignOrder(o.id)}>
-                          Assign {selectedGuards.length} Guard(s)
+                        <span className="text-[10px] font-bold text-slate-500">{selectedSecurityOfficers.length}/{o.requiredHeadcount} selected</span>
+                        <button className={btn("success", true)} disabled={selectedSecurityOfficers.length === 0} onClick={() => assignOrder(o.id)}>
+                          Assign {selectedSecurityOfficers.length} Security Officer(s)
                         </button>
                       </div>
                     </div>
@@ -583,7 +755,7 @@ export const DeploymentsPanel: React.FC = () => {
 
       {/* ── Direct Deployments list ── */}
       <div className={card}>
-        <SectionTitle icon={UserCheck} title="Guard Deployments" sub="Deployments created from filled orders (RM) or direct hand-off" />
+        <SectionTitle icon={UserCheck} title="Security Officer Deployments" sub="Deployments created from filled orders (RM) or direct hand-off" />
         <div className="mt-3">
           {deployments.length === 0 ? (
             <p className="text-xs text-slate-400 py-4 text-center">No deployments yet.</p>
@@ -593,7 +765,7 @@ export const DeploymentsPanel: React.FC = () => {
                 <div key={d.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black text-xs text-slate-900">{d.guardName} → {d.siteName}</span>
+                      <span className="font-black text-xs text-slate-900">{d.securityOfficerName} → {d.siteName}</span>
                       {statusBadge(d.status)}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5">{d.shiftType} · {d.clientName} · by {d.deployedBy} · {new Date(d.deployedAt).toLocaleDateString()}</p>
@@ -654,13 +826,13 @@ export const CampaignBudgetPanel: React.FC = () => {
   );
 };
 
-/* ============================ GUARD AVAILABILITY (Marketing) ============================ */
+/* ============================ SECURITY OFFICER AVAILABILITY (Marketing) ============================ */
 
-export const GuardAvailabilityByRegion: React.FC = () => {
-  const guards = useDomainStore((s) => s.guards);
+export const SecurityOfficerAvailabilityByRegion: React.FC = () => {
+  const securityOfficers = useDomainStore((s) => s.securityOfficers);
   const regions = useDomainStore((s) => s.regions);
 
-  const grouped = guards.reduce<Record<string, { total: number; deployed: number; available: number }>>((acc, g) => {
+  const grouped = securityOfficers.reduce<Record<string, { total: number; deployed: number; available: number }>>((acc, g) => {
     const region = g.region ?? "Central (Kampala HQ)";
     const key = regions.find((r) => r.regionName === region)?.name ?? region;
     acc[key] = acc[key] ?? { total: 0, deployed: 0, available: 0 };
@@ -672,13 +844,13 @@ export const GuardAvailabilityByRegion: React.FC = () => {
 
   return (
     <div className={card}>
-      <div className="mb-4"><SectionTitle icon={MapPin} title="Guard Availability by Region" sub="Aggregate view shared with Marketing for pipeline planning" /></div>
+      <div className="mb-4"><SectionTitle icon={MapPin} title="Security Officer Availability by Region" sub="Aggregate view shared with Marketing for pipeline planning" /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {Object.entries(grouped).map(([region, stats]) => (
           <div key={region} className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-between">
             <div>
               <p className="font-black text-xs text-slate-900">{region}</p>
-              <p className="text-[11px] text-slate-500">{stats.total} guards · {stats.deployed} deployed</p>
+              <p className="text-[11px] text-slate-500">{stats.total} security officers · {stats.deployed} deployed</p>
             </div>
             <div className="text-right">
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${stats.available > 0 ? "bg-green-500/10 text-green-600 border border-green-500/30" : "bg-amber-500/10 text-amber-600 border border-amber-500/30"}`}>
@@ -692,16 +864,16 @@ export const GuardAvailabilityByRegion: React.FC = () => {
   );
 };
 
-/* ============================ GUARD LIFECYCLE (HR/Ops) ============================ */
+/* ============================ SECURITY OFFICER LIFECYCLE (HR/Ops) ============================ */
 
-export const GuardLifecyclePanel: React.FC = () => {
-  const guards = useDomainStore((s) => s.guards);
-  const moveGuardLifecycle = useDomainStore((s) => s.moveGuardLifecycle);
-  const issueGuardId = useDomainStore((s) => s.issueGuardId);
+export const SecurityOfficerLifecyclePanel: React.FC = () => {
+  const securityOfficers = useDomainStore((s) => s.securityOfficers);
+  const moveSecurityOfficerLifecycle = useDomainStore((s) => s.moveSecurityOfficerLifecycle);
+  const issueSecurityOfficerIdCard = useDomainStore((s) => s.issueSecurityOfficerIdCard);
   const currentUser = useAuthStore((s) => s.currentUser);
   const role = currentUser?.role;
 
-  const [guardId, setGuardId] = useState("");
+  const [forceNumber, setForceNumber] = useState("");
   const [stage, setStage] = useState("PASSED_OUT");
   const [reason, setReason] = useState("");
   const [action, setAction] = useState("stage");
@@ -712,13 +884,13 @@ export const GuardLifecyclePanel: React.FC = () => {
   const canTerminate = role === "HR Manager";
   const canIssueId = role === RECORDS_OFFICER;
 
-  const selected = guards.find((g) => g.id === guardId);
+  const selected = securityOfficers.find((g) => g.id === forceNumber);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!guardId) return;
+    if (!forceNumber) return;
     if (action === "issue") {
-      issueGuardId(guardId, { idCardNumber: idNumber, idCardExpiryDate: idExpiry });
+      issueSecurityOfficerIdCard(forceNumber, { idCardNumber: idNumber, idCardExpiryDate: idExpiry });
       setIdNumber(""); setIdExpiry("");
       return;
     }
@@ -729,20 +901,20 @@ export const GuardLifecyclePanel: React.FC = () => {
         terminationReason: reason,
         terminationDate: new Date().toISOString().split("T")[0],
       };
-      moveGuardLifecycle(guardId, payload);
+      moveSecurityOfficerLifecycle(forceNumber, payload);
       setReason("");
       return;
     }
-    moveGuardLifecycle(guardId, { lifecycleStage: stage as "PASSED_OUT" });
+    moveSecurityOfficerLifecycle(forceNumber, { lifecycleStage: stage as "PASSED_OUT" });
   };
 
   return (
     <div className={card}>
-      <div className="mb-4"><SectionTitle icon={GitBranch} title="Guard Lifecycle & ID Issuance" sub="Ops/RM move stages; HR records termination; Records Officer issues ID cards" /></div>
+      <div className="mb-4"><SectionTitle icon={GitBranch} title="Security Officer Lifecycle & ID Issuance" sub="Ops/RM move stages; HR records termination; Records Officer issues ID cards" /></div>
       <form onSubmit={submit} className="space-y-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
-        <select className={inputCls} value={guardId} onChange={(e) => setGuardId(e.target.value)} required>
-          <option value="">Select guard...</option>
-          {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber}) — {g.lifecycleStage ?? "n/a"}</option>)}
+        <select className={inputCls} value={forceNumber} onChange={(e) => setForceNumber(e.target.value)} required>
+          <option value="">Select securityOfficer...</option>
+          {securityOfficers.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber}) — {g.lifecycleStage ?? "n/a"}</option>)}
         </select>
 
         {canMove && action === "stage" && (
@@ -768,7 +940,7 @@ export const GuardLifecyclePanel: React.FC = () => {
         {action === "terminate" && canTerminate && (
           <div className="space-y-2">
             <textarea className={inputCls} placeholder="Termination reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} required rows={2} />
-            <button type="submit" className={btn("danger", true)}>Terminate Guard</button>
+            <button type="submit" className={btn("danger", true)}>Terminate Security Officer</button>
           </div>
         )}
 
@@ -973,7 +1145,7 @@ export const CorporateGovernancePanel: React.FC = () => {
             <div key={d.id} className="flex items-start gap-2 p-2 rounded-lg bg-rose-50 border border-rose-200">
               <AlertTriangle size={12} className="text-rose-600 mt-0.5 shrink-0" />
               <div className="text-[12px] text-slate-700">
-                <strong>Disciplinary Action:</strong> {d.guardName} — {d.offence}
+                <strong>Disciplinary Action:</strong> {d.securityOfficerName} — {d.offence}
               </div>
             </div>
           ))}

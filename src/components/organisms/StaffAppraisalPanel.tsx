@@ -33,7 +33,7 @@ export const StaffAppraisalPanel: React.FC<StaffAppraisalPanelProps> = ({
     if (searchTerm.trim() !== "") {
       const q = searchTerm.toLowerCase();
       return (
-        a.guardName.toLowerCase().includes(q) ||
+        a.securityOfficerName.toLowerCase().includes(q) ||
         a.forceNumber.toLowerCase().includes(q) ||
         a.siteName.toLowerCase().includes(q) ||
         a.evaluatorName.toLowerCase().includes(q)
@@ -102,7 +102,7 @@ export const StaffAppraisalPanel: React.FC<StaffAppraisalPanelProps> = ({
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search appraisals by guard name, code, site or evaluator..."
+              placeholder="Search appraisals by security officer name, code, site or evaluator..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 font-medium"
@@ -141,7 +141,7 @@ export const StaffAppraisalPanel: React.FC<StaffAppraisalPanelProps> = ({
             <div key={app.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 hover:border-purple-300 transition-all">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-extrabold text-slate-900">{app.guardName}</h3>
+                  <h3 className="font-extrabold text-slate-900">{app.securityOfficerName}</h3>
                   <span className="text-xs font-mono font-bold text-purple-600">{app.forceNumber}</span>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${

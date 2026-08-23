@@ -77,7 +77,7 @@ export const DeploymentOrdersPanel: React.FC<{ region?: string }> = ({ region })
                 }`}>{o.status}</span>
               </div>
               <p className="mt-1 text-[11px] text-slate-500 font-medium">
-                {o.requiredHeadcount} required · {o.assignedGuardIds.length} assigned · {o.shiftType} · {o.region ?? "HQ"}
+                {o.requiredHeadcount} required · {o.assignedSecurityOfficerForceNumbers.length} assigned · {o.shiftType} · {o.region ?? "HQ"}
               </p>
             </div>
           ))}
@@ -125,13 +125,13 @@ export const ShiftsAttendancePanel: React.FC<{ region?: string }> = ({ region })
   );
 };
 
-export const GuardLifecycleBoard: React.FC<{ region?: string }> = ({ region }) => {
+export const SecurityOfficerLifecycleBoard: React.FC<{ region?: string }> = ({ region }) => {
   const domain = useDomainStore();
-  const guards = domain.guards.filter((g) => inRegion(region, g.region ?? g.location, !region));
+  const securityOfficers = domain.securityOfficers.filter((g) => inRegion(region, g.region ?? g.location, !region));
   const stages = ["ENROLLED", "HANDED_TO_OPERATIONS", "IN_TRAINING", "PASSED_OUT", "DEPLOYED"] as const;
-  const counts = stages.map((s) => ({ stage: s, count: guards.filter((g) => g.lifecycleStage === s).length }));
+  const counts = stages.map((s) => ({ stage: s, count: securityOfficers.filter((g) => g.lifecycleStage === s).length }));
   return (
-    <Panel icon={Users} title="Guard Lifecycle Board" tone="bg-violet-100 text-violet-700">
+    <Panel icon={Users} title="Security Officer Lifecycle Board" tone="bg-violet-100 text-violet-700">
       <div className="space-y-2">
         {counts.map((c, i) => (
           <div key={c.stage} className="flex items-center gap-2">
@@ -142,10 +142,10 @@ export const GuardLifecycleBoard: React.FC<{ region?: string }> = ({ region }) =
         ))}
         <div className="mt-2 pt-2 border-t border-slate-200">
           <p className="text-[10px] text-slate-500 font-semibold">
-            {guards.length} total personnel — each identified by force number
+            {securityOfficers.length} total personnel — each identified by force number
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1">
-            {guards.slice(0, 12).map((g) => (
+            {securityOfficers.slice(0, 12).map((g) => (
               <span key={g.id} className="px-1.5 py-0.5 rounded-md bg-violet-50 border border-violet-100 text-[9px] font-black text-violet-700">
                 {fn(g)}
               </span>
@@ -224,7 +224,7 @@ export const ArmouryStatusPanel: React.FC = () => {
         {needingService > 0 && <p className="text-[10px] font-black text-amber-700">⚠ {needingService} item(s) require service</p>}
         {out.length > 0 && (
           <p className="text-[10px] text-slate-500 font-semibold">
-            {out.length} item(s) checked out ({out.map((o) => o.guardName.split(" ")[0]).join(", ")})
+            {out.length} item(s) checked out ({out.map((o) => o.securityOfficerName.split(" ")[0]).join(", ")})
           </p>
         )}
       </div>
@@ -298,7 +298,7 @@ export const RecruitmentPipeline: React.FC = () => {
     <Panel icon={Briefcase} title="Recruitment Pipeline" tone="bg-cyan-100 text-cyan-700">
       <div className="grid grid-cols-3 gap-2 text-center">
         <Stat value={openPostings.length} label="Open Postings" />
-        <Stat value={totalPositions} label="Guard Roles" />
+        <Stat value={totalPositions} label="Security Officer Roles" />
         <Stat value={candidates.length} label="Candidates" />
       </div>
       <p className="mt-2 text-[10px] text-slate-500 font-semibold">
@@ -363,7 +363,7 @@ export const OpsDeepPanels: React.FC<{ region?: string }> = ({ region }) => (
       <ShiftsAttendancePanel region={region} />
     </div>
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <GuardLifecycleBoard region={region} />
+      <SecurityOfficerLifecycleBoard region={region} />
       <TrainingAcademyOversight />
       <InvestigationsCollaboration region={region} />
     </div>

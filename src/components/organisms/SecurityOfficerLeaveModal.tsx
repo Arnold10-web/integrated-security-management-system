@@ -1,13 +1,13 @@
 import React from "react";
 import { Calendar } from "lucide-react";
-import type { Guard, LeaveRequest } from "../../types";
+import type { SecurityOfficer, LeaveRequest } from "../../types";
 
-interface GuardLeaveModalProps {
-  guards: Guard[];
+interface SecurityOfficerLeaveModalProps {
+  securityOfficers: SecurityOfficer[];
   show: boolean;
   onClose: () => void;
-  leaveGuardId: string;
-  setLeaveGuardId: (v: string) => void;
+  leaveForceNumber: string;
+  setLeaveForceNumber: (v: string) => void;
   leaveType: LeaveRequest["leaveType"];
   setLeaveType: (v: LeaveRequest["leaveType"]) => void;
   leaveStartDate: string;
@@ -18,22 +18,22 @@ interface GuardLeaveModalProps {
   setLeaveDurationDays: (v: number) => void;
   leaveReason: string;
   setLeaveReason: (v: string) => void;
-  leaveReliefGuardName: string;
-  setLeaveReliefGuardName: (v: string) => void;
+  leaveReliefSecurityOfficerName: string;
+  setLeaveReliefSecurityOfficerName: (v: string) => void;
   leaveContactAddress: string;
   setLeaveContactAddress: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
 }
 
-export const GuardLeaveModal: React.FC<GuardLeaveModalProps> = ({
-  guards, show, onClose,
-  leaveGuardId, setLeaveGuardId,
+export const SecurityOfficerLeaveModal: React.FC<SecurityOfficerLeaveModalProps> = ({
+  securityOfficers, show, onClose,
+  leaveForceNumber, setLeaveForceNumber,
   leaveType, setLeaveType,
   leaveStartDate, setLeaveStartDate,
   leaveEndDate, setLeaveEndDate,
   leaveDurationDays, setLeaveDurationDays,
   leaveReason, setLeaveReason,
-  leaveReliefGuardName, setLeaveReliefGuardName,
+  leaveReliefSecurityOfficerName, setLeaveReliefSecurityOfficerName,
   leaveContactAddress, setLeaveContactAddress,
   onSubmit,
 }) => {
@@ -53,10 +53,10 @@ export const GuardLeaveModal: React.FC<GuardLeaveModalProps> = ({
         <form onSubmit={onSubmit} className="space-y-3 text-xs">
           <div>
             <label className="block text-slate-700 font-bold mb-1">Select Officer / Staff</label>
-            <select value={leaveGuardId} onChange={(e) => setLeaveGuardId(e.target.value)}
+            <select value={leaveForceNumber} onChange={(e) => setLeaveForceNumber(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
-              <option value="">-- Select Guard --</option>
-              {guards.map((g) => (
+              <option value="">-- Select Security Officer --</option>
+              {securityOfficers.map((g) => (
                 <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber}) - {g.assignedSite}</option>
               ))}
             </select>
@@ -100,9 +100,9 @@ export const GuardLeaveModal: React.FC<GuardLeaveModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-slate-700 font-bold mb-1">Relief Guard Name (Station Cover)</label>
-            <input type="text" placeholder="e.g. Peter Ssemwogerere" value={leaveReliefGuardName}
-              onChange={(e) => setLeaveReliefGuardName(e.target.value)}
+            <label className="block text-slate-700 font-bold mb-1">Relief Security Officer Name (Station Cover)</label>
+            <input type="text" placeholder="e.g. Peter Ssemwogerere" value={leaveReliefSecurityOfficerName}
+              onChange={(e) => setLeaveReliefSecurityOfficerName(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800" />
           </div>
 

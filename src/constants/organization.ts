@@ -25,7 +25,7 @@ export interface OrgRoleNode {
   description: string;
 }
 
-/** Non-login field rank chain (e.g. Guard → Site In-Charge → Inspector). */
+/** Non-login field rank chain (e.g. Security Officer → Site In-Charge → Inspector). */
 export interface FieldRankNode {
   rank: string;
   reportsTo?: string;
@@ -39,7 +39,7 @@ export interface DepartmentDefinition {
   primaryModules: string[];
   headRole: UserRole;
   structure: OrgRoleNode[];
-  /** Rank ladder (Guard → Site In-Charge → Inspector → Regional Manager). */
+  /** Rank ladder (Security Officer → Site In-Charge → Inspector → Regional Manager). */
   fieldLadder?: FieldRankNode[];
   /** Preferred name — alias for fieldLadder kept for backward compat. */
   rankLadder?: FieldRankNode[];
@@ -79,7 +79,7 @@ export const DIRECTORATE: DepartmentDefinition = {
  *   ├── Canine Unit (K9 Supervisor / Handlers)
  *   └── Training Officer
  *
- * Supporting field roles (Guard Officer, etc.) sit under Regional Managers
+ * Supporting field roles ( SecurityOfficer, etc.) sit under Regional Managers
  * for deployment execution.
  *
  * NOTE: Fleet is an INDEPENDENT department (see FLEET) — the Fleet Manager
@@ -104,7 +104,7 @@ export const OPERATIONS: DepartmentDefinition = {
       role: "Regional Manager",
       title: "Regional Manager",
       reportsTo: "Operations Manager",
-      description: "Regional oversight of their assigned region; guard deployment, attendance, and shift rosters.",
+      description: "Regional oversight of their assigned region; security officer deployment, attendance, and shift rosters.",
     },
     {
       role: "Armorer",
@@ -131,24 +131,24 @@ export const OPERATIONS: DepartmentDefinition = {
       description: "Training academy cohorts, pass-out, and operational readiness.",
     },
     {
-      role: "Guard Officer",
-      title: "Guard",
+      role: "Security Officer",
+      title: "Security Officer",
       reportsTo: "Regional Manager",
-      description: "Front-line security officer; uses Guard Portal only.",
+      description: "Front-line security officer; uses Security Officer Portal only.",
     },
   ],
   fieldLadder: [
 
 
     {
-      rank: "Guard",
+      rank: "Security Officer",
       description: "Front-line security officer rostered to a client site post.",
     },
     {
       rank: "Site In-Charge",
-      reportsTo: "Guard",
+      reportsTo: "Security Officer",
       description:
-        "Leads a single site post (assignedSite = their site); supervises the guards rostered to that post.",
+        "Leads a single site post (assignedSite = their site); supervises the security officers rostered to that post.",
     },
     {
       rank: "Inspector",
@@ -163,7 +163,7 @@ export const OPERATIONS: DepartmentDefinition = {
     },
   ],
   notes:
-    "Fleet is an independent department (see FLEET) — the Fleet Manager reports directly to the Directorate, not to Operations. Armorers are not limited to a single post — the system supports as many as needed across regions and office locations. Investigations is a separate department (see INVESTIGATIONS). Field rank ladder (Guard → Site In-Charge → Inspector → Regional Manager) reflects the supervision chain encoded on Guard records via designation and zone.",
+    "Fleet is an independent department (see FLEET) — the Fleet Manager reports directly to the Directorate, not to Operations. Armorers are not limited to a single post — the system supports as many as needed across regions and office locations. Investigations is a separate department (see INVESTIGATIONS). Field rank ladder (Security Officer → Site In-Charge → Inspector → Regional Manager) reflects the supervision chain encoded on Security Officer records via designation and zone.",
 };
 
 /**

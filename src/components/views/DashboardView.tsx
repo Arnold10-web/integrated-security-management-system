@@ -2,12 +2,12 @@ import React from "react";
 import {
   ShieldCheck,
 } from "lucide-react";
-import { Guard, ClientSite, Incident, AuditLog, UserRole, Invoice, ArmouryItem, K9Dog } from "../../types";
+import { SecurityOfficer, ClientSite, Incident, AuditLog, UserRole, Invoice, ArmouryItem, K9Dog } from "../../types";
 import { ConsolidatedDashboardMetrics, DashboardClientSitesList, DashboardAuditLog, EnterpriseAnalyticsPanel, ExecutiveAlertsStrip } from "../organisms";
 import { consolidateDashboardMetrics } from "../../utils/dashboardMetrics";
 
 interface DashboardViewProps {
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   incidents: Incident[];
   auditLogs: AuditLog[];
@@ -19,7 +19,7 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
-  guards, sites, incidents, auditLogs, activeRole, onNavigate,
+  securityOfficers, sites, incidents, auditLogs, activeRole, onNavigate,
   armoury = [], k9s = [],
   invoices = [],
 }) => {
@@ -27,7 +27,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const activeK9s = k9s.filter((d) => d.status === "Active Duty").length;
 
   const metrics = consolidateDashboardMetrics({
-    guards, sites, incidents, invoices, k9s, armoury,
+    securityOfficers, sites, incidents, invoices, k9s, armoury,
   });
 
   return (
@@ -48,15 +48,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <ExecutiveAlertsStrip
         criticalIncidents={metrics.executiveAttention.criticalIncidents}
         nonCompliantSites={metrics.executiveAttention.nonCompliantSites}
-        suspendedGuards={metrics.executiveAttention.suspendedGuards}
+        suspendedSecurityOfficers={metrics.executiveAttention.suspendedSecurityOfficers}
         overdueRevenue={metrics.executiveAttention.overdueRevenue}
         onNavigate={onNavigate}
       />
 
       {/* Consolidated Strategic KPIs — single source for all summary metrics (F1, F2, F3) */}
       <ConsolidatedDashboardMetrics
-        activeGuards={metrics.guards.active}
-        totalGuards={metrics.guards.required}
+        activeSecurityOfficers={metrics.securityOfficers.active}
+        totalSecurityOfficers={metrics.securityOfficers.required}
         revenueCollectionPct={metrics.revenue.collectionPercentage}
         overdueRevenue={metrics.revenue.overdue}
         openIncidents={metrics.alerts.open}
@@ -64,13 +64,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         activeK9s={activeK9s}
         criticalIncidents={metrics.alerts.critical}
         nonCompliantSites={metrics.executiveAttention.nonCompliantSites}
-        suspendedGuards={metrics.guards.suspended}
+        suspendedSecurityOfficers={metrics.securityOfficers.suspended}
         paidRevenue={metrics.revenue.paid}
         totalRevenue={metrics.revenue.total}
       />
 
       {/* Enterprise Analytics — drill-down charts, not summary duplicates */}
-      <EnterpriseAnalyticsPanel guards={guards} sites={sites} invoices={invoices} />
+      <EnterpriseAnalyticsPanel securityOfficers={securityOfficers} sites={sites} invoices={invoices} />
 
       {/* Client Sites */}
       <DashboardClientSitesList sites={sites} onNavigate={onNavigate} />

@@ -5,7 +5,7 @@ export const loginRequestSchema = z.object({
   password: z.string().min(1),
 });
 
-export const GUARD_DESIGNATIONS = ["Guard", "K9 Handler", "Armorer", "Site In-Charge", "Inspector"] as const;
+export const SECURITY_OFFICER_DESIGNATIONS = ["Security Officer", "K9 Handler", "Armorer", "Site In-Charge", "Inspector"] as const;
 
 export const SITE_ZONES = [
   "Central Business",
@@ -16,10 +16,10 @@ export const SITE_ZONES = [
   "Industrial Zone",
 ] as const;
 
-export const createGuardSchema = z.object({
+export const createSecurityOfficerSchema = z.object({
   fullName: z.string().min(1),
   forceNumber: z.string().min(1),
-  designation: z.enum(GUARD_DESIGNATIONS),
+  designation: z.enum(SECURITY_OFFICER_DESIGNATIONS),
   phone: z.string().min(1),
   nationalId: z.string().min(1),
   assignedSite: z.string().min(1),
@@ -44,11 +44,11 @@ export const createSiteSchema = z.object({
   location: z.string().min(1),
   zone: z.enum(SITE_ZONES),
   region: z.string().optional(),
-  dayShiftGuards: z.number().int().nonnegative().optional(),
-  nightShiftGuards: z.number().int().nonnegative().optional(),
+  dayShiftSecurityOfficers: z.number().int().nonnegative().optional(),
+  nightShiftSecurityOfficers: z.number().int().nonnegative().optional(),
   dayShiftArmed: z.number().int().nonnegative().optional(),
   nightShiftArmed: z.number().int().nonnegative().optional(),
-  armedGuardsRequired: z.number().int().nonnegative().optional(),
+  armedSecurityOfficersRequired: z.number().int().nonnegative().optional(),
   k9Required: z.boolean().optional(),
   contactPerson: z.string().min(1),
   contactPhone: z.string().min(1),
@@ -61,7 +61,7 @@ export const createSiteSchema = z.object({
 export const createIncidentSchema = z.object({
   title: z.string().min(1),
   siteName: z.string().min(1),
-  reportedByGuard: z.string().min(1),
+  reportedBySecurityOfficer: z.string().min(1),
   category: z.enum(["Security Breach", "Theft Attempt", "Weapon Discharge", "K9 Alert", "Unauthorized Entry", "Medical Emergency"]),
   severity: z.enum(["Low", "Medium", "High", "Critical"]),
   description: z.string().min(1),

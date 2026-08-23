@@ -441,7 +441,7 @@ export const ClientContractsView: React.FC<ClientContractsViewProps> = ({
               <div>
                 <label className="block text-slate-700 font-bold mb-1">SLA / Service Scope</label>
                 <textarea rows={2} value={fSla} onChange={(e) => setFSla(e.target.value)}
-                  placeholder="Guard numbers, patrols, response times..."
+                  placeholder="Security Officer numbers, patrols, response times..."
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold outline-none resize-none" />
               </div>
               <div className="flex justify-end gap-2 pt-2">

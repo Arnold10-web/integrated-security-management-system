@@ -5,34 +5,34 @@ import {
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { Guard, ClientSite, Invoice } from "../../types";
+import { SecurityOfficer, ClientSite, Invoice } from "../../types";
 
 interface EnterpriseAnalyticsPanelProps {
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   invoices: Invoice[];
 }
 
 export const EnterpriseAnalyticsPanel: React.FC<EnterpriseAnalyticsPanelProps> = ({
-  guards,
+  securityOfficers,
   sites,
   invoices,
 }) => {
-  const totalGuards = guards.length;
+  const totalSecurityOfficers = securityOfficers.length;
 
-  const rankData = (["Guard", "K9 Handler", "Armorer", "Site In-Charge", "Inspector"] as const).map((rank) => ({
+  const rankData = (["Security Officer", "K9 Handler", "Armorer", "Site In-Charge", "Inspector"] as const).map((rank) => ({
     rank,
-    value: guards.filter((g) => g.designation === rank).length,
+    value: securityOfficers.filter((g) => g.designation === rank).length,
   })).filter((d) => d.value > 0);
   const rankColors: Record<string, string> = {
-    "Guard": "#0ea5e9", "K9 Handler": "#8b5cf6", "Armorer": "#f59e0b", "Site In-Charge": "#06b6d4", "Inspector": "#7c3aed",
+    "Security Officer": "#0ea5e9", "K9 Handler": "#8b5cf6", "Armorer": "#f59e0b", "Site In-Charge": "#06b6d4", "Inspector": "#7c3aed",
   };
   const armedByRegion = [...new Set(sites.map((s) => s.region).filter(Boolean))].map((region) => {
     const regionSites = sites.filter((s) => s.region === region);
     return {
       region,
       armed: regionSites.reduce((sum, s) => sum + (s.dayShiftArmed || 0) + (s.nightShiftArmed || 0), 0),
-      unarmed: regionSites.reduce((sum, s) => sum + ((s.dayShiftGuards || 0) - (s.dayShiftArmed || 0)) + ((s.nightShiftGuards || 0) - (s.nightShiftArmed || 0)), 0),
+      unarmed: regionSites.reduce((sum, s) => sum + ((s.dayShiftSecurityOfficers || 0) - (s.dayShiftArmed || 0)) + ((s.nightShiftSecurityOfficers || 0) - (s.nightShiftArmed || 0)), 0),
     };
   });
   const totalArmed = sites.reduce((sum, s) => sum + (s.dayShiftArmed || 0) + (s.nightShiftArmed || 0), 0);
@@ -47,11 +47,11 @@ export const EnterpriseAnalyticsPanel: React.FC<EnterpriseAnalyticsPanelProps> =
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-          <h4 className="text-xs font-black text-slate-600 uppercase tracking-wider">Guard Status Distribution</h4>
+          <h4 className="text-xs font-black text-slate-600 uppercase tracking-wider">Security Officer Status Distribution</h4>
           <div className="space-y-1.5">
             {(["On Duty", "Off Duty", "On Leave", "Suspended", "Deserted", "Archived"] as const).map((status) => {
-              const count = guards.filter((g) => g.status === status).length;
-              const pct = totalGuards > 0 ? (count / totalGuards) * 100 : 0;
+              const count = securityOfficers.filter((g) => g.status === status).length;
+              const pct = totalSecurityOfficers > 0 ? (count / totalSecurityOfficers) * 100 : 0;
               const colors: Record<string, string> = { "On Duty": "bg-emerald-500", "Off Duty": "bg-slate-400", "On Leave": "bg-blue-500", "Suspended": "bg-amber-500", "Deserted": "bg-rose-500", "Archived": "bg-gray-500" };
               return (
                 <div key={status} className="flex items-center gap-3 text-[11px]">
@@ -99,7 +99,7 @@ export const EnterpriseAnalyticsPanel: React.FC<EnterpriseAnalyticsPanelProps> =
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
                 <YAxis type="category" dataKey="rank" width={92} tick={{ fontSize: 9 }} />
                 <Tooltip />
-                <Bar dataKey="value" name="Guards" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="value" name="Security Officers" radius={[0, 4, 4, 0]}>
                   {rankData.map((d) => <Cell key={d.rank} fill={rankColors[d.rank] ?? "#0ea5e9"} />)}
                 </Bar>
               </BarChart>
@@ -128,7 +128,7 @@ export const EnterpriseAnalyticsPanel: React.FC<EnterpriseAnalyticsPanelProps> =
           ) : (
             <div className="h-40 flex items-center justify-center text-xs text-slate-400">No region data recorded</div>
           )}
-          <p className="text-[10px] text-slate-400">{totalArmed.toLocaleString()} total armed guard slots across all regions</p>
+          <p className="text-[10px] text-slate-400">{totalArmed.toLocaleString()} total armed security officer slots across all regions</p>
         </div>
       </div>
     </div>

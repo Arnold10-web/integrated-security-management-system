@@ -341,9 +341,9 @@ export const APP_MODULES: AppModule[] = [
     group: "it",
   },
   {
-    id: "guard_portal",
-    path: "/guard-portal",
-    label: "Guard Portal",
+    id: "security_officer_portal",
+    path: "/security officer-portal",
+    label: "Security Officer Portal",
     department: "Operations",
     icon: ShieldAlert,
     group: "operations",
@@ -454,8 +454,8 @@ function getAllowedModuleIdsByRole(role: UserRole): string[] {
     case "K9 Handler":
       return ["operations"];
 
-    case "Guard Officer":
-      return ["guard_portal"];
+    case "Security Officer":
+      return ["security_officer_portal"];
 
     case "Finance Manager":
     case "Accountant":

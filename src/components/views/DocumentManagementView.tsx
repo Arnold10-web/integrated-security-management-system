@@ -26,7 +26,7 @@ export const DocumentManagementView: React.FC<DocumentManagementViewProps> = ({
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadForm, setUploadForm] = useState({ name: "", category: "Contract", referenceType: "Guard", referenceId: "", notes: "" });
+  const [uploadForm, setUploadForm] = useState({ name: "", category: "Contract", referenceType: "", referenceId: "", notes: "" });
   const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null);
   const [editName, setEditName] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -94,7 +94,7 @@ export const DocumentManagementView: React.FC<DocumentManagementViewProps> = ({
     setTimeout(() => setUploadSuccess(""), 4000);
     setShowUpload(false);
     setSelectedFile(null);
-    setUploadForm({ name: "", category: "Contract", referenceType: "Guard", referenceId: "", notes: "" });
+    setUploadForm({ name: "", category: "Contract", referenceType: "", referenceId: "", notes: "" });
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,7 +177,7 @@ export const DocumentManagementView: React.FC<DocumentManagementViewProps> = ({
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Reference Type</label>
                   <select value={uploadForm.referenceType} onChange={(e) => setUploadForm({ ...uploadForm, referenceType: e.target.value })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold outline-none">
-                    <option value="Guard">Guard</option>
+                    <option value="">Security Officer</option>
                     <option value="Site">Site</option>
                     <option value="Incident">Incident</option>
                     <option value="Vehicle">Vehicle</option>

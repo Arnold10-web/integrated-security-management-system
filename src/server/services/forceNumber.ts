@@ -7,14 +7,14 @@ export async function nextForceNumber(prisma: PrismaClient, seq?: number): Promi
     const updated = await prisma.$transaction(async (tx) => {
       const existing = await tx.forceNumberSequence.findUnique({ where: { year: yyy } });
       if (!existing) {
-        const [drivers, guards, users] = await Promise.all([
+        const [drivers, securityOfficers, users] = await Promise.all([
           tx.driver.findMany({ where: { forceNumber: { not: null } }, select: { forceNumber: true } }),
-          tx.guard.findMany({ select: { forceNumber: true } }),
+          tx.securityOfficer.findMany({ select: { forceNumber: true } }),
           tx.user.findMany({ where: { forceNumber: { not: null } }, select: { forceNumber: true } }),
         ]);
         const all = [
           ...drivers.map((d) => d.forceNumber!),
-          ...guards.map((g) => g.forceNumber),
+          ...securityOfficers.map((g) => g.forceNumber),
           ...users.map((u) => u.forceNumber!),
         ];
         let max = 0;
@@ -31,14 +31,14 @@ export async function nextForceNumber(prisma: PrismaClient, seq?: number): Promi
     });
     return `PSG${yyy}/${String(updated).padStart(3, "0")}`;
   } catch {
-    const [drivers, guards, users] = await Promise.all([
+    const [drivers, securityOfficers, users] = await Promise.all([
       prisma.driver.findMany({ where: { forceNumber: { not: null } }, select: { forceNumber: true } }),
-      prisma.guard.findMany({ select: { forceNumber: true } }),
+      prisma.securityOfficer.findMany({ select: { forceNumber: true } }),
       prisma.user.findMany({ where: { forceNumber: { not: null } }, select: { forceNumber: true } }),
     ]);
     const all = [
       ...drivers.map((d) => d.forceNumber!),
-      ...guards.map((g) => g.forceNumber),
+      ...securityOfficers.map((g) => g.forceNumber),
       ...users.map((u) => u.forceNumber!),
     ];
     let max = 0;

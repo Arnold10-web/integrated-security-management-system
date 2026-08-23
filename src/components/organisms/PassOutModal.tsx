@@ -53,7 +53,7 @@ export const PassOutModal: React.FC<PassOutModalProps> = ({ show, trainee, onClo
 
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Assigned Security Guard Force Number</label>
+            <label className="block font-bold text-slate-700 mb-1">Assigned Security Officer Force Number</label>
             <input
               type="text" required value={customForceNumber} onChange={(e) => setCustomForceNumber(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 outline-none"
@@ -61,7 +61,7 @@ export const PassOutModal: React.FC<PassOutModalProps> = ({ show, trainee, onClo
           </div>
 
           <p className="text-[11px] text-slate-500">
-            Graduating this guard will issue an official Pass-Out Certificate, generate an active Force Number, and transfer the guard to the active HR Personnel Roster.
+            Graduating this security officer will issue an official Pass-Out Certificate, generate an active Force Number, and transfer the security officer to the active HR Personnel Roster.
           </p>
 
           <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">

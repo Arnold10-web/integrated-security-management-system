@@ -28,7 +28,7 @@ const USERS: LoginUser[] = [
   { name: "Peter Okello", email: "peter.okello@iscms.ug", role: "Regional Manager" },
   { name: "Betty Auma", email: "betty.auma@iscms.ug", role: "Regional Manager" },
   { name: "Francis Ogwang", email: "francis.ogwang@iscms.ug", role: "Fleet Manager" },
-  { name: "Tom Ssemakula", email: "tom.ssemakula@iscms.ug", role: "Guard Officer" },
+  { name: "Tom Ssemakula", email: "tom.ssemakula@iscms.ug", role: "Security Officer" },
   { name: "David Ssenyonga", email: "david.ssenyonga@iscms.ug", role: "Finance Manager" },
   { name: "Martha Kemigisha", email: "martha.kemigisha@iscms.ug", role: "Accountant" },
   { name: "Sandra Namutebi", email: "sandra.namutebi@iscms.ug", role: "Assistant Accountant" },
@@ -51,24 +51,24 @@ beforeAll(async () => {
   await prisma.contract.deleteMany({ where: { contractCode: { startsWith: "CTR-RBCTEST" } } });
   await prisma.invoice.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
   await prisma.reminder.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
-  await prisma.cashierTransaction.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
+  await prisma.cashierTransaction.deleteMany({ where: { securityOfficerName: { startsWith: "RBAC" } } });
   await prisma.incident.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { message: { contains: "RBAC" } } });
-  const rbacLeaves = await prisma.leaveRequest.findMany({ where: { guardName: { startsWith: "RBAC" } }, select: { id: true, approvalId: true } });
+  const rbacLeaves = await prisma.leaveRequest.findMany({ where: { securityOfficerName: { startsWith: "RBAC" } }, select: { id: true, approvalId: true } });
   for (const l of rbacLeaves) {
     if (l.approvalId) {
       await prisma.approvalAction.deleteMany({ where: { approvalId: l.approvalId } });
       await prisma.approval.delete({ where: { id: l.approvalId } });
     }
   }
-  await prisma.leaveRequest.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
+  await prisma.leaveRequest.deleteMany({ where: { securityOfficerName: { startsWith: "RBAC" } } });
   await prisma.transportRequest.deleteMany({ where: { requestedByName: { startsWith: "RBAC" } } });
   await prisma.contractInquiry.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
   await prisma.siteSurvey.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
   await prisma.contract.deleteMany({ where: { OR: [{ contractCode: { startsWith: "CTR-RBCTEST" } }, { title: { startsWith: "Draft: RBAC" } }] } });
   await prisma.adminRequisition.deleteMany({ where: { itemDescription: { startsWith: "RBAC" } } });
-  await prisma.guard.deleteMany({ where: { forceNumber: { startsWith: "PSG026/RBAC" } } });
+  await prisma.securityOfficer.deleteMany({ where: { forceNumber: { startsWith: "PSG026/RBAC" } } });
 
   for (const u of USERS) {
     const res = await fetch(`${BASE}/api/auth/login`, {
@@ -98,24 +98,24 @@ afterAll(async () => {
   await prisma.contract.deleteMany({ where: { contractCode: { startsWith: "RBAC" } } });
   await prisma.invoice.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
   await prisma.reminder.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
-  await prisma.cashierTransaction.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
+  await prisma.cashierTransaction.deleteMany({ where: { securityOfficerName: { startsWith: "RBAC" } } });
   await prisma.incident.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { message: { contains: "RBAC" } } });
-  const rbacLeaves = await prisma.leaveRequest.findMany({ where: { guardName: { startsWith: "RBAC" } }, select: { id: true, approvalId: true } });
+  const rbacLeaves = await prisma.leaveRequest.findMany({ where: { securityOfficerName: { startsWith: "RBAC" } }, select: { id: true, approvalId: true } });
   for (const l of rbacLeaves) {
     if (l.approvalId) {
       await prisma.approvalAction.deleteMany({ where: { approvalId: l.approvalId } });
       await prisma.approval.delete({ where: { id: l.approvalId } });
     }
   }
-  await prisma.leaveRequest.deleteMany({ where: { guardName: { startsWith: "RBAC" } } });
+  await prisma.leaveRequest.deleteMany({ where: { securityOfficerName: { startsWith: "RBAC" } } });
   await prisma.transportRequest.deleteMany({ where: { requestedByName: { startsWith: "RBAC" } } });
   await prisma.contractInquiry.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
   await prisma.siteSurvey.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
   await prisma.contract.deleteMany({ where: { OR: [{ contractCode: { startsWith: "CTR-RBCTEST" } }, { title: { startsWith: "Draft: RBAC" } }] } });
   await prisma.adminRequisition.deleteMany({ where: { itemDescription: { startsWith: "RBAC" } } });
-  await prisma.guard.deleteMany({ where: { forceNumber: { startsWith: "PSG026/RBAC" } } });
+  await prisma.securityOfficer.deleteMany({ where: { forceNumber: { startsWith: "PSG026/RBAC" } } });
   await prisma.siteDeployment.deleteMany({ where: { siteName: { startsWith: "RBAC" } } });
 });
 
@@ -144,12 +144,12 @@ function unauthed(path: string, init?: RequestInit) {
 
 describe("Security — authentication & hardened headers", () => {
   it("rejects unauthenticated requests with 401", async () => {
-    const res = await unauthed("/api/guards");
+    const res = await unauthed("/api/security-officers");
     expect(res.status).toBe(401);
   });
 
   it("rejects a tampered/invalid bearer token with 401", async () => {
-    const res = await fetch(`${BASE}/api/guards`, {
+    const res = await fetch(`${BASE}/api/security-officers`, {
       headers: { Authorization: "Bearer not.a.valid.jwt" },
     });
     expect(res.status).toBe(401);
@@ -176,7 +176,7 @@ describe("Security — authentication & hardened headers", () => {
   });
 
   it("sets hardened security headers on API responses", async () => {
-    const res = await unauthed("/api/guards");
+    const res = await unauthed("/api/security-officers");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("x-dns-prefetch-control")).toBe("off");
     expect(res.headers.get("x-frame-options")).not.toBeNull();
@@ -296,9 +296,9 @@ describe("RBAC — Lead Ownership & Reassignment", () => {
     const create = await authed("/api/leads", "Business Development Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
-        companyName: "RBAC-REASSIGN-GUARD",
+        companyName: "RBAC-REASSIGN-OFFICER",
         contactPerson: "Test Contact",
-        email: "rbac.reassign.guard@test.ug",
+        email: "rbac.reassign.officer@test.ug",
         phone: "+256 700 000051",
         estimatedValue: 1000000,
         source: "Referral",
@@ -365,34 +365,34 @@ describe("RBAC — Lead Ownership & Reassignment", () => {
   });
 });
 
-/* ─────────── RBAC: Guard records (HR creates; RO only ID fields) ─────────── */
+/* ─────────── RBAC: Security Officer records (HR creates; RO only ID fields) ─────────── */
 
-describe("RBAC — Guard Records", () => {
-  it("allows HR Manager to view guards", async () => {
-    const res = await authed("/api/guards", "HR Manager");
+describe("RBAC — Security Officer Records", () => {
+  it("allows HR Manager to view security officers", async () => {
+    const res = await authed("/api/security-officers", "HR Manager");
     expect(res.status).toBe(200);
   });
 
-  it("blocks Operations Manager from enrolling guards", async () => {
-    const res = await authed("/api/guards", "Operations Manager", undefined, {
+  it("blocks Operations Manager from enrolling security officers", async () => {
+    const res = await authed("/api/security-officers", "Operations Manager", undefined, {
       method: "POST",
       body: JSON.stringify({ fullName: "RBAC Test", forceNumber: "RBAC-1" }),
     });
     expect(res.status).toBe(403);
   });
 
-  it("blocks Records Officer from enrolling guards (creation is HR-only)", async () => {
-    const res = await authed("/api/guards", "Records Officer", undefined, {
+  it("blocks Records Officer from enrolling security officers (creation is HR-only)", async () => {
+    const res = await authed("/api/security-officers", "Records Officer", undefined, {
       method: "POST",
       body: JSON.stringify({ fullName: "RBAC Test", forceNumber: "RBAC-2" }),
     });
     expect(res.status).toBe(403);
   });
 
-  it("blocks Records Officer from editing non-ID guard fields", async () => {
-    const list = (await (await authed("/api/guards", "Records Officer")).json()) as { id: string; fullName: string }[];
+  it("blocks Records Officer from editing non-ID officer fields", async () => {
+    const list = (await (await authed("/api/security-officers", "Records Officer")).json()) as { id: string; fullName: string }[];
     const target = list[0];
-    const res = await authed(`/api/guards/${target.id}`, "Records Officer", undefined, {
+    const res = await authed(`/api/security-officers/${target.id}`, "Records Officer", undefined, {
       method: "PUT",
       body: JSON.stringify({ fullName: "Hacked Name Change" }),
     });
@@ -400,7 +400,7 @@ describe("RBAC — Guard Records", () => {
   });
 
   it("allows Records Officer to update ID-card fields only", async () => {
-    const list = (await (await authed("/api/guards", "Records Officer")).json()) as {
+    const list = (await (await authed("/api/security-officers", "Records Officer")).json()) as {
       id: string;
       idCardStatus: string;
       idCardNumber: string | null;
@@ -409,7 +409,7 @@ describe("RBAC — Guard Records", () => {
     }[];
     const target = list.find((g) => g.idCardStatus === "Issued & Active") ?? list[0];
     const current = target.idCardStatus ?? "Issued & Active";
-    const res = await authed(`/api/guards/${target.id}`, "Records Officer", undefined, {
+    const res = await authed(`/api/security-officers/${target.id}`, "Records Officer", undefined, {
       method: "PUT",
       body: JSON.stringify({
         idCardStatus: current,
@@ -470,7 +470,7 @@ describe("RBAC — Deployment Orders", () => {
     if (!orderId) throw new Error("no order created");
     const res = await authed(`/api/deployment-orders/${orderId}/assign`, "Operations Manager", undefined, {
       method: "PUT",
-      body: JSON.stringify({ guardIds: ["anything"] }),
+      body: JSON.stringify({ forceNumbers: ["anything"] }),
     });
     expect(res.status).toBe(403);
   });
@@ -479,7 +479,7 @@ describe("RBAC — Deployment Orders", () => {
     if (!orderId) throw new Error("no order created");
     const res = await authed(`/api/deployment-orders/${orderId}/assign`, "Regional Manager", "Peter Okello", {
       method: "PUT",
-      body: JSON.stringify({ guardIds: ["anything"] }),
+      body: JSON.stringify({ forceNumbers: ["anything"] }),
     });
     expect(res.status).toBe(403);
   });
@@ -488,28 +488,28 @@ describe("RBAC — Deployment Orders", () => {
     if (!orderId) throw new Error("no order created");
     const res = await authed(`/api/deployment-orders/${orderId}/assign`, "Regional Manager", "Betty Auma", {
       method: "PUT",
-      body: JSON.stringify({ guardIds: ["no-such-guard-1", "no-such-guard-2"] }),
+      body: JSON.stringify({ forceNumbers: ["no-such-officer-1", "no-such-officer-2"] }),
     });
     expect(res.status).not.toBe(401);
     expect(res.status).not.toBe(403);
   });
 });
 
-/* ─────────── Deployment: only passed-out guards are deployable ─────────── */
+/* ─────────── Deployment: only passed-out officers are deployable ─────────── */
 
 describe("Deployment — passed-out gate (two-step fill flow)", () => {
-  let guardId: string;
+  let officerId: string;
   let forceNumber: string;
   let orderId: string;
 
   beforeAll(async () => {
     forceNumber = `RBAC-DEPLOY-${Date.now()}`;
-    const createGuard = await authed("/api/guards", "HR Manager", undefined, {
+    const createSecurityOfficer = await authed("/api/security-officers", "HR Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
-        fullName: "Deploy Gate Test Guard",
+        fullName: "Deploy Gate Test Officer",
         forceNumber,
-        designation: "Guard",
+        designation: "Security Officer",
         phone: "+256 700 000098",
         nationalId: `NIN-RBAC-${Date.now()}`,
         assignedSite: "RBAC Deploy Test Site",
@@ -518,8 +518,8 @@ describe("Deployment — passed-out gate (two-step fill flow)", () => {
         joinDate: "2026-08-01",
       }),
     });
-    expect(createGuard.status).toBe(201);
-    guardId = ((await createGuard.json()) as { id: string }).id;
+    expect(createSecurityOfficer.status).toBe(201);
+    officerId = ((await createSecurityOfficer.json()) as { id: string }).id;
 
     const createOrder = await authed("/api/deployment-orders", "Operations Manager", undefined, {
       method: "POST",
@@ -539,56 +539,56 @@ describe("Deployment — passed-out gate (two-step fill flow)", () => {
     orderId = ((await createOrder.json()) as { id: string }).id;
   });
 
-  it("rejects assigning a guard who is not yet passed out", async () => {
+  it("rejects assigning an officer who is not yet passed out", async () => {
     const res = await authed(`/api/deployment-orders/${orderId}/assign`, "Regional Manager", "Betty Auma", {
       method: "PUT",
-      body: JSON.stringify({ guardIds: [guardId] }),
+      body: JSON.stringify({ forceNumbers: [forceNumber] }),
     });
     expect(res.status).toBe(400);
   });
 
-  it("passes a guard out via the lifecycleStage alias (client payload) and notifies OM/RM", async () => {
-    const res = await authed(`/api/guards/${guardId}/lifecycle`, "Operations Manager", undefined, {
+  it("passes an officer out via the lifecycleStage alias (client payload) and notifies OM/RM", async () => {
+    const res = await authed(`/api/security-officers/${officerId}/lifecycle`, "Operations Manager", undefined, {
       method: "PUT",
       body: JSON.stringify({ lifecycleStage: "PASSED_OUT" }),
     });
     expect(res.status).toBe(200);
-    const dbGuard = await prisma.guard.findUnique({ where: { id: guardId }, select: { lifecycleStage: true } });
-    expect(dbGuard?.lifecycleStage).toBe("PASSED_OUT");
+    const dbOfficer = await prisma.securityOfficer.findUnique({ where: { id: officerId }, select: { lifecycleStage: true } });
+    expect(dbOfficer?.lifecycleStage).toBe("PASSED_OUT");
     const notifications = await prisma.notification.findMany({
-      where: { title: "Guard Passed Out", targetRole: { in: ["Operations Manager", "Regional Manager"] } },
+      where: { title: "Security Officer Passed Out", targetRole: { in: ["Operations Manager", "Regional Manager"] } },
       orderBy: { createdAt: "desc" },
       take: 2,
     });
     expect(notifications.some((n) => n.message.includes(forceNumber))).toBe(true);
   });
 
-  it("allows the matching RM to assign the now-passed-out guard", async () => {
+  it("allows the matching RM to assign the now-passed-out officer", async () => {
     const res = await authed(`/api/deployment-orders/${orderId}/assign`, "Regional Manager", "Betty Auma", {
       method: "PUT",
-      body: JSON.stringify({ guardIds: [guardId] }),
+      body: JSON.stringify({ forceNumbers: [forceNumber] }),
     });
     expect(res.status).toBe(200);
-    const dbGuard = await prisma.guard.findUnique({ where: { id: guardId }, select: { lifecycleStage: true, assignedSite: true } });
-    expect(dbGuard?.lifecycleStage).toBe("DEPLOYED");
+    const dbOfficer = await prisma.securityOfficer.findUnique({ where: { id: officerId }, select: { lifecycleStage: true, assignedSite: true } });
+    expect(dbOfficer?.lifecycleStage).toBe("DEPLOYED");
   });
 
   afterAll(async () => {
     await prisma.siteDeployment.deleteMany({ where: { siteName: "RBAC Deploy Test Site" } });
     await prisma.deploymentOrder.deleteMany({ where: { notes: "RBAC-DEPLOY-GATE" } });
-    await prisma.notification.deleteMany({ where: { title: "Guard Passed Out", message: { contains: forceNumber } } });
-    await prisma.guard.deleteMany({ where: { forceNumber } });
+    await prisma.notification.deleteMany({ where: { title: "Security Officer Passed Out", message: { contains: forceNumber } } });
+    await prisma.securityOfficer.deleteMany({ where: { forceNumber } });
   });
 });
 
 /* ─────────── Phase 4: OM analytics-only oversight (view across non-ops modules) ─────────── */
 /* Per realignment: OM is informed oversight — view-only on Armoury, K9, Fleet, Training,
    sites, leads, HR & marketing; hands-on owner only where Operations runs the workflow
-   (incidents, deployment orders, guard lifecycle). */
+   (incidents, deployment orders, officer lifecycle). */
 
 describe("Phase 4 — OM analytics-only oversight", () => {
   const viewOnlyModules = [
-    { name: "guards", path: "/api/guards", body: { fullName: "RBAC OM", forceNumber: "RBAC-OM" } },
+    { name: "security_officers", path: "/api/security-officers", body: { fullName: "RBAC OM", forceNumber: "RBAC-OM" } },
     { name: "vehicles", path: "/api/vehicles", body: { plateNumber: "RBAC-OM-1", vehicleType: "Truck", makeModel: "Test" } },
     { name: "k9s", path: "/api/k9s", body: { dogName: "RBAC OM", handlerName: "RBAC" } },
     { name: "armoury", path: "/api/armoury", body: { weaponCode: "RBAC-OM", weaponType: "Pistol" } },
@@ -607,8 +607,8 @@ describe("Phase 4 — OM analytics-only oversight", () => {
     expect(create.status).toBe(403);
   });
 
-  it("can open guard records but cannot enroll (create) guards", async () => {
-    const res = await authed("/api/guards", "Operations Manager", undefined, {
+  it("can open officer records but cannot enroll (create) officers", async () => {
+    const res = await authed("/api/security-officers", "Operations Manager", undefined, {
       method: "POST",
       body: JSON.stringify({ fullName: "RBAC OM", forceNumber: "RBAC-OM-2" }),
     });
@@ -621,7 +621,7 @@ describe("Phase 4 — OM analytics-only oversight", () => {
       body: JSON.stringify({
         title: "RBAC OM oversight test",
         siteName: "RBAC Test Site",
-        reportedByGuard: "RBAC Tester",
+        reportedBySecurityOfficer: "RBAC Tester",
         category: "Security",
         severity: "Low",
         description: "Verification that OM is a hands-on incident owner.",
@@ -649,10 +649,10 @@ describe("Phase 4 — OM analytics-only oversight", () => {
     expect(res.status).toBe(201);
   });
 
-  it("can move guards through the lifecycle (OM runs the training pipeline step)", async () => {
-    const guards = (await (await authed("/api/guards", "Operations Manager")).json()) as { id: string }[];
-    const target = guards[0];
-    const res = await authed(`/api/guards/${target.id}/lifecycle`, "Operations Manager", undefined, {
+  it("can move officers through the lifecycle (OM runs the training pipeline step)", async () => {
+    const officers = (await (await authed("/api/security-officers", "Operations Manager")).json()) as { id: string }[];
+    const target = officers[0];
+    const res = await authed(`/api/security-officers/${target.id}/lifecycle`, "Operations Manager", undefined, {
       method: "PUT",
       body: JSON.stringify({}),
     });
@@ -767,7 +767,7 @@ describe("RBAC — Contract Approval Chain", () => {
     if (!contractId) throw new Error("no contract created");
     const res = await authed(`/api/contracts/${contractId}`, "Finance Manager", undefined, {
       method: "PUT",
-      body: JSON.stringify({ slaTerms: "4 day guards, 2 night guards" }),
+      body: JSON.stringify({ slaTerms: "4 day officers, 2 night officers" }),
     });
     expect(res.status).toBe(403);
   });
@@ -776,7 +776,7 @@ describe("RBAC — Contract Approval Chain", () => {
     if (!contractId) throw new Error("no contract created");
     const res = await authed(`/api/contracts/${contractId}`, "Operations Manager", undefined, {
       method: "PUT",
-      body: JSON.stringify({ action: "survey", siteSurvey: "Site verified: perimeter sound, 4 access points, 3 day + 2 night guards sufficient." }),
+      body: JSON.stringify({ action: "survey", siteSurvey: "Site verified: perimeter sound, 4 access points, 3 day + 2 night officers sufficient." }),
     });
     expect(res.status).toBe(200);
     const contract = (await res.json()) as { siteSurvey: string; approvalStep: string };
@@ -1023,7 +1023,7 @@ describe("RBAC — Recruitment (HR + Operations)", () => {
     const res = await authed("/api/job-postings", "HR Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
-        title: "Security Guard (RBAC Test)",
+        title: "Security Officer (RBAC Test)",
         code: "RBAC-JOB-001",
         department: "Operations",
         location: "Kampala",
@@ -1046,7 +1046,7 @@ describe("RBAC — Recruitment (HR + Operations)", () => {
         fullName: "RBAC Test Candidate",
         email: "rbac.candidate@test.ug",
         phone: "+256 700 000002",
-        roleType: "Security Guard",
+        roleType: "Security Officer",
         nationalId: "NIN-RBAC-0001",
       }),
     });
@@ -1431,7 +1431,7 @@ describe("RBAC — Cashier disbursement FM-approval flow (Phase 3)", () => {
     const res = await authed("/api/cashier-transactions", "Cashier", undefined, {
       method: "POST",
       body: JSON.stringify({
-        guardName: "RBAC-Guard Cashier",
+        securityOfficerName: "RBAC-Guard Cashier",
         forceNumber: "SG-RBAC-001",
         type: "Salary Advance",
         amount: 200000,
@@ -1457,7 +1457,7 @@ describe("RBAC — Cashier disbursement FM-approval flow (Phase 3)", () => {
   it("blocks the Accountant from requesting a disbursement (Cashier/FM only)", async () => {
     const res = await authed("/api/cashier-transactions", "Accountant", undefined, {
       method: "POST",
-      body: JSON.stringify({ guardName: "RBAC-Blocked", forceNumber: "SG-X", type: "Salary Advance", amount: 1000 }),
+      body: JSON.stringify({ securityOfficerName: "RBAC-Blocked", forceNumber: "SG-X", type: "Salary Advance", amount: 1000 }),
     });
     expect(res.status).toBe(403);
   });
@@ -1478,7 +1478,7 @@ describe("RBAC — Cashier disbursement FM-approval flow (Phase 3)", () => {
   it("lets the Finance Manager reject a different pending disbursement", async () => {
     const create = await authed("/api/cashier-transactions", "Cashier", undefined, {
       method: "POST",
-      body: JSON.stringify({ guardName: "RBAC-Guard Reject", forceNumber: "SG-RBAC-002", type: "Meal Allowance", amount: 80000 }),
+      body: JSON.stringify({ securityOfficerName: "RBAC-Guard Reject", forceNumber: "SG-RBAC-002", type: "Meal Allowance", amount: 80000 }),
     });
     const tx = (await create.json()) as { id: string };
     rejectId = tx.id;
@@ -1646,18 +1646,18 @@ describe("Phase 5 — Durable notifications", () => {
   });
 });
 
-/* ─────────── P6: force-number identity on guard enrolment ─────────── */
+/* ─────────── P6: force-number identity on security officer enrolment ─────────── */
 
-describe("P6 RBAC — guard enrolment defaults forceNumber (canonical unique identifier)", () => {
-  let guardId: string | null = null;
+describe("P6 RBAC — security officer enrolment defaults forceNumber (canonical unique identifier)", () => {
+  let officerId: string | null = null;
 
-  it("rejects guard creation by non-HR roles", async () => {
-    const res = await authed("/api/guards", "Finance Manager", undefined, {
+  it("rejects security officer creation by non-HR roles", async () => {
+    const res = await authed("/api/security-officers", "Finance Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
         fullName: "RBAC FN Denied",
         forceNumber: "PSG026/RBAC00",
-        designation: "Guard",
+        designation: "Security Officer",
         region: "Kampala Central",
         phone: "+256 700 000099",
         nationalId: "CM99999999ABC",
@@ -1669,13 +1669,13 @@ describe("P6 RBAC — guard enrolment defaults forceNumber (canonical unique ide
     expect(res.status).toBe(403);
   });
 
-  it("HR Manager creates a guard and forceNumber defaults to forceNumber", async () => {
-    const res = await authed("/api/guards", "HR Manager", undefined, {
+  it("HR Manager creates an officer and forceNumber defaults to the generated number", async () => {
+    const res = await authed("/api/security-officers", "HR Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
-        fullName: "RBAC ForceNumber Guard",
+        fullName: "RBAC ForceNumber Officer",
         forceNumber: "PSG026/RBAC01",
-        designation: "Guard",
+        designation: "Security Officer",
         region: "Kampala Central",
         phone: "+256 700 000099",
         nationalId: "CM99999998ABC",
@@ -1685,18 +1685,18 @@ describe("P6 RBAC — guard enrolment defaults forceNumber (canonical unique ide
       }),
     });
     expect(res.status).toBe(201);
-    const guard = (await res.json()) as { id: string; forceNumber: string };
-    expect(guard.forceNumber).toBe("PSG026/RBAC01");
-    guardId = guard.id;
+    const officer = (await res.json()) as { id: string; forceNumber: string };
+    expect(officer.forceNumber).toBe("PSG026/RBAC01");
+    officerId = officer.id;
   });
 
   it("explicit forceNumber is honoured when supplied", async () => {
-    const res = await authed("/api/guards", "HR Manager", undefined, {
+    const res = await authed("/api/security-officers", "HR Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
-        fullName: "RBAC Explicit FN Guard",
+        fullName: "RBAC Explicit FN Officer",
         forceNumber: "PSG026/RBAC02",
-        designation: "Guard",
+        designation: "Security Officer",
         region: "Kampala Central",
         phone: "+256 700 000098",
         nationalId: "CM99999997ABC",
@@ -1706,27 +1706,27 @@ describe("P6 RBAC — guard enrolment defaults forceNumber (canonical unique ide
       }),
     });
     expect(res.status).toBe(201);
-    const guard = (await res.json()) as { forceNumber: string };
-    expect(guard.forceNumber).toBe("PSG026/RBAC02");
+    const officer = (await res.json()) as { forceNumber: string };
+    expect(officer.forceNumber).toBe("PSG026/RBAC02");
   });
 
-  it("each guard carries a unique force number on the roster read", async () => {
-    const roster = (await (await authed("/api/guards", "HR Manager")).json()) as Array<{ forceNumber: string }>;
+  it("each officer carries a unique force number on the roster read", async () => {
+    const roster = (await (await authed("/api/security-officers", "HR Manager")).json()) as Array<{ forceNumber: string }>;
     const fns = roster.filter((g) => g.forceNumber.startsWith("PSG026/RBAC")).map((g) => g.forceNumber);
     expect(new Set(fns).size).toBe(fns.length);
     expect(fns).toContain("PSG026/RBAC01");
-    if (!guardId) throw new Error("no guard created");
+    if (!officerId) throw new Error("no officer created");
   });
 
   it("a promotion changing designation flags the ID card for reissue (§5)", async () => {
-    if (!guardId) throw new Error("no guard created");
-    const issued = await authed(`/api/guards/${guardId}/issue-id`, "Records Officer", undefined, {
+    if (!officerId) throw new Error("no officer created");
+    const issued = await authed(`/api/security-officers/${officerId}/issue-id`, "Records Officer", undefined, {
       method: "PUT",
       body: JSON.stringify({ idCardNumber: "IDC-RBAC-001", idCardExpiryDate: "2028-08-14" }),
     });
     expect(issued.status).toBe(200);
     expect(((await issued.json()) as { idCardStatus: string }).idCardStatus).toBe("Issued & Active");
-    const updated = await authed(`/api/guards/${guardId}`, "HR Manager", undefined, {
+    const updated = await authed(`/api/security-officers/${officerId}`, "HR Manager", undefined, {
       method: "PUT",
       body: JSON.stringify({ designation: "Inspector" }),
     });
@@ -1736,20 +1736,20 @@ describe("P6 RBAC — guard enrolment defaults forceNumber (canonical unique ide
     expect(body.idCardStatus).toBe("Reissue Required");
   });
 
-  it("mapped guard designations round-trip as display strings (K9 Handler / Site In-Charge)", async () => {
-    if (!guardId) throw new Error("no guard created");
-    const put = await authed(`/api/guards/${guardId}`, "HR Manager", undefined, {
+  it("mapped officer designations round-trip as display strings (K9 Handler / Site In-Charge)", async () => {
+    if (!officerId) throw new Error("no officer created");
+    const put = await authed(`/api/security-officers/${officerId}`, "HR Manager", undefined, {
       method: "PUT",
       body: JSON.stringify({ designation: "Site In-Charge" }),
     });
     expect(put.status).toBe(200);
     const body = (await put.json()) as { designation: string };
     expect(body.designation).toBe("Site In-Charge");
-    const roster = (await (await authed("/api/guards", "HR Manager")).json()) as Array<{ id: string; designation: string }>;
-    expect(roster.find((g) => g.id === guardId)?.designation).toBe("Site In-Charge");
-    const reverted = await authed(`/api/guards/${guardId}`, "HR Manager", undefined, {
+    const roster = (await (await authed("/api/security-officers", "HR Manager")).json()) as Array<{ id: string; designation: string }>;
+    expect(roster.find((g) => g.id === officerId)?.designation).toBe("Site In-Charge");
+    const reverted = await authed(`/api/security-officers/${officerId}`, "HR Manager", undefined, {
       method: "PUT",
-      body: JSON.stringify({ designation: "Guard" }),
+      body: JSON.stringify({ designation: "Security Officer" }),
     });
     expect(reverted.status).toBe(200);
   });
@@ -1758,15 +1758,15 @@ describe("P6 RBAC — guard enrolment defaults forceNumber (canonical unique ide
 /* ─────────── P6: leave workflow engine (HR Manager → optional GM) ─────────── */
 
 describe("P6 RBAC — leave engine realignment (submit → HR Manager → optional GM)", () => {
-  let guardLeaveId: string | null = null;
+  let officerLeaveId: string | null = null;
   let staffLeaveId: string | null = null;
 
   it("rejects leave submission by a non-requester role", async () => {
     const res = await authed("/api/leave-requests", "Finance Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
-        guardId: "fake",
-        guardName: "RBAC-DENIED",
+        officerId: "fake",
+        securityOfficerName: "RBAC-DENIED",
         forceNumber: "PSG000/000",
         leaveType: "Annual",
         startDate: "2026-09-01",
@@ -1778,56 +1778,54 @@ describe("P6 RBAC — leave engine realignment (submit → HR Manager → option
     expect(res.status).toBe(403);
   });
 
-  it("Guard Officer submits leave for a real guard (guard leave → GM step auto-skipped)", async () => {
-    const guard = await prisma.guard.findUnique({ where: { forceNumber: "PSG026/RBAC01" } });
-    if (!guard) throw new Error("RBAC guard not found");
-    const res = await authed("/api/leave-requests", "Guard Officer", "Tom Ssemakula", {
+  it("Security Officer submits leave for a real officer (officer leave → GM step auto-skipped)", async () => {
+    const officer = await prisma.securityOfficer.findUnique({ where: { forceNumber: "PSG026/RBAC01" } });
+    if (!officer) throw new Error("RBAC officer not found");
+    const res = await authed("/api/leave-requests", "Security Officer", "Tom Ssemakula", {
       method: "POST",
       body: JSON.stringify({
-        guardId: guard.id,
-        guardName: "RBAC ForceNumber Guard",
+        securityOfficerName: "RBAC ForceNumber Officer",
         forceNumber: "PSG026/RBAC01",
         leaveType: "Annual",
         startDate: "2026-09-01",
         endDate: "2026-09-05",
         durationDays: 5,
-        reason: "RBAC guard leave flow",
+        reason: "RBAC officer leave flow",
       }),
     });
     expect(res.status).toBe(201);
-    guardLeaveId = ((await res.json()) as { id: string }).id;
-    const leave = await prisma.leaveRequest.findUnique({ where: { id: guardLeaveId } });
+    officerLeaveId = ((await res.json()) as { id: string }).id;
+    const leave = await prisma.leaveRequest.findUnique({ where: { id: officerLeaveId } });
     expect(leave?.approvalId).toBeTruthy();
   });
 
   it("HR Assistant is not an approver (403)", async () => {
-    if (!guardLeaveId) throw new Error("no leave");
-    const res = await authed(`/api/leave-requests/${guardLeaveId}/hr-approve`, "HR Assistant", undefined, {
+    if (!officerLeaveId) throw new Error("no leave");
+    const res = await authed(`/api/leave-requests/${officerLeaveId}/hr-approve`, "HR Assistant", undefined, {
       method: "PUT",
       body: "{}",
     });
     expect(res.status).toBe(403);
   });
 
-  it("HR Manager approves a guard leave straight to Approved (GM step optional)", async () => {
-    if (!guardLeaveId) throw new Error("no leave");
-    const res = await authed(`/api/leave-requests/${guardLeaveId}/hr-approve`, "HR Manager", undefined, {
+  it("HR Manager approves an officer leave straight to Approved (GM step optional)", async () => {
+    if (!officerLeaveId) throw new Error("no leave");
+    const res = await authed(`/api/leave-requests/${officerLeaveId}/hr-approve`, "HR Manager", undefined, {
       method: "PUT",
       body: "{}",
     });
     expect(res.status).toBe(200);
-    const leave = await prisma.leaveRequest.findUnique({ where: { id: guardLeaveId } });
+    const leave = await prisma.leaveRequest.findUnique({ where: { id: officerLeaveId } });
     expect(leave?.status).toBe("Approved");
     const approval = await prisma.approval.findUnique({ where: { id: leave!.approvalId! }, include: { actions: true } });
     expect(approval?.status).toBe("Approved");
   });
 
-  it("staff leave (no guard record) advances HR → GM and GM approves to Approved", async () => {
+  it("staff leave (no officer record) advances HR → GM and GM approves to Approved", async () => {
     const res = await authed("/api/leave-requests", "HR Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
-        guardId: "staff-non-guard-id-0000",
-        guardName: "RBAC Staff Member",
+        securityOfficerName: "RBAC Staff Member",
         forceNumber: "PSG026/RBAC-STF",
         leaveType: "Study",
         startDate: "2026-09-10",
@@ -1851,10 +1849,10 @@ describe("P6 RBAC — leave engine realignment (submit → HR Manager → option
   });
 
   it("legacy regional/ops leave-approval routes are removed (410)", async () => {
-    if (!guardLeaveId) throw new Error("no leave");
-    const legacy = await authed(`/api/leave-requests/${guardLeaveId}/approve`, "Regional Manager", "Peter Okello", { method: "PUT", body: "{}" });
+    if (!officerLeaveId) throw new Error("no leave");
+    const legacy = await authed(`/api/leave-requests/${officerLeaveId}/approve`, "Regional Manager", "Peter Okello", { method: "PUT", body: "{}" });
     expect(legacy.status).toBe(410);
-    const legacyOps = await authed(`/api/leave-requests/${guardLeaveId}/ops-approve`, "Operations Manager", undefined, { method: "PUT", body: "{}" });
+    const legacyOps = await authed(`/api/leave-requests/${officerLeaveId}/ops-approve`, "Operations Manager", undefined, { method: "PUT", body: "{}" });
     expect(legacyOps.status).toBe(410);
   });
 
@@ -1862,8 +1860,7 @@ describe("P6 RBAC — leave engine realignment (submit → HR Manager → option
     const res = await authed("/api/leave-requests", "Operations Manager", undefined, {
       method: "POST",
       body: JSON.stringify({
-        guardId: "staff-non-guard-id-peer",
-        guardName: "RBAC Peer Manager",
+        securityOfficerName: "RBAC Peer Manager",
         forceNumber: "PSG026/RBAC-PEER",
         leaveType: "Annual Leave",
         startDate: "2026-10-01",
@@ -1884,8 +1881,7 @@ describe("P6 RBAC — leave engine realignment (submit → HR Manager → option
     const res = await authed("/api/leave-requests", "HR Assistant", undefined, {
       method: "POST",
       body: JSON.stringify({
-        guardId: "staff-non-guard-id-sub",
-        guardName: "RBAC Subordinate",
+        securityOfficerName: "RBAC Subordinate",
         forceNumber: "PSG026/RBAC-SUB",
         leaveType: "Sick Leave",
         startDate: "2026-11-01",

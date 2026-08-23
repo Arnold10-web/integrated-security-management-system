@@ -38,7 +38,7 @@ export function isActingInRole(user: { role: UserRole; effectiveRole?: UserRole;
 export const EXECUTIVE_ROLES: UserRole[] = ["General Manager", "Director"];
 export const HR_STAFF_ROLES: UserRole[] = ["HR Manager", "HR Assistant", "Records Officer"];
 export const HR_APPROVER_ROLES: UserRole[] = ["HR Manager", "HR Assistant"];
-export const GUARD_APPRAISAL_ROLES: UserRole[] = ["HR Manager", "Operations Manager", "Regional Manager"];
+export const SECURITY_OFFICER_APPRAISAL_ROLES: UserRole[] = ["HR Manager", "Operations Manager", "Regional Manager"];
 export const OPS_MANAGEMENT_ROLES: UserRole[] = ["Operations Manager", "Regional Manager"];
 export const MARKETING_ROLES: UserRole[] = ["Business Development Manager", "Sales and Marketing Supervisor"];
 export const ARMOURY_OPERATOR_ROLES: UserRole[] = ["Armorer", "Operations Manager"];
@@ -179,7 +179,7 @@ export function getPermissionsForRole(
     return { canView: true, canEdit: false, canDelete: false, canApprove: false };
   }
 
-  if (role === "Guard Officer") {
+  if (role === "Security Officer") {
     return { canView: true, canEdit: false, canDelete: false, canApprove: false };
   }
 

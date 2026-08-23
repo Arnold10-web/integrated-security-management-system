@@ -1,4 +1,4 @@
-import { Guard, ClientSite, Incident, Invoice, K9Dog, ArmouryItem } from '../types';
+import { SecurityOfficer, ClientSite, Incident, Invoice, K9Dog, ArmouryItem } from '../types';
 
 export interface ConsolidationResult {
   revenue: {
@@ -8,7 +8,7 @@ export interface ConsolidationResult {
     total: number;
     collectionPercentage: number;
   };
-  guards: {
+  securityOfficers: {
     active: number;
     required: number;
     onDuty: number;
@@ -24,13 +24,13 @@ export interface ConsolidationResult {
   executiveAttention: {
     criticalIncidents: number;
     nonCompliantSites: number;
-    suspendedGuards: number;
+    suspendedSecurityOfficers: number;
     overdueRevenue: number;
   };
   duplicates: {
     removed: {
       revenue: number;
-      guards: number;
+      securityOfficers: number;
       alerts: number;
     };
   };
@@ -40,7 +40,7 @@ export interface ConsolidationResult {
       amount: number;
       totalAmount: number;
     };
-    guardStrength: {
+    securityOfficerStrength: {
       active: number;
       total: number;
       distribution: Record<string, number>;
@@ -54,7 +54,7 @@ export interface ConsolidationResult {
 }
 
 export interface DashboardData {
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   incidents: Incident[];
   invoices: Invoice[];
@@ -63,7 +63,7 @@ export interface DashboardData {
 }
 
 export function consolidateDashboardMetrics(data: DashboardData): ConsolidationResult {
-  const { guards, sites, incidents, invoices } = data;
+  const { securityOfficers, sites, incidents, invoices } = data;
 
   // Revenue calculations
   const paidRevenue = invoices.filter(i => i.status === 'Paid').reduce((sum, i) => sum + i.amount, 0);
@@ -72,11 +72,11 @@ export function consolidateDashboardMetrics(data: DashboardData): ConsolidationR
   const totalRevenue = invoices.reduce((sum, i) => sum + i.amount, 0);
   const collectionPercentage = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 10000) / 100 : 0;
 
-  // Guard calculations
-  const activeGuards = guards.filter(g => g.status === 'On Duty').length;
-  const requiredGuards = guards.length;
-  const suspendedGuards = guards.filter(g => g.status === 'Suspended').length;
-  const guardDistribution = guards.reduce((acc, g) => {
+  // Security Officer calculations
+  const activeSecurityOfficers = securityOfficers.filter(g => g.status === 'On Duty').length;
+  const requiredSecurityOfficers = securityOfficers.length;
+  const suspendedSecurityOfficers = securityOfficers.filter(g => g.status === 'Suspended').length;
+  const securityOfficerDistribution = securityOfficers.reduce((acc, g) => {
     acc[g.status] = (acc[g.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
@@ -94,17 +94,17 @@ export function consolidateDashboardMetrics(data: DashboardData): ConsolidationR
   // Executive attention metrics (same as consolidated but more granular for alerts strip)
   const criticalIncidents = incidents.filter(i => i.severity === 'Critical' && i.status !== 'Resolved').length;
   const nonCompliantSites = sites.filter(s => s.slaStatus !== 'Compliant').length;
-  const suspendedGuardsCount = guards.filter(g => g.status === 'Suspended').length;
+  const suspendedSecurityOfficersCount = securityOfficers.filter(g => g.status === 'Suspended').length;
   const overdueRevenueAmount = overdueRevenue;
 
   // Calculate duplicates to remove based on findings
   // F1: Revenue shown 3x -> remove 2 duplicates (keep 1)
-  // F2: Guard count shown 3x -> remove 2 duplicates (keep 1)
+  // F2: Security Officer count shown 3x -> remove 2 duplicates (keep 1)
   // F3: Security alerts shown 2x -> remove 1 duplicate (keep 1)
   const duplicates = {
     removed: {
       revenue: 2,
-      guards: 2,
+      securityOfficers: 2,
       alerts: 1,
     },
   };
@@ -116,10 +116,10 @@ export function consolidateDashboardMetrics(data: DashboardData): ConsolidationR
     totalAmount: totalRevenue,
   };
 
-  const guardStrength = {
-    active: activeGuards,
-    total: requiredGuards,
-    distribution: guardDistribution,
+  const securityOfficerStrength = {
+    active: activeSecurityOfficers,
+    total: requiredSecurityOfficers,
+    distribution: securityOfficerDistribution,
   };
 
   const activeSecurityAlerts = {
@@ -136,12 +136,12 @@ export function consolidateDashboardMetrics(data: DashboardData): ConsolidationR
       total: totalRevenue,
       collectionPercentage,
     },
-    guards: {
-      active: activeGuards,
-      required: requiredGuards,
-      onDuty: activeGuards, // Same as active for now
-      suspended: suspendedGuards,
-      distribution: guardDistribution,
+    securityOfficers: {
+      active: activeSecurityOfficers,
+      required: requiredSecurityOfficers,
+      onDuty: activeSecurityOfficers, // Same as active for now
+      suspended: suspendedSecurityOfficers,
+      distribution: securityOfficerDistribution,
     },
     alerts: {
       total: totalAlerts,
@@ -152,13 +152,13 @@ export function consolidateDashboardMetrics(data: DashboardData): ConsolidationR
     executiveAttention: {
       criticalIncidents,
       nonCompliantSites,
-      suspendedGuards: suspendedGuardsCount,
+      suspendedSecurityOfficers: suspendedSecurityOfficersCount,
       overdueRevenue: overdueRevenueAmount,
     },
     duplicates,
     individualMetrics: {
       revenueCollection,
-      guardStrength,
+      securityOfficerStrength,
       activeSecurityAlerts,
     },
   };

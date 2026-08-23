@@ -49,13 +49,13 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
           name: "HR Manager",
           title: "HR Manager",
           desc: "Overall HR governance, staff recruitment, onboarding approvals, warning letter issuing, and disciplinary oversight.",
-          modules: ["Personnel Directory", "Guard Roster Attendance", "Warning Letters", "Staff Onboarding"],
+          modules: ["Personnel Directory", "Security Officer Roster Attendance", "Warning Letters", "Staff Onboarding"],
         },
         {
           name: "HR Assistant",
           title: "HR Assistant",
-          desc: "Assists with guard attendance tracking, leave requests, and initial document verification.",
-          modules: ["Guard Directory", "Attendance Tracking", "Leave Log"],
+          desc: "Assists with security officer attendance tracking, leave requests, and initial document verification.",
+          modules: ["Security Officer Directory", "Attendance Tracking", "Leave Log"],
         },
         {
           name: "Records Officer",
@@ -94,7 +94,7 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
         {
           name: "Regional Manager",
           title: "Regional Operations Manager",
-          desc: "Manages their assigned region, drafts shift rosters for guards, and oversees field attendance and regional incident logs.",
+          desc: "Manages their assigned region, drafts shift rosters for securityOfficers, and oversees field attendance and regional incident logs.",
           modules: ["Regional Duty Roster", "Post Inspections", "Incidents"],
         },
         {
@@ -128,8 +128,8 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
           modules: ["Training Cohorts", "Trainee Records", "Pass-Out School"],
         },
         {
-          name: "Guard Officer",
-          title: "Guard Field Officer",
+          name: "Security Officer",
+          title: "Security Officer",
           desc: "Personal shift duty view, station post assignment, and quick incident log submission.",
           modules: ["Personal Duty Shift", "Post Incident Log"],
         },
@@ -164,8 +164,8 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
         {
           name: "Assistant Accountant",
           title: "Assistant Accountant",
-          desc: "Processes operational expense vouchers and supplier invoices, tracks client billing payments, guard salary advance requisitions, and petty cash logs.",
-          modules: ["Expense Vouchers", "Vendor Invoices", "Guard Advances Ledger", "Payment Reconciliation"],
+          desc: "Processes operational expense vouchers and supplier invoices, tracks client billing payments, security officer salary advance requisitions, and petty cash logs.",
+          modules: ["Expense Vouchers", "Vendor Invoices", "Security Officer Advances Ledger", "Payment Reconciliation"],
         },
         {
           name: "Internal Auditor",
@@ -176,7 +176,7 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
         {
           name: "Cashier",
           title: "Cashier / Petty Cashier",
-          desc: "Manages petty cash desk, issues guard salary advances, and logs instant cash transactions.",
+          desc: "Manages petty cash desk, issues security officer salary advances, and logs instant cash transactions.",
           modules: ["Cashier Petty Cash Desk", "Advance Disbursement Log"],
         },
       ],

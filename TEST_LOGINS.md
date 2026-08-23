@@ -39,7 +39,7 @@ App URL: `http://localhost:3000` (start with `npm run dev`)
 | Fleet Manager | Francis Ogwang | francis.ogwang@iscms.ug |
 | Training Officer | James Wamala | james.wamala@iscms.ug |
 | Investigations Officer | Henry Kiyingi | henry.kiyingi@iscms.ug |
-| Guard Officer | Tom Ssemakula | tom.ssemakula@iscms.ug |
+| Security Officer | Tom Ssemakula | tom.ssemakula@iscms.ug |
 | Armorer | Joseph Ochieng | joseph.ochieng@iscms.ug |
 | K9 Supervisor | Diana Alowo | diana.alowo@iscms.ug |
 | K9 Handler | Peter Okot | peter.okot@iscms.ug |

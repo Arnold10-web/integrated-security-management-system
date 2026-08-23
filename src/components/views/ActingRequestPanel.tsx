@@ -21,7 +21,7 @@ const DELEGABLE_ROLES: UserRole[] = [
   "Fleet Manager",
   "Training Officer",
   "Investigations Officer",
-  "Guard Officer",
+  "Security Officer",
   "Armorer",
   "K9 Supervisor",
   "K9 Handler",

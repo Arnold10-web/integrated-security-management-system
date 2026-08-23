@@ -30,7 +30,7 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({ invoices, activeRo
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-800">Corporate Invoicing & SLA Billing Directory</h3>
-        <span className="text-xs text-slate-500 font-medium">Auto-calculated from site guard allocations</span>
+        <span className="text-xs text-slate-500 font-medium">Auto-calculated from site security officer allocations</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">

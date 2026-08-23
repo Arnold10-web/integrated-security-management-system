@@ -1,6 +1,6 @@
 import { api, getAccessToken } from "./apiClient";
 import type {
-  Guard, ClientSite, ArmouryItem, ArmouryLog, K9Dog, K9Log, K9HealthInspection,
+  SecurityOfficer, ClientSite, ArmouryItem, ArmouryLog, K9Dog, K9Log, K9HealthInspection,
   Vehicle, VehicleTripLog, FuelRequisitionLog, MaintenanceServiceLog, DriverRecord,
   DailyVehicleInspection, FleetBreakdownEmergency, Incident,
   DutyRoster, PatrolInspectionLog, AdminRequisition,
@@ -11,7 +11,7 @@ import type {
   SiteSurvey,
   ContractInquiry,
   DocumentRecord, JobPosting, Candidate, PerformanceReviewRecord, ContractRecord,
-  NotificationRecord,
+  NotificationRecord, SecurityOfficerEmploymentContract,
 } from "../types";
 
 export interface MyLeaveSummary {
@@ -23,13 +23,22 @@ export interface MyLeaveSummary {
 }
 
 export const domainApi = {
-  guards: {
-    list: () => api.get<Guard[]>("/guards"),
-    create: (data: Omit<Guard, "id">) => api.post<Guard>("/guards", data),
-    update: (id: string, data: Partial<Guard>) => api.put<Guard>(`/guards/${id}`, data),
-    remove: (id: string) => api.delete(`/guards/${id}`),
-    lifecycle: (id: string, data: Partial<Guard>) => api.put<Guard>(`/guards/${id}/lifecycle`, data),
-    issueId: (id: string, data: { idCardNumber: string; idCardExpiryDate: string }) => api.put<Guard>(`/guards/${id}/issue-id`, data),
+  securityOfficers: {
+    list: () => api.get<SecurityOfficer[]>("/security-officers"),
+    create: (data: Omit<SecurityOfficer, "id">) => api.post<SecurityOfficer>("/security-officers", data),
+    update: (id: string, data: Partial<SecurityOfficer>) => api.put<SecurityOfficer>(`/security-officers/${id}`, data),
+    remove: (id: string) => api.delete(`/security-officers/${id}`),
+    lifecycle: (id: string, data: Partial<SecurityOfficer>) => api.put<SecurityOfficer>(`/security-officers/${id}/lifecycle`, data),
+    issueId: (id: string, data: { idCardNumber: string; idCardExpiryDate: string }) => api.put<SecurityOfficer>(`/security-officers/${id}/issue-id`, data),
+    employmentContract: {
+      get: (key: string) => api.get<SecurityOfficerEmploymentContract | null>(`/security-officers/${encodeURIComponent(key)}/employment-contract`),
+      create: (key: string, data: { monthlySalaryUgx?: number; startDate: string; probationMonths?: number; interpreterName?: string; interpreterLanguage?: string }) =>
+        api.post<SecurityOfficerEmploymentContract>(`/security-officers/${encodeURIComponent(key)}/employment-contract`, data),
+      officerSign: (key: string, signatureUrl: string) =>
+        api.put<SecurityOfficerEmploymentContract>(`/security-officers/${encodeURIComponent(key)}/employment-contract/officer-sign`, { signatureUrl }),
+      hrSign: (key: string, payload: { signatureUrl: string; signerName?: string; witnessName?: string; witnessDesignation?: string }) =>
+        api.put<SecurityOfficerEmploymentContract>(`/security-officers/${encodeURIComponent(key)}/employment-contract/hr-sign`, payload),
+    },
   },
   sites: {
     list: () => api.get<ClientSite[]>("/sites"),
@@ -247,8 +256,8 @@ export const domainApi = {
   },
   deploymentOrders: {
     list: () => api.get<DeploymentOrder[]>("/deployment-orders"),
-    create: (data: Omit<DeploymentOrder, "id" | "orderCode" | "status" | "assignedGuardIds">) => api.post<DeploymentOrder>("/deployment-orders", data),
-    assign: (id: string, guardIds: string[]) => api.put<DeploymentOrder>(`/deployment-orders/${id}/assign`, { guardIds }),
+    create: (data: Omit<DeploymentOrder, "id" | "orderCode" | "status" | "assignedSecurityOfficerForceNumbers">) => api.post<DeploymentOrder>("/deployment-orders", data),
+    assign: (id: string, securityOfficerForceNumbers: string[]) => api.put<DeploymentOrder>(`/deployment-orders/${id}/assign`, { securityOfficerForceNumbers }),
     cancel: (id: string) => api.put<DeploymentOrder>(`/deployment-orders/${id}/cancel`, {}),
   },
   workflows: {

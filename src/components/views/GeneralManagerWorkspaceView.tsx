@@ -313,10 +313,10 @@ export const GeneralManagerWorkspaceView: React.FC = () => {
                 </span>
               </div>
               <p className="mt-2 text-[10px] text-slate-500 font-semibold leading-relaxed">
-                {r.guards} guards deployed · {r.sites} client site{r.sites === 1 ? "" : "s"} · {r.orders} open deployment order{r.orders === 1 ? "" : "s"}
+                {r.securityOfficers} securityOfficers deployed · {r.sites} client site{r.sites === 1 ? "" : "s"} · {r.orders} open deployment order{r.orders === 1 ? "" : "s"}
               </p>
               <div className="mt-1.5 h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                <div className="h-full rounded-full bg-cyan-500" style={{ width: `${r.guards ? Math.min(100, (r.guards / (r.sites || 1) / 4) * 100) : 0}%` }} />
+                <div className="h-full rounded-full bg-cyan-500" style={{ width: `${r.securityOfficers ? Math.min(100, (r.securityOfficers / (r.sites || 1) / 4) * 100) : 0}%` }} />
               </div>
             </div>
           ))}
@@ -330,21 +330,21 @@ export const GeneralManagerWorkspaceView: React.FC = () => {
 };
 
 const regionRows = (domain: {
-  guards: { region?: string }[];
+  securityOfficers: { region?: string }[];
   sites: { region?: string }[];
   incidents: { region?: string; status: string }[];
   deploymentOrders: { region?: string; status: string }[];
 }) => {
-  const map = new Map<string, { region: string; guards: number; sites: number; openIncidents: number; orders: number }>();
+  const map = new Map<string, { region: string; securityOfficers: number; sites: number; openIncidents: number; orders: number }>();
   const row = (name: string) => {
-    if (!map.has(name)) map.set(name, { region: name, guards: 0, sites: 0, openIncidents: 0, orders: 0 });
+    if (!map.has(name)) map.set(name, { region: name, securityOfficers: 0, sites: 0, openIncidents: 0, orders: 0 });
     return map.get(name)!;
   };
-  for (const g of domain.guards) if (g.region) row(g.region).guards += 1;
+  for (const g of domain.securityOfficers) if (g.region) row(g.region).securityOfficers += 1;
   for (const s of domain.sites) if (s.region) row(s.region).sites += 1;
   for (const i of domain.incidents) if (i.region && (i.status === "Open" || i.status === "Under Investigation")) row(i.region).openIncidents += 1;
   for (const o of domain.deploymentOrders) if (o.region && o.status === "Open") row(o.region).orders += 1;
-  return [...map.values()].sort((a, b) => b.guards - a.guards);
+  return [...map.values()].sort((a, b) => b.securityOfficers - a.securityOfficers);
 };
 
 const SnapshotRow: React.FC<{ icon: React.ReactNode; label: string; value: number; tone: string }> = ({ icon, label, value, tone }) => {

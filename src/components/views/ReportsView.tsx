@@ -4,10 +4,10 @@ import {
   PieChart, Pie, Cell, LineChart, Line,
 } from "recharts";
 import { Download, FileSpreadsheet } from "lucide-react";
-import type { Guard, ClientSite, Incident, Vehicle, Invoice, Expense, LeaveRequest, PerformanceReviewRecord } from "../../types";
+import type { SecurityOfficer, ClientSite, Incident, Vehicle, Invoice, Expense, LeaveRequest, PerformanceReviewRecord } from "../../types";
 
 interface ReportsViewProps {
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   incidents: Incident[];
   vehicles: Vehicle[];
@@ -32,7 +32,7 @@ function downloadCsv(filename: string, headers: string[], rows: string[][]) {
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
-  guards, sites, incidents, vehicles, invoices, expenses, leaveRequests, performanceReviews,
+  securityOfficers, sites, incidents, vehicles, invoices, expenses, leaveRequests, performanceReviews,
 }) => {
   const siteStatusData = useMemo(() => [
     { name: "Compliant", value: sites.filter((s) => s.slaStatus === "Compliant").length },
@@ -40,12 +40,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     { name: "Attention", value: sites.filter((s) => s.slaStatus === "Attention Needed").length },
   ], [sites]);
 
-  const guardStatusData = useMemo(() => [
-    { name: "On Duty", value: guards.filter((g) => g.status === "On Duty").length },
-    { name: "Off Duty", value: guards.filter((g) => g.status === "Off Duty").length },
-    { name: "On Leave", value: guards.filter((g) => g.status === "On Leave").length },
-    { name: "Suspended", value: guards.filter((g) => g.status === "Suspended").length },
-  ], [guards]);
+  const securityOfficerStatusData = useMemo(() => [
+    { name: "On Duty", value: securityOfficers.filter((g) => g.status === "On Duty").length },
+    { name: "Off Duty", value: securityOfficers.filter((g) => g.status === "Off Duty").length },
+    { name: "On Leave", value: securityOfficers.filter((g) => g.status === "On Leave").length },
+    { name: "Suspended", value: securityOfficers.filter((g) => g.status === "Suspended").length },
+  ], [securityOfficers]);
 
   const incidentSeverityData = useMemo(() => [
     { name: "Low", value: incidents.filter((i) => i.severity === "Low").length },
@@ -56,9 +56,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const designationData = useMemo(() => {
     const counts: Record<string, number> = {};
-    guards.forEach((g) => { counts[g.designation] = (counts[g.designation] || 0) + 1; });
+    securityOfficers.forEach((g) => { counts[g.designation] = (counts[g.designation] || 0) + 1; });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
-  }, [guards]);
+  }, [securityOfficers]);
 
   const armedByRegionData = useMemo(() => {
     const map: Record<string, { armed: number; unarmed: number }> = {};
@@ -66,7 +66,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       const region = s.region || "Unassigned";
       map[region] = map[region] || { armed: 0, unarmed: 0 };
       map[region].armed += (s.dayShiftArmed || 0) + (s.nightShiftArmed || 0);
-      map[region].unarmed += Math.max(0, s.dayShiftGuards - (s.dayShiftArmed || 0)) + Math.max(0, s.nightShiftGuards - (s.nightShiftArmed || 0));
+      map[region].unarmed += Math.max(0, s.dayShiftSecurityOfficers - (s.dayShiftArmed || 0)) + Math.max(0, s.nightShiftSecurityOfficers - (s.nightShiftArmed || 0));
     });
     return Object.entries(map).map(([region, v]) => ({ region, armed: v.armed, unarmed: v.unarmed }));
   }, [sites]);
@@ -109,15 +109,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-black text-slate-900">Reports & Analytics</h1>
         <div className="flex gap-2">
-          <button onClick={() => downloadCsv("guards_report.csv",
+          <button onClick={() => downloadCsv("security_officers_report.csv",
             ["Force Number", "Name", "Designation", "Zone", "Status", "Site", "Phone"],
-            guards.map((g) => [g.forceNumber, g.fullName, g.designation, g.zone || "", g.status, g.assignedSite, g.phone])
+            securityOfficers.map((g) => [g.forceNumber, g.fullName, g.designation, g.zone || "", g.status, g.assignedSite, g.phone])
           )} className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black cursor-pointer hover:bg-slate-800 transition-all">
-            <Download className="w-3.5 h-3.5" /> Export Guards
+            <Download className="w-3.5 h-3.5" /> Export Security Officers
           </button>
           <button onClick={() => downloadCsv("sites_report.csv",
             ["Client", "Site", "Zone", "Region", "Day", "Day Armed", "Night", "Night Armed", "SLA", "Deployment"],
-            sites.map((s) => [s.clientName, s.siteName, s.zone, s.region || "", String(s.dayShiftGuards), String(s.dayShiftArmed || 0), String(s.nightShiftGuards), String(s.nightShiftArmed || 0), s.slaStatus, s.deploymentStatus || "Not Deployed"])
+            sites.map((s) => [s.clientName, s.siteName, s.zone, s.region || "", String(s.dayShiftSecurityOfficers), String(s.dayShiftArmed || 0), String(s.nightShiftSecurityOfficers), String(s.nightShiftArmed || 0), s.slaStatus, s.deploymentStatus || "Not Deployed"])
           )} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-xl text-[10px] font-black cursor-pointer hover:bg-purple-500 transition-all">
             <FileSpreadsheet className="w-3.5 h-3.5" /> Export Sites
           </button>
@@ -132,8 +132,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       <div className="grid grid-cols-5 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Total Guards</span>
-          <p className="text-2xl font-black text-slate-900 mt-1">{guards.length}</p>
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Total Security Officers</span>
+          <p className="text-2xl font-black text-slate-900 mt-1">{securityOfficers.length}</p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Active Sites</span>
@@ -155,11 +155,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       <div className="grid grid-cols-2 gap-6">
         <div className="bg-white p-5 rounded-2xl border border-slate-200">
-          <h3 className="text-xs font-black text-slate-700 mb-4">Guard Status Distribution</h3>
+          <h3 className="text-xs font-black text-slate-700 mb-4">Security Officer Status Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={guardStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
-                {guardStatusData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+              <Pie data={securityOfficerStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
+                {securityOfficerStatusData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
               </Pie>
               <Tooltip />
             </PieChart>
@@ -212,7 +212,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       <div className="grid grid-cols-2 gap-6">
         <div className="bg-white p-5 rounded-2xl border border-slate-200">
-          <h3 className="text-xs font-black text-slate-700 mb-4">Guard Rank & Designation Distribution</h3>
+          <h3 className="text-xs font-black text-slate-700 mb-4">Security Officer Rank & Designation Distribution</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={designationData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -225,7 +225,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200">
-          <h3 className="text-xs font-black text-slate-700 mb-4">Armed vs Unarmed Guard Strength by Region</h3>
+          <h3 className="text-xs font-black text-slate-700 mb-4">Armed vs Unarmed Security Officer Strength by Region</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={armedByRegionData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -273,8 +273,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             { label: "Vehicles", data: vehicles.map((v) => [v.plateNumber, v.vehicleType, v.driverAssigned, v.status, String(v.mileageKm)]), headers: ["Plate", "Type", "Driver", "Status", "Mileage"] },
             { label: "Invoices", data: invoices.map((i) => [i.invoiceNumber, i.clientName, String(i.amount), i.status, i.dueDate]), headers: ["Invoice", "Client", "Amount", "Status", "Due"] },
             { label: "Expenses", data: expenses.map((e) => [e.category, e.description, String(e.amount), e.status, e.date]), headers: ["Category", "Description", "Amount", "Status", "Date"] },
-            { label: "Leave Requests", data: leaveRequests.map((l) => [l.forceNumber, l.guardName, l.leaveType, l.status, l.appliedDate]), headers: ["Code", "Name", "Type", "Status", "Applied"] },
-            { label: "Performance Reviews", data: performanceReviews.map((p) => [p.forceNumber, p.guardName, p.reviewPeriod, p.overallRating, p.evaluationDate]), headers: ["Code", "Name", "Period", "Rating", "Date"] },
+            { label: "Leave Requests", data: leaveRequests.map((l) => [l.forceNumber, l.securityOfficerName, l.leaveType, l.status, l.appliedDate]), headers: ["Code", "Name", "Type", "Status", "Applied"] },
+            { label: "Performance Reviews", data: performanceReviews.map((p) => [p.forceNumber, p.securityOfficerName, p.reviewPeriod, p.overallRating, p.evaluationDate]), headers: ["Code", "Name", "Period", "Rating", "Date"] },
           ].map(({ label, data, headers }) => (
             <button key={label} onClick={() => downloadCsv(`${label.toLowerCase().replace(/\s+/g, "_")}.csv`, headers, data)}
               className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-700 cursor-pointer transition-all">

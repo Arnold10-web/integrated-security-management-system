@@ -427,7 +427,7 @@ The architecture below reflects what is currently implemented in code.
 
 | Model | Domain | Key Fields |
 |---|---|---|
-| User | Auth & Users | name, email, password (hashed), role (string — validated against the 23-role `UserRole` union in `src/types.ts`, no Prisma enum), department, region, forceNumber, status |
+| User | Auth & Users | name, email, password (hashed), role (string — validated against the 23-role `UserRole` union in `src/types.ts`, no Prisma enum), department, region, forceNumber, status; full staff biodata block (personal/residence/next-of-kin/education — v2.8+) and payroll bank detail form: `tin`, `nssfNo`, `bankAccountName`, `bankAccount`, `bankName`, `bankBranch` (v3.1); persisted wholesale by `PUT /api/auth/users/:id` |
 | Guard | HR / Guard Records | guardCode (unique), fullName, designation, photoUrl, signatureUrl (ID holder signature, v2.6), assignedSite, nationalId, tin, nssfNo, bank details (bankAccountName, bankBranch — v2.8), next-of-kin, residence, certifications, desertion tracking, idCardStatus/idCardNumber/idCardIssuedDate/idCardExpiryDate, lifecycleStage (ENROLLED → HANDED_TO_OPERATIONS → IN_TRAINING → PASSED_OUT → DEPLOYED), ethnicity & birth (surnameAtBirth, nationality, tribe, placeOfBirth, lc2Chairperson, closeRelatives, neighbours, fatherAlive, fatherResidence — v2.8) |
 | ClientSite | CRM / Sites | clientName, siteName, location, zone, dayShiftGuards, nightShiftGuards, slaStatus |
 | ArmouryItem | Armoury | assetTag, serialNumber, category, caliberOrSpecs, totalQuantity, availableQuantity, assignedToGuard |
@@ -444,7 +444,7 @@ The architecture below reflects what is currently implemented in code.
 | Incident | Incidents | incidentCode (unique), title, siteName, category, severity, status, evidenceAttached |
 | Invoice | Finance | invoiceNumber (unique), clientName, amount, dueDate, status (Pending/Paid/Overdue) |
 | Expense | Finance | category, description, amount, approvedBy, status |
-| CashierTransaction | Cashier | guardName, type (Advance/Loan/Food/Rent/etc.), amount, processedBy, phone/signatureUrl/notes (Salary Advance register capture — v2.8) |
+| CashierTransaction | Cashier | securityOfficerName + forceNumber, type (Advance/Loan/Food/Rent/etc.), amount, processedBy, phone/signatureUrl/notes (Salary Advance register capture — v2.8); **batch register posting** via `POST /api/cashier-transactions/batch` creates N pending rows in one call (v3.1) |
 | Lead | Marketing/Sales | companyName, contactPerson, estimatedValue, stage |
 | Campaign | Marketing | name, channel, leadsGenerated, budget, conversions |
 | DutyRoster | Ops / Attendance | guardId, siteId, shiftDate, shiftType, checkIn/Out time, region (scoping for Regional Managers) |
@@ -470,7 +470,7 @@ The architecture below reflects what is currently implemented in code.
 | DeploymentOrder | Operations (v2.6) | orderCode (unique), siteId/siteName/clientName, region, requiredHeadcount, shiftType, targetStartDate/EndDate, requestedBy, status (Open → Filled), assignedGuardIds |
 | PerformanceReview | HR / Performance | guardId, reviewPeriod, evaluationDate, 5 scoring criteria, overallRating, recommendation, development goals |
 | Complaint | Governance | complaintCode (unique), clientName, siteName, category, description, satisfactionRating, status (Open/Investigating/Referred/Resolved), ownedBy (Marketing), referredForInvestigation, linkedIncidentCode |
-| DisciplinaryAction | Governance | actionCode (unique), guardId/Name/Code, actionType (Warning Letter/Suspension/Termination/Desertion), reason, severity, status (Initiated → Regional → Ops → HR Finalized), regionalApprovedBy, operationsApprovedBy, hrApprovedBy, offenceCategory (Category 1/2), offence, offenceDate, offenceTime, zone, actionTaken (v2.8 charge sheet) |
+| DisciplinaryAction | Governance | actionCode (unique), guardId/Name/Code, actionType (Warning Letter/Suspension/Termination/Desertion), reason, severity, status (Initiated → Regional → Ops → HR Finalized), regionalApprovedBy, operationsApprovedBy, hrApprovedBy, offenceCategory (Category 1/2/**3** — Cat 3 is the minor-infractions tier with a monetary penalty), `fineAmountUgx`, `receivedBy`, offence, offenceDate, offenceTime, zone, actionTaken (v2.8 charge sheet; Cat 3 fines v3.1) |
 | SiteDeployment | Operations | deploymentCode (unique), siteId/siteName/clientName, guardId/Name, shiftType, deployedBy, status (Active/Completed) |
 | Region | Geography | name, code, description, isActive (dynamic CRUD by IT Officer) |
 | CustomRoleDefinition | RBAC | roleName, department, description, allowedModules, assignedRegions (region scoping), createdDate, isSystemDefault |
@@ -1597,3 +1597,14 @@ Per client feedback, this release (a) fixed the wrong-dashboard-on-login edge ca
 
 **Validation**
 - `npm run lint` clean, `npx tsc --noEmit` clean, **83/83 vitest** passes, `vite build` succeeds, and `esbuild` server bundle succeeds.
+
+### 30.15 v3.1 — PDF Letterhead, Category 3 Fines, Staff Bank Details, Acting-Privilege Fix & Salary Advance Register
+
+Feature batch of 2026-08-23 (full session detail in `SESSION_LOG_2026-08-23.md`; workplan Part 6):
+
+- **Company logo on generated PDFs**: `public/logo.png` (512×512 shield/crest placeholder in brand colours — replace the file to rebrand every document) and a `drawPdfHeader(doc, title)` helper in `server.ts` that stamps logo + company letterhead + centred title on both the disciplinary **charge sheet** and the **employment contract** PDFs.
+- **Category 3 offences with fines**: `DisciplinaryAction` gained `fineAmountUgx Int?` and `receivedBy String?` alongside an extended `offenceCategory` ("Category 3" = minor infractions: late reporting, improper uniform, sleeping on duty, phone on duty, lost ID card, etc.). The Investigations Officer captures category/fine/receiver at initiation; HR can set them at finalize; the charge sheet PDF renders an Offence Classification line plus a bordered **Fine Imposed** box and Received By line. Same approval chain as other warnings (`Initiated → Pending Ops Approval → Pending HR Approval → Finalized`). Migration `20260823090000_disciplinary_category3_fines`.
+- **Staff bank detail form**: `User` gained optional payroll fields `tin`, `nssfNo`, `bankAccountName`, `bankAccount`, `bankName`, `bankBranch`; `PUT /api/auth/users/:id` now persists the entire validated biodata object (previously whitelisted down to a handful of fields, silently dropping the rest); `StaffBiodataModal` gained a "Bank Detail Form (payroll)" section mirroring the paper bank form.
+- **Acting-privilege requests fixed** (HR-initiated temporary role grants were never reaching the IT Officer): server module-permission key mismatch normalised (`security_officers` → `staff_records`), creation now notifies the resolved IT-Officer user id(s) with targetRole fallback, and the client approve action calls `PUT /api/auth/acting-privilege-requests/:id/approve`.
+- **Salary advance register digitised**: new `POST /api/cashier-transactions/batch` (Cashier-or-above) posts N transactions in one call as `Pending Approval` with a single audit entry and Finance Manager notification; `CashierDisbursementModal` gained a **Single Entry ⇄ Salary Advance Register** toggle whose grid (name / force number / phone / amount) shows live valid-row count and running total before posting.
+- **Validation**: migration deployed; **194/194 vitest pass**, `tsc --noEmit` clean, production build OK; live e2e verified the Cat 3 chain (DISC-2026-016 finalized with fine/receiver persisted and charge-sheet PDF on disk incl. letterhead), the IT-officer biodata+bank round-trip, and a 3-row register posted by the Cashier with FM approval to `Disbursed`.

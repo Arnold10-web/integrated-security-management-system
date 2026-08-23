@@ -99,12 +99,12 @@ export const SiteSurveysPanel: React.FC = () => {
               {s.status === "Completed" && (
                 <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
                   <div className="p-2 rounded-xl bg-slate-100">
-                    <p className="text-sm font-black text-slate-800">{s.dayGuardsNeeded ?? 0}</p>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase">Day Guards</p>
+                    <p className="text-sm font-black text-slate-800">{s.daySecurityOfficersNeeded ?? 0}</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">Day Security Officers</p>
                   </div>
                   <div className="p-2 rounded-xl bg-slate-100">
-                    <p className="text-sm font-black text-slate-800">{s.nightGuardsNeeded ?? 0}</p>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase">Night Guards</p>
+                    <p className="text-sm font-black text-slate-800">{s.nightSecurityOfficersNeeded ?? 0}</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">Night Security Officers</p>
                   </div>
                   <div className="p-2 rounded-xl bg-slate-100">
                     <p className="text-sm font-black text-slate-800">{s.riskLevel ?? "—"}</p>
@@ -299,8 +299,8 @@ const SurveyCompleteForm: React.FC<SurveyCompleteFormProps> = ({ survey, onClose
   const [entryPoints, setEntryPoints] = useState(survey.entryPoints ?? 1);
   const [riskLevel, setRiskLevel] = useState(survey.riskLevel ?? "");
   const [highValueAssets, setHighValueAssets] = useState(survey.highValueAssets ?? "");
-  const [dayGuardsNeeded, setDayGuardsNeeded] = useState(survey.dayGuardsNeeded ?? 0);
-  const [nightGuardsNeeded, setNightGuardsNeeded] = useState(survey.nightGuardsNeeded ?? 0);
+  const [daySecurityOfficersNeeded, setDaySecurityOfficersNeeded] = useState(survey.daySecurityOfficersNeeded ?? 0);
+  const [nightSecurityOfficersNeeded, setNightSecurityOfficersNeeded] = useState(survey.nightSecurityOfficersNeeded ?? 0);
   const [armedDay, setArmedDay] = useState(survey.armedDay ?? false);
   const [armedNight, setArmedNight] = useState(survey.armedNight ?? false);
   const [equipmentNeeded, setEquipmentNeeded] = useState(survey.equipmentNeeded ?? "");
@@ -318,8 +318,8 @@ const SurveyCompleteForm: React.FC<SurveyCompleteFormProps> = ({ survey, onClose
       entryPoints,
       riskLevel,
       highValueAssets,
-      dayGuardsNeeded,
-      nightGuardsNeeded,
+      daySecurityOfficersNeeded,
+      nightSecurityOfficersNeeded,
       armedDay,
       armedNight,
       equipmentNeeded,
@@ -370,12 +370,12 @@ const SurveyCompleteForm: React.FC<SurveyCompleteFormProps> = ({ survey, onClose
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[11px] font-black text-slate-600 uppercase">Day Guards Needed</label>
-            <input type="number" min={0} value={dayGuardsNeeded} onChange={(e) => setDayGuardsNeeded(Number(e.target.value))} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
+            <label className="text-[11px] font-black text-slate-600 uppercase">Day Security Officers Needed</label>
+            <input type="number" min={0} value={daySecurityOfficersNeeded} onChange={(e) => setDaySecurityOfficersNeeded(Number(e.target.value))} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
           </div>
           <div>
-            <label className="text-[11px] font-black text-slate-600 uppercase">Night Guards Needed</label>
-            <input type="number" min={0} value={nightGuardsNeeded} onChange={(e) => setNightGuardsNeeded(Number(e.target.value))} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
+            <label className="text-[11px] font-black text-slate-600 uppercase">Night Security Officers Needed</label>
+            <input type="number" min={0} value={nightSecurityOfficersNeeded} onChange={(e) => setNightSecurityOfficersNeeded(Number(e.target.value))} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
           </div>
         </div>
         <div>
@@ -394,7 +394,7 @@ const SurveyCompleteForm: React.FC<SurveyCompleteFormProps> = ({ survey, onClose
         </div>
         <div>
           <label className="text-[11px] font-black text-slate-600 uppercase">Recommendation</label>
-          <input value={recommendation} onChange={(e) => setRecommendation(e.target.value)} placeholder="Recommended guard package & deployment…" className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
+          <input value={recommendation} onChange={(e) => setRecommendation(e.target.value)} placeholder="Recommended security officer package & deployment…" className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
         </div>
         <div>
           <label className="text-[11px] font-black text-slate-600 uppercase">Notes</label>

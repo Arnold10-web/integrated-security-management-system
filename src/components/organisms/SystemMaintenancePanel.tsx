@@ -152,7 +152,7 @@ export const SystemMaintenancePanel: React.FC<SystemMaintenancePanelProps> = ({
               Enterprise Manual Data Backup & Encryption Vault
             </h2>
             <p className="text-xs text-slate-300 mt-1 max-w-3xl">
-              Initiate an immediate, full encrypted data snapshot of all enterprise schemas (Guard HR, Force No, 22 HR Columns, Armoury Balances, Remittance Ledgers & System Telemetry Logs).
+              Initiate an immediate, full encrypted data snapshot of all enterprise schemas (SecurityOfficer HR, Force No, 22 HR Columns, Armoury Balances, Remittance Ledgers & System Telemetry Logs).
             </p>
           </div>
 

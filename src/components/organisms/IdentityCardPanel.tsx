@@ -9,28 +9,28 @@ import {
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
-import type { Guard } from "../../types";
+import type { SecurityOfficer } from "../../types";
 
 interface IdentityCardPanelProps {
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   idCardFilter: string;
   idCardSearch: string;
   onSetIdCardFilter: (val: "ALL" | "PENDING" | "ISSUED" | "REVOKED") => void;
   onSetIdCardSearch: (val: string) => void;
-  onSelectGuardForCard: (guard: Guard) => void;
+  onSelectSecurityOfficerForCard: (securityOfficer: SecurityOfficer) => void;
   onOpenPrintModal: () => void;
-  onProvisionUser?: (guard: Guard) => void;
+  onProvisionUser?: (securityOfficer: SecurityOfficer) => void;
   /** When true (IT verification), card actions are view/verify only — no issuance or printing. */
   readOnly?: boolean;
 }
 
 export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
-  guards,
+  securityOfficers,
   idCardFilter,
   idCardSearch,
   onSetIdCardFilter,
   onSetIdCardSearch,
-  onSelectGuardForCard,
+  onSelectSecurityOfficerForCard,
   onOpenPrintModal,
   onProvisionUser,
   readOnly = false,
@@ -50,15 +50,15 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             <div className="bg-slate-800/90 border border-slate-700 p-3 rounded-xl text-center min-w-[100px]">
               <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Roster</span>
-              <span className="text-lg font-black text-white">{guards.length}</span>
+              <span className="text-lg font-black text-white">{securityOfficers.length}</span>
             </div>
             <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center min-w-[100px]">
               <span className="text-[10px] text-amber-300 font-bold uppercase block">Pending ID</span>
-              <span className="text-lg font-black text-amber-400">{guards.filter((g) => g.idCardStatus === "Pending Records Issuance" || g.idCardStatus === "Reissue Required" || !g.idCardStatus).length}</span>
+              <span className="text-lg font-black text-amber-400">{securityOfficers.filter((g) => g.idCardStatus === "Pending Records Issuance" || g.idCardStatus === "Reissue Required" || !g.idCardStatus).length}</span>
             </div>
             <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl text-center min-w-[100px]">
               <span className="text-[10px] text-emerald-300 font-bold uppercase block">Active Cards</span>
-              <span className="text-lg font-black text-emerald-400">{guards.filter((g) => g.idCardStatus === "Issued & Active").length}</span>
+              <span className="text-lg font-black text-emerald-400">{securityOfficers.filter((g) => g.idCardStatus === "Issued & Active").length}</span>
             </div>
           </div>
         </div>
@@ -79,10 +79,10 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                {filter === "ALL" && `All Personnel (${guards.length})`}
-                {filter === "PENDING" && `Pending Records Issuance (${guards.filter((g) => g.idCardStatus === "Pending Records Issuance" || g.idCardStatus === "Reissue Required" || !g.idCardStatus).length})`}
-                {filter === "ISSUED" && `Issued & Active (${guards.filter((g) => g.idCardStatus === "Issued & Active").length})`}
-                {filter === "REVOKED" && `Revoked / Suspended (${guards.filter((g) => g.idCardStatus === "Revoked").length})`}
+                {filter === "ALL" && `All Personnel (${securityOfficers.length})`}
+                {filter === "PENDING" && `Pending Records Issuance (${securityOfficers.filter((g) => g.idCardStatus === "Pending Records Issuance" || g.idCardStatus === "Reissue Required" || !g.idCardStatus).length})`}
+                {filter === "ISSUED" && `Issued & Active (${securityOfficers.filter((g) => g.idCardStatus === "Issued & Active").length})`}
+                {filter === "REVOKED" && `Revoked / Suspended (${securityOfficers.filter((g) => g.idCardStatus === "Revoked").length})`}
               </button>
             );
           })}
@@ -100,14 +100,14 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
         </div>
       </div>
 
-      {/* Guards Roster Table */}
+      {/* Security Officers Roster Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
             <Users className="w-4 h-4 text-cyan-600" />
             <span>Personnel Roster & Identity Card Status</span>
           </h4>          <span className="text-xs font-bold text-slate-500">
-            Showing {guards.filter((g) => {
+            Showing {securityOfficers.filter((g) => {
               if (idCardFilter === "PENDING" && g.idCardStatus !== "Pending Records Issuance" && g.idCardStatus !== "Reissue Required" && g.idCardStatus) return false;
               if (idCardFilter === "ISSUED" && g.idCardStatus !== "Issued & Active") return false;
               if (idCardFilter === "REVOKED" && g.idCardStatus !== "Revoked") return false;
@@ -139,7 +139,7 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
-              {guards
+              {securityOfficers
                 .filter((g) => {
                   if (idCardFilter === "PENDING" && g.idCardStatus !== "Pending Records Issuance" && g.idCardStatus !== "Reissue Required" && g.idCardStatus) return false;
                   if (idCardFilter === "ISSUED" && g.idCardStatus !== "Issued & Active") return false;
@@ -155,41 +155,41 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
                   }
                   return true;
                 })
-                .map((guard) => {
-                  const isIssued = guard.idCardStatus === "Issued & Active";
-                  const isRevoked = guard.idCardStatus === "Revoked";
-                  const isReissue = guard.idCardStatus === "Reissue Required";
+                .map((securityOfficer) => {
+                  const isIssued = securityOfficer.idCardStatus === "Issued & Active";
+                  const isRevoked = securityOfficer.idCardStatus === "Revoked";
+                  const isReissue = securityOfficer.idCardStatus === "Reissue Required";
                   return (
-                    <tr key={guard.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={securityOfficer.id} className="hover:bg-slate-50 transition-colors">
                       <td className="p-3.5">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-slate-900 overflow-hidden border-2 border-amber-400 shrink-0 shadow-xs flex items-center justify-center font-black text-white text-xs">
-                            {guard.photoUrl ? (
-                              <img src={guard.photoUrl} alt={guard.fullName} className="w-full h-full object-cover" />
+                            {securityOfficer.photoUrl ? (
+                              <img src={securityOfficer.photoUrl} alt={securityOfficer.fullName} className="w-full h-full object-cover" />
                             ) : (
-                              guard.fullName.substring(0, 2).toUpperCase()
+                              securityOfficer.fullName.substring(0, 2).toUpperCase()
                             )}
                           </div>
                           <div>
-                            <span className="font-extrabold text-slate-900 block">{guard.fullName}</span>
-                            <span className="text-[11px] text-slate-500 font-semibold">{guard.phone}</span>
+                            <span className="font-extrabold text-slate-900 block">{securityOfficer.fullName}</span>
+                            <span className="text-[11px] text-slate-500 font-semibold">{securityOfficer.phone}</span>
                           </div>
                         </div>
                       </td>
 
                       <td className="p-3.5">
                         <span className="font-mono font-black text-cyan-800 bg-cyan-50 border border-cyan-200 px-2 py-1 rounded-lg text-xs">
-                          {guard.forceNumber}
+                          {securityOfficer.forceNumber}
                         </span>
                       </td>
 
                       <td className="p-3.5 font-mono font-extrabold text-slate-700">
-                        {guard.nationalId}
+                        {securityOfficer.nationalId}
                       </td>
 
                       <td className="p-3.5">
-                        <span className="font-bold text-slate-900 block">{guard.designation}</span>
-                        <span className="text-[10px] text-slate-500">{guard.assignedSite}</span>
+                        <span className="font-bold text-slate-900 block">{securityOfficer.designation}</span>
+                        <span className="text-[10px] text-slate-500">{securityOfficer.assignedSite}</span>
                       </td>
 
                       <td className="p-3.5">
@@ -200,7 +200,7 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
                               <span>Issued & Active</span>
                             </span>
                             <span className="text-[10px] text-slate-500 font-mono block">
-                              {guard.idCardNumber || `ID-UG-2026-${guard.forceNumber.replace(/\D/g, "")}`}
+                              {securityOfficer.idCardNumber || `ID-UG-2026-${securityOfficer.forceNumber.replace(/\D/g, "")}`}
                             </span>
                           </div>
                         ) : isRevoked ? (
@@ -222,14 +222,14 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
                       </td>
 
                       <td className="p-3.5">
-                        {guard.hasSystemAccount ? (
+                        {securityOfficer.hasSystemAccount ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-800 font-bold text-[11px] rounded-lg border border-blue-200">
                             <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
                             <span>User Provisioned</span>
                           </span>
                         ) : onProvisionUser ? (
                           <button
-                            onClick={() => onProvisionUser(guard)}
+                            onClick={() => onProvisionUser(securityOfficer)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-[10px] rounded-lg shadow-xs transition-all cursor-pointer"
                           >
                             <UserPlus className="w-3 h-3" />
@@ -243,7 +243,7 @@ export const IdentityCardPanel: React.FC<IdentityCardPanelProps> = ({
                       <td className="p-3.5 text-right">
                         <button
                           onClick={() => {
-                            onSelectGuardForCard(guard);
+                            onSelectSecurityOfficerForCard(securityOfficer);
                             onOpenPrintModal();
                           }}
                           className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all inline-flex items-center gap-1.5 cursor-pointer"

@@ -87,8 +87,8 @@ describe("IT per-user module permission overrides", () => {
     expect(put.status).toBe(200);
 
     const gm = await login(GM);
-    const guards = await auth("/api/guards", gm.token);
-    expect(guards.status).toBe(403);
+    const officersRes = await auth("/api/security-officers", gm.token);
+    expect(officersRes.status).toBe(403);
     const armoury = await auth("/api/armoury", gm.token);
     expect(armoury.status).toBe(403);
 

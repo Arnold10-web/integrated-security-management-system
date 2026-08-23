@@ -1,15 +1,15 @@
 import React, { useState } from "react";
 import { X, ShieldAlert } from "lucide-react";
-import type { ArmouryItem, Guard } from "../../types";
+import type { ArmouryItem, SecurityOfficer } from "../../types";
 
 interface IssueWeaponModalProps {
   show: boolean;
   onClose: () => void;
   items: ArmouryItem[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   onIssueItem: (
     assetId: string,
-    guardId: string,
+    forceNumber: string,
     locationName: string,
     ammoRoundsOut: number,
     dateOut: string,
@@ -24,11 +24,11 @@ export const IssueWeaponModal: React.FC<IssueWeaponModalProps> = ({
   show,
   onClose,
   items,
-  guards,
+  securityOfficers,
   onIssueItem,
 }) => {
   const [selectedAssetId, setSelectedAssetId] = useState("");
-  const [selectedGuardId, setSelectedGuardId] = useState("");
+  const [selectedSecurityOfficerId, setSelectedSecurityOfficerId] = useState("");
   const [locationName, setLocationName] = useState("");
   const [ammoRoundsOut, setAmmoRoundsOut] = useState(30);
   const [dateOut, setDateOut] = useState(new Date().toISOString().split("T")[0]);
@@ -39,29 +39,29 @@ export const IssueWeaponModal: React.FC<IssueWeaponModalProps> = ({
   const [armourerInCharge, setArmourerInCharge] = useState("James Mugisha");
   const [issueNotes, setIssueNotes] = useState("");
 
-  const availableGuards = guards.filter((g) => g.status === "On Duty" || g.status === "Off Duty");
+  const availableSecurityOfficers = securityOfficers.filter((g) => g.status === "On Duty" || g.status === "Off Duty");
 
-  const handleSelectGuardForIssue = (guardId: string) => {
-    setSelectedGuardId(guardId);
-    const guard = guards.find((g) => g.id === guardId);
-    if (guard && guard.assignedSite) {
-      setLocationName(guard.assignedSite);
+  const handleSelectSecurityOfficerForIssue = (forceNumber: string) => {
+    setSelectedSecurityOfficerId(forceNumber);
+    const securityOfficer = securityOfficers.find((g) => g.id === forceNumber);
+    if (securityOfficer && securityOfficer.assignedSite) {
+      setLocationName(securityOfficer.assignedSite);
     }
   };
 
   const resetForm = () => {
     setSelectedAssetId("");
-    setSelectedGuardId("");
+    setSelectedSecurityOfficerId("");
     setLocationName("");
     setIssueNotes("");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAssetId || !selectedGuardId) return;
+    if (!selectedAssetId || !selectedSecurityOfficerId) return;
     onIssueItem(
       selectedAssetId,
-      selectedGuardId,
+      selectedSecurityOfficerId,
       locationName,
       Number(ammoRoundsOut),
       dateOut,
@@ -119,16 +119,16 @@ export const IssueWeaponModal: React.FC<IssueWeaponModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                2. Name of Guard *
+                2. Name of Security Officer *
               </label>
               <select
                 required
-                value={selectedGuardId}
-                onChange={(e) => handleSelectGuardForIssue(e.target.value)}
+                value={selectedSecurityOfficerId}
+                onChange={(e) => handleSelectSecurityOfficerForIssue(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">-- Select Assignee Guard --</option>
-                {availableGuards.map((g) => (
+                <option value="">-- Select Assignee Security Officer --</option>
+                {availableSecurityOfficers.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.fullName} ({g.forceNumber}) - {g.designation}
                   </option>
@@ -197,8 +197,8 @@ export const IssueWeaponModal: React.FC<IssueWeaponModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
               <div>
-                <span className="block font-bold text-slate-800">7. Guard Sign Out</span>
-                <span className="text-[10px] text-slate-500">Guard accepts firearm & ammo</span>
+                <span className="block font-bold text-slate-800">7. Security Officer Sign Out</span>
+                <span className="text-[10px] text-slate-500">Security Officer accepts firearm & ammo</span>
               </div>
               <input
                 type="checkbox"

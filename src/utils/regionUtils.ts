@@ -1,11 +1,11 @@
-import type { Guard, ClientSite, Incident, DutyRoster, PatrolInspectionLog, SiteDeployment, DeploymentOrder, LeaveRequest, DisciplinaryAction, Complaint } from "../types";
+import type { SecurityOfficer, ClientSite, Incident, DutyRoster, PatrolInspectionLog, SiteDeployment, DeploymentOrder, LeaveRequest, DisciplinaryAction, Complaint } from "../types";
 
 /**
  * Region resolution helpers for the regional dashboard.
  *
  * Some entities (incidents, patrol inspections, deployments, leave requests,
  * disciplinary actions) do not carry a `region` field in the datastore, so we
- * resolve their region through a related entity (site or guard). Guards fall
+ * resolve their region through a related entity (site or securityOfficer). Security Officers fall
  * back to the region of their assigned site when their own region is unset.
  */
 
@@ -23,8 +23,8 @@ export function resolveSiteRegion(siteName: string, sites: ClientSite[]): string
   return match?.region;
 }
 
-export function resolveGuardRegion(guard: Guard, sites: ClientSite[]): string | undefined {
-  return guard.region ?? resolveSiteRegion(guard.assignedSite, sites);
+export function resolveSecurityOfficerRegion(securityOfficer: SecurityOfficer, sites: ClientSite[]): string | undefined {
+  return securityOfficer.region ?? resolveSiteRegion(securityOfficer.assignedSite, sites);
 }
 
 export function resolveIncidentRegion(incident: Incident, sites: ClientSite[]): string | undefined {
@@ -47,18 +47,18 @@ export function resolveOrderRegion(order: DeploymentOrder): string | undefined {
   return order.region;
 }
 
-export function resolveLeaveRegion(leave: LeaveRequest, guards: Guard[], sites: ClientSite[]): string | undefined {
-  const guard = guards.find((g) => g.id === leave.guardId || g.forceNumber === leave.forceNumber);
-  return guard ? resolveGuardRegion(guard, sites) : undefined;
+export function resolveLeaveRegion(leave: LeaveRequest, securityOfficers: SecurityOfficer[], sites: ClientSite[]): string | undefined {
+  const securityOfficer = securityOfficers.find((g) => g.id === leave.forceNumber || g.forceNumber === leave.forceNumber);
+  return securityOfficer ? resolveSecurityOfficerRegion(securityOfficer, sites) : undefined;
 }
 
 export function resolveDisciplinaryRegion(
   action: DisciplinaryAction,
-  guards: Guard[],
+  securityOfficers: SecurityOfficer[],
   sites: ClientSite[]
 ): string | undefined {
-  const guard = guards.find((g) => g.id === action.guardId || g.forceNumber === action.forceNumber);
-  return guard ? resolveGuardRegion(guard, sites) : undefined;
+  const securityOfficer = securityOfficers.find((g) => g.id === action.forceNumber || g.forceNumber === action.forceNumber);
+  return securityOfficer ? resolveSecurityOfficerRegion(securityOfficer, sites) : undefined;
 }
 
 export function resolveComplaintRegion(complaint: Complaint, sites: ClientSite[]): string | undefined {

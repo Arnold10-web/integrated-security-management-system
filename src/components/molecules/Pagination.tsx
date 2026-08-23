@@ -6,7 +6,7 @@ interface PaginationProps {
   pageSize: number;
   total: number;
   onPageChange: (page: number) => void;
-  /** Optional override for the "x–y of z" summary, e.g. "12 guards" */
+  /** Optional override for the "x–y of z" summary, e.g. "12 security officers" */
   itemName?: string;
 }
 

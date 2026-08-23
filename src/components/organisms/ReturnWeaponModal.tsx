@@ -51,7 +51,7 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
       dateIn,
       timeIn,
       signInConfirmed,
-      substituteReceiver || "Self (Assigned Guard)",
+      substituteReceiver || "Self (Assigned Security Officer)",
       returnNotes
     );
     onClose();
@@ -83,8 +83,8 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
             <span className="font-bold text-blue-700">{log.firearmSerialNumber}</span>
           </div>
           <div>
-            <span className="text-slate-400 block text-[10px]">Issued To Guard:</span>
-            <span className="font-bold text-slate-900">{log.guardName}</span>
+            <span className="text-slate-400 block text-[10px]">Issued To Security Officer:</span>
+            <span className="font-bold text-slate-900">{log.securityOfficerName}</span>
           </div>
           <div>
             <span className="text-slate-400 block text-[10px]">Duty Location:</span>
@@ -142,11 +142,11 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
 
           <div>
             <label className="block font-bold text-slate-700 mb-1">
-              4. Substitute Receiver (If returned by replacement guard officer)
+              4. Substitute Receiver (If returned by replacement securityOfficer)
             </label>
             <input
               type="text"
-              placeholder="e.g. Self (Leave blank if returned by assigned guard, or enter substitute officer name)"
+              placeholder="e.g. Self (Leave blank if returned by assigned securityOfficer, or enter substitute officer name)"
               value={substituteReceiver}
               onChange={(e) => setSubstituteReceiver(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"

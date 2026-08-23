@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ArrowRight, GraduationCap, Home, UserCheck, UserPlus, ShieldCheck, Truck, AlertTriangle, X } from "lucide-react";
-import type { Guard, GuardLifecycleStage, UserRole } from "../../types";
+import type { SecurityOfficer, SecurityOfficerLifecycleStage, UserRole } from "../../types";
 import { HR_STAFF_ROLES, OPS_MANAGEMENT_ROLES, TRAINING_OFFICER_ROLES, DEPLOYMENT_OPERATIONS_ROLES, DESERTION_REPORTING_ROLES, isRoleIn } from "../../services/rbacService";
 
 const HR_HANDOFF_ROLES: UserRole[] = HR_STAFF_ROLES;
@@ -35,20 +35,20 @@ const INTAKE_STEP = {
   kind: "intake" as const,
   step: 1,
   label: "Recruit Intake",
-  desc: "OM identifies the headcount need, interviews & selects recruit candidates. No Guard record yet — HR enrollment creates one.",
+  desc: "OM identifies the headcount need, interviews & selects recruit candidates. No Security Officer record yet — HR enrollment creates one.",
   icon: <UserPlus className="w-4 h-4" />,
   owner: "Operations" as OwnerKey,
 };
 
 const STAGES: {
   kind: "stage";
-  stage: GuardLifecycleStage;
+  stage: SecurityOfficerLifecycleStage;
   step: number;
   label: string;
   desc: string;
   icon: React.ReactNode;
   owner: OwnerKey;
-  next: GuardLifecycleStage | null;
+  next: SecurityOfficerLifecycleStage | null;
   nextOwner: OwnerKey | null;
   action: string;
 }[] = [
@@ -57,7 +57,7 @@ const STAGES: {
     stage: "ENROLLED",
     step: 2,
     label: "Enrolled",
-    desc: "Guard record created by HR — biodata, NIN, bank & ID fields captured.",
+    desc: "Security Officer record created by HR — biodata, NIN, bank & ID fields captured.",
     icon: <UserCheck className="w-4 h-4" />,
     owner: "HR",
     next: "HANDED_TO_OPERATIONS",
@@ -69,7 +69,7 @@ const STAGES: {
     stage: "HANDED_TO_OPERATIONS",
     step: 3,
     label: "With Operations",
-    desc: "HR handed the guard to Operations for training pipeline.",
+    desc: "HR handed the security officer to Operations for training pipeline.",
     icon: <Home className="w-4 h-4" />,
     owner: "Operations",
     next: "IN_TRAINING",
@@ -114,24 +114,24 @@ const STAGES: {
   },
 ];
 
-interface GuardDeploymentPipelineProps {
-  guards: Guard[];
+interface SecurityOfficerDeploymentPipelineProps {
+  securityOfficers: SecurityOfficer[];
   activeRole: UserRole;
-  /** Legacy prop: transition via generic guard update (HR-restricted route). */
-  onTransition?: (guardId: string, nextStage: GuardLifecycleStage) => void;
-  /** Recommended: lifecycle-aware transition (PUT /api/guards/:id/lifecycle). */
-  onMoveLifecycle?: (guardId: string, updates: Partial<Guard>) => void;
-  onViewBiodata?: (guard: Guard) => void;
+  /** Legacy prop: transition via generic security officer update (HR-restricted route). */
+  onTransition?: (forceNumber: string, nextStage: SecurityOfficerLifecycleStage) => void;
+  /** Recommended: lifecycle-aware transition (PUT /api/security-officers/:id/lifecycle). */
+  onMoveLifecycle?: (forceNumber: string, updates: Partial<SecurityOfficer>) => void;
+  onViewBiodata?: (securityOfficer: SecurityOfficer) => void;
 }
 
 interface DesertionDraft {
-  guard: Guard;
+  securityOfficer: SecurityOfficer;
   reason: string;
   date: string;
 }
 
-export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = ({
-  guards,
+export const SecurityOfficerDeploymentPipeline: React.FC<SecurityOfficerDeploymentPipelineProps> = ({
+  securityOfficers,
   activeRole,
   onTransition,
   onMoveLifecycle,
@@ -139,9 +139,9 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
 }) => {
   const [desertionDraft, setDesertionDraft] = useState<DesertionDraft | null>(null);
 
-  const stageOf = (g: Guard): GuardLifecycleStage => g.lifecycleStage ?? "DEPLOYED";
+  const stageOf = (g: SecurityOfficer): SecurityOfficerLifecycleStage => g.lifecycleStage ?? "DEPLOYED";
 
-  const canTransitionFrom = (stage: GuardLifecycleStage): GuardLifecycleStage | null => {
+  const canTransitionFrom = (stage: SecurityOfficerLifecycleStage): SecurityOfficerLifecycleStage | null => {
     if (stage === "ENROLLED" && HR_HANDOFF_ROLES.includes(activeRole)) return "HANDED_TO_OPERATIONS";
     if (stage === "HANDED_TO_OPERATIONS" && OPS_ROLES.includes(activeRole)) return "IN_TRAINING";
     if (stage === "IN_TRAINING" && TRAINING_ROLES.includes(activeRole)) return "PASSED_OUT";
@@ -149,17 +149,17 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
     return null;
   };
 
-  const move = (guardId: string, updates: Partial<Guard>) => {
+  const move = (forceNumber: string, updates: Partial<SecurityOfficer>) => {
     if (onMoveLifecycle) {
-      onMoveLifecycle(guardId, updates);
+      onMoveLifecycle(forceNumber, updates);
     } else if (onTransition && updates.lifecycleStage) {
-      onTransition(guardId, updates.lifecycleStage);
+      onTransition(forceNumber, updates.lifecycleStage);
     }
   };
 
   const recordDesertion = () => {
     if (!desertionDraft) return;
-    move(desertionDraft.guard.id, {
+    move(desertionDraft.securityOfficer.id, {
       terminationCategory: "Deserted",
       terminationReason: desertionDraft.reason || "Unannounced absence from duty",
       terminationDate: desertionDraft.date,
@@ -171,7 +171,7 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
     setDesertionDraft(null);
   };
 
-  const deserters = guards.filter((g) => g.status === "Deserted" || g.isDeserter);
+  const deserters = securityOfficers.filter((g) => g.status === "Deserted" || g.isDeserter);
   const canRecordDesertion = DESERTION_ROLES.includes(activeRole);
 
   return (
@@ -180,7 +180,7 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
         <div>
           <h3 className="text-[13px] font-bold text-slate-900 flex items-center gap-2">
             <GraduationCap className="w-4 h-4 text-slate-700" />
-            Guard deployment
+            Security Officer deployment
           </h3>
           <p className="text-xs text-slate-500 mt-1">
             Recruit <span className="text-slate-400">→</span> HR enrolls <span className="text-slate-400">→</span> Operations <span className="text-slate-400">→</span> Training <span className="text-slate-400">→</span> Passed out <span className="text-slate-400">→</span> Deployed
@@ -207,7 +207,7 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
       <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-1 px-1">
         {[INTAKE_STEP, ...STAGES].map((node, idx) => {
           const isIntake = node.kind === "intake";
-          const stageGuards = isIntake ? [] : guards.filter((g) => stageOf(g) === node.stage);
+          const stageSecurityOfficers = isIntake ? [] : securityOfficers.filter((g) => stageOf(g) === node.stage);
           const next = isIntake ? null : canTransitionFrom(node.stage);
           return (
             <div key={isIntake ? "intake" : node.stage} className="relative min-w-[180px] max-w-[200px] flex-1 snap-start rounded-lg border border-slate-200 bg-white p-3 space-y-2 flex flex-col">
@@ -224,7 +224,7 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-900">{node.label}</div>
-                <div className="text-[11px] text-slate-500">{isIntake ? "Pre-record" : `${stageGuards.length} in stage`}</div>
+                <div className="text-[11px] text-slate-500">{isIntake ? "Pre-record" : `${stageSecurityOfficers.length} in stage`}</div>
               </div>
 
               <p className="text-[11px] text-slate-600 leading-snug line-clamp-2">{isIntake ? "Recruitment precedes HR enrollment." : node.desc}</p>
@@ -234,10 +234,10 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
                   <div className="text-[11px] text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-200 p-2">Recruitment — no record yet</div>
                 ) : (
                   <>
-                {stageGuards.length === 0 && (
+                {stageSecurityOfficers.length === 0 && (
                   <div className="text-[11px] text-slate-400 border border-dashed border-slate-200 rounded-lg p-2">Empty</div>
                 )}
-                {stageGuards.slice(0, 3).map((g) => {
+                {stageSecurityOfficers.slice(0, 3).map((g) => {
                   const isDeserter = g.status === "Deserted" || g.isDeserter;
                   return (
                     <div key={g.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg border border-slate-100 px-2 py-1.5">
@@ -257,7 +257,7 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
                         )}
                         {canRecordDesertion && !isDeserter && (
                           <button
-                            onClick={() => setDesertionDraft({ guard: g, reason: "", date: new Date().toISOString().split("T")[0] })}
+                            onClick={() => setDesertionDraft({ securityOfficer: g, reason: "", date: new Date().toISOString().split("T")[0] })}
                             title="Record desertion (HR confirms final termination)"
                             className="px-2 py-1 rounded-md bg-white text-red-600 border border-red-200 text-[10px] font-semibold hover:bg-red-50 cursor-pointer"
                           >
@@ -268,8 +268,8 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
                     </div>
                   );
                 })}
-                {stageGuards.length > 3 && (
-                  <div className="text-[10px] text-slate-500 font-medium px-1">+{stageGuards.length - 3} more</div>
+                {stageSecurityOfficers.length > 3 && (
+                  <div className="text-[10px] text-slate-500 font-medium px-1">+{stageSecurityOfficers.length - 3} more</div>
                 )}
                   </>
                 )}
@@ -312,7 +312,7 @@ export const GuardDeploymentPipeline: React.FC<GuardDeploymentPipelineProps> = (
                 <h3 className="text-base font-bold text-slate-900">Record Desertion</h3>
               </div>
               <p className="text-xs text-slate-500">
-                Recording <strong>{desertionDraft.guard.fullName}</strong> ({desertionDraft.guard.forceNumber}) as deserted.
+                Recording <strong>{desertionDraft.securityOfficer.fullName}</strong> ({desertionDraft.securityOfficer.forceNumber}) as deserted.
                 Operations reports the desertion; the HR Manager retains final termination authority.
               </p>
               <div className="space-y-3">

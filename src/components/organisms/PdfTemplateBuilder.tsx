@@ -38,7 +38,7 @@ interface TemplateBuilderProps {
   onCancel: () => void;
 }
 
-const CATEGORIES = ["Client", "Guard", "Staff", "Custom"];
+const CATEGORIES = ["Client", "Security Officer", "Staff", "Custom"];
 
 export const PdfTemplateBuilder: React.FC<TemplateBuilderProps> = ({ onSave, onCancel }) => {
   const [pdfFile, setPdfFile] = useState<File | null>(null);

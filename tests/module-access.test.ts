@@ -47,7 +47,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.guard.deleteMany({ where: { fullName: { startsWith: "Persist Test" } } });
+  await prisma.securityOfficer.deleteMany({ where: { fullName: { startsWith: "Persist Test" } } });
   await prisma.clientSite.deleteMany({ where: { siteName: { startsWith: "Persist Test" } } });
   await prisma.expense.deleteMany({ where: { description: { startsWith: "Persist test" } } });
   await prisma.$disconnect();
@@ -68,7 +68,7 @@ function get(path: string, role: string) {
  * role outside the module — least privilege per §15.1.
  */
 const MATRIX: Array<{ module: string; endpoint: string; owner: string; outsider: string }> = [
-  { module: "guards", endpoint: "/api/guards", owner: "HR Manager", outsider: "Fleet Manager" },
+  { module: "security_officers", endpoint: "/api/security-officers", owner: "HR Manager", outsider: "Fleet Manager" },
   { module: "sites", endpoint: "/api/sites", owner: "Operations Manager", outsider: "HR Manager" },
   { module: "incidents", endpoint: "/api/incidents", owner: "Investigations Officer", outsider: "HR Manager" },
   { module: "invoices", endpoint: "/api/invoices", owner: "Finance Manager", outsider: "HR Manager" },
@@ -103,15 +103,15 @@ describe("Module access matrix — least privilege", () => {
  * read, proving the DB (not in-memory state) is the source of truth.
  */
 describe("Full DB persistence", () => {
-  it("persists a guard created by HR and lists it back", async () => {
+  it("persists a security officer created by HR and lists it back", async () => {
     const code = `PERSIST-${Date.now()}`;
-    const createRes = await fetch(`${BASE}/api/guards`, {
+    const createRes = await fetch(`${BASE}/api/security-officers`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${roleToken("HR Manager")}` },
       body: JSON.stringify({
-        fullName: "Persist Test Guard",
+        fullName: "Persist Test Officer",
         forceNumber: code,
-        designation: "Guard",
+        designation: "Security Officer",
         phone: "+256 700 000099",
         nationalId: `NIN-PERSIST-${Date.now()}`,
         assignedSite: "Persist Test Site",
@@ -121,10 +121,10 @@ describe("Full DB persistence", () => {
     });
     expect(createRes.status).toBe(201);
 
-    const listRes = await get("/api/guards", "HR Manager");
+    const listRes = await get("/api/security-officers", "HR Manager");
     expect(listRes.status).toBe(200);
-    const guards = (await listRes.json()) as Array<{ forceNumber: string }>;
-    expect(guards.some((g) => g.forceNumber === code)).toBe(true);
+    const officers = (await listRes.json()) as Array<{ forceNumber: string }>;
+    expect(officers.some((g) => g.forceNumber === code)).toBe(true);
   });
 
   it("persists an expense and lists it back after re-login", async () => {

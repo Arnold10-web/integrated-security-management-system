@@ -31,12 +31,12 @@ export const loginSchema = z.object({
   userId: z.string().min(1, "Select a user account"),
 });
 
-export const guardCreateSchema = z.object({
+export const securityOfficerCreateSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   forceNumber: forceNumberSchema,
   nationalId: z.string().trim().min(5).max(30),
   phone: phoneSchema,
-  designation: z.enum(["Guard", "K9 Handler", "Armorer"]),
+  designation: z.enum(["Security Officer", "K9 Handler", "Armorer"]),
   assignedSite: z.string().trim().min(1),
   location: z.string().trim().optional(),
   bankAccount: z.string().trim().optional(),
@@ -56,7 +56,7 @@ export const userCreateSchema = z.object({
 
 export const armouryIssueSchema = z.object({
   assetId: z.string().min(1),
-  guardId: z.string().min(1),
+  forceNumber: z.string().min(1),
   locationName: z.string().trim().min(1).max(200),
   ammoRoundsOut: z.number().int().min(0).max(500),
   dateOut: z.string().min(1),
@@ -73,6 +73,6 @@ export const incidentCreateSchema = z.object({
   description: z.string().trim().min(5).max(4000),
 });
 
-export type GuardCreateInput = z.infer<typeof guardCreateSchema>;
+export type SecurityOfficerCreateInput = z.infer<typeof securityOfficerCreateSchema>;
 export type UserCreateInput = z.infer<typeof userCreateSchema>;
 export type ArmouryIssueInput = z.infer<typeof armouryIssueSchema>;

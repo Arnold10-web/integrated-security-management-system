@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { Dog, Plus, Stethoscope, Search, FileText, Activity, HeartPulse, Syringe } from "lucide-react";
-import type { K9Dog, K9Log, K9HealthInspection, Guard } from "../../types";
+import type { K9Dog, K9Log, K9HealthInspection, SecurityOfficer } from "../../types";
 import { K9DogCard, HealthInspectionModal, AddK9Modal, LogDeploymentModal, K9HealthInspectionTable } from "../organisms";
 
 interface K9UnitViewProps {
   k9s: K9Dog[];
   logs: K9Log[];
   healthInspections?: K9HealthInspection[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   onPairHandler: (k9Id: string, handlerId: string) => void;
   onAddDog: (newDog: Omit<K9Dog, "id">) => void;
   onUpdateK9Dog?: (id: string, updates: Partial<K9Dog>) => void;
@@ -22,7 +22,7 @@ export const K9UnitView: React.FC<K9UnitViewProps> = ({
   k9s,
   logs,
   healthInspections = [],
-  guards,
+  securityOfficers,
   onPairHandler,
   onAddDog,
   onUpdateK9Dog,
@@ -222,7 +222,7 @@ export const K9UnitView: React.FC<K9UnitViewProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
             {filteredDogs.map((dog) => (
-              <K9DogCard key={dog.id} dog={dog} guards={guards} onPairHandler={onPairHandler} onOpenHealthModal={openHealthModalForK9} onUpdateK9Dog={onUpdateK9Dog} onDeleteK9Dog={onDeleteK9Dog} />
+              <K9DogCard key={dog.id} dog={dog} securityOfficers={securityOfficers} onPairHandler={onPairHandler} onOpenHealthModal={openHealthModalForK9} onUpdateK9Dog={onUpdateK9Dog} onDeleteK9Dog={onDeleteK9Dog} />
             ))}
           </div>
         </div>

@@ -63,10 +63,10 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
           </div>
           <div>
             <h2 className="text-xl font-extrabold text-slate-900">
-              Staff & Guard Leave Tracking Management
+              Staff & Security Officer Leave Tracking Management
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Record and approve Annual, Sick, Emergency, Compassionate, Unpaid, Paternity, Maternity, Compensatory & Study Leave with relief guard assignment and GM final approval.
+              Record and approve Annual, Sick, Emergency, Compassionate, Unpaid, Paternity, Maternity, Compensatory & Study Leave with relief security officer assignment and GM final approval.
             </p>
           </div>
         </div>
@@ -115,13 +115,13 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
                         ? "bg-purple-100 text-purple-700"
                         : "bg-slate-100 text-slate-600"
                     }`}
-                    title={leave.category === "staff" ? "Self-service staff leave" : "Guard duty-cover leave"}
+                    title={leave.category === "staff" ? "Self-service staff leave" : "Security Officer duty-cover leave"}
                   >
-                    {leave.category === "staff" ? "Staff Self-Service" : "Guard Cover"}
+                    {leave.category === "staff" ? "Staff Self-Service" : "Security Officer Cover"}
                   </span>
                 </div>
                 <h3 className="font-extrabold text-slate-900 text-base mt-1">
-                  {leave.guardName}
+                  {leave.securityOfficerName}
                 </h3>
                 <span className="text-xs font-mono font-bold text-slate-500">
                   {leave.forceNumber}
@@ -155,7 +155,7 @@ export const LeaveRequestPanel: React.FC<LeaveRequestPanelProps> = ({
                 <div className="flex justify-between text-slate-700">
                   <span className="font-bold text-slate-400">Relief Officer:</span>
                   <span className="font-bold text-blue-700">
-                    {leave.reliefGuardName || "Pending Duty Roster Cover"}
+                    {leave.reliefSecurityOfficerName || "Pending Duty Roster Cover"}
                   </span>
                 </div>
               )}

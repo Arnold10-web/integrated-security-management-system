@@ -33,7 +33,7 @@ import {
   FleetGpsPage,
   AdministrationPage,
   ITPage,
-  GuardPortalPage,
+  SecurityOfficerPortalPage,
   ReportsPage,
   RecruitmentPage,
   DocumentsPage,
@@ -114,7 +114,7 @@ export default function App() {
         <Route path="/fleet/gps" element={<FleetGpsPage />} />
         <Route path="/administration" element={<AdministrationPage />} />
         <Route path="/it" element={<ITPage />} />
-        <Route path="/guard-portal" element={<GuardPortalPage />} />
+        <Route path="/security officer-portal" element={<SecurityOfficerPortalPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/recruitment" element={<RecruitmentPage />} />
         <Route path="/documents" element={<DocumentsPage />} />

@@ -1,14 +1,14 @@
 import React from "react";
 import { Award, CheckCircle2, AlertTriangle } from "lucide-react";
-import type { Guard, StaffAppraisal } from "../../types";
+import type { SecurityOfficer, StaffAppraisal } from "../../types";
 import { useDomainStore } from "../../stores/domainStore";
 
 interface StaffAppraisalModalProps {
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   show: boolean;
   onClose: () => void;
-  appraisalGuardId: string;
-  setAppraisalGuardId: (v: string) => void;
+  appraisalForceNumber: string;
+  setAppraisalForceNumber: (v: string) => void;
   appraisalPeriod: StaffAppraisal["reviewPeriod"];
   setAppraisalPeriod: (v: StaffAppraisal["reviewPeriod"]) => void;
   appraisalType: StaffAppraisal["reviewType"];
@@ -57,8 +57,8 @@ const StarSelect: React.FC<{ value: number; onChange: (v: number) => void; label
 );
 
 export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
-  guards, show, onClose,
-  appraisalGuardId, setAppraisalGuardId,
+  securityOfficers, show, onClose,
+  appraisalForceNumber, setAppraisalForceNumber,
   appraisalPeriod, setAppraisalPeriod,
   appraisalType, setAppraisalType,
   evaluatorNameInput, setEvaluatorNameInput,
@@ -77,8 +77,8 @@ export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
   onSubmit,
 }) => {
   if (!show) return null;
-  const selectedGuard = guards.find((g) => g.id === appraisalGuardId) ?? null;
-  const disciplinaryHistory = useDomainStore((s) => s.disciplinaryActions.filter((d) => d.guardId === appraisalGuardId || d.forceNumber === selectedGuard?.forceNumber));
+  const selectedSecurityOfficer = securityOfficers.find((g) => g.id === appraisalForceNumber) ?? null;
+  const disciplinaryHistory = useDomainStore((s) => s.disciplinaryActions.filter((d) => d.forceNumber === appraisalForceNumber || d.forceNumber === selectedSecurityOfficer?.forceNumber));
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs">
@@ -99,10 +99,10 @@ export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-slate-700 font-bold mb-1">Select Officer / Staff</label>
-              <select required value={appraisalGuardId} onChange={(e) => setAppraisalGuardId(e.target.value)}
+              <select required value={appraisalForceNumber} onChange={(e) => setAppraisalForceNumber(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
                 <option value="">-- Select Personnel --</option>
-                {guards.map((g) => (
+                {securityOfficers.map((g) => (
                   <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber}) • {g.designation}</option>
                 ))}
               </select>
@@ -143,13 +143,13 @@ export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
             </div>
           </div>
 
-          {appraisalGuardId && (
+          {appraisalForceNumber && (
             <div className={`rounded-xl border p-3 space-y-2 ${disciplinaryHistory.length > 0 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
               <div className="flex items-center gap-2">
                 <AlertTriangle className={`w-4 h-4 ${disciplinaryHistory.length > 0 ? "text-amber-600" : "text-emerald-600"}`} />
                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Disciplinary History — auto-surfaced for this review period</span>
                 <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-black ${disciplinaryHistory.length > 0 ? "bg-amber-200 text-amber-900" : "bg-emerald-200 text-emerald-900"}`}>
-                  {selectedGuard ? `${selectedGuard.warningLettersCount} warning letter(s)` : "—"} · {disciplinaryHistory.length} case(s)
+                  {selectedSecurityOfficer ? `${selectedSecurityOfficer.warningLettersCount} warning letter(s)` : "—"} · {disciplinaryHistory.length} case(s)
                 </span>
               </div>
               {disciplinaryHistory.length > 0 ? (
@@ -163,7 +163,7 @@ export const StaffAppraisalModal: React.FC<StaffAppraisalModalProps> = ({
                   {disciplinaryHistory.length > 4 && <p className="text-[10px] text-slate-500 font-semibold">+{disciplinaryHistory.length - 4} more case(s) on file.</p>}
                 </div>
               ) : (
-                <p className="text-[11px] text-slate-600 font-medium">No disciplinary cases on file for this guard — evaluator cannot omit history; this banner confirms it.</p>
+                <p className="text-[11px] text-slate-600 font-medium">No disciplinary cases on file for this security officer — evaluator cannot omit history; this banner confirms it.</p>
               )}
             </div>
           )}

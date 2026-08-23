@@ -12,7 +12,7 @@ export const AppraisalReportModal: React.FC<AppraisalReportModalProps> = ({ appr
   const disciplinary = useDomainStore((s) => s.disciplinaryActions);
   if (!appraisal) return null;
 
-  const history = disciplinary.filter((d) => d.guardId === appraisal.guardId);
+  const history = disciplinary.filter((d) => d.forceNumber === appraisal.forceNumber);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-xs">
@@ -35,7 +35,7 @@ export const AppraisalReportModal: React.FC<AppraisalReportModalProps> = ({ appr
           <div className="grid grid-cols-2 gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">Officer Name & Code</span>
-              <p className="font-black text-slate-900 text-sm">{appraisal.guardName}</p>
+              <p className="font-black text-slate-900 text-sm">{appraisal.securityOfficerName}</p>
               <p className="font-mono text-purple-700 font-bold mt-0.5">{appraisal.forceNumber}</p>
             </div>
             <div>
@@ -132,7 +132,7 @@ export const AppraisalReportModal: React.FC<AppraisalReportModalProps> = ({ appr
               <span>Evaluator Signature & Date</span>
             </div>
             <div>
-              <p className="border-b border-slate-300 pb-1 mb-1 font-bold text-slate-800">{appraisal.guardName}</p>
+              <p className="border-b border-slate-300 pb-1 mb-1 font-bold text-slate-800">{appraisal.securityOfficerName}</p>
               <span>Staff Member Signature & Date</span>
             </div>
           </div>

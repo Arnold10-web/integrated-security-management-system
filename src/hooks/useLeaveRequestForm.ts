@@ -1,33 +1,32 @@
 import { useState } from "react";
-import type { LeaveRequest, Guard } from "../types";
+import type { LeaveRequest, SecurityOfficer } from "../types";
 
-export function useLeaveRequestForm(guards: Guard[], initialLeaveRequests: LeaveRequest[] = []) {
+export function useLeaveRequestForm(securityOfficers: SecurityOfficer[], initialLeaveRequests: LeaveRequest[] = []) {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(initialLeaveRequests);
   const [leaveFilter, setLeaveFilter] = useState<"ALL" | "Approved" | "Pending HR Approval" | "Rejected">("ALL");
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
-  const [leaveGuardId, setLeaveGuardId] = useState("");
+  const [leaveForceNumber, setLeaveForceNumber] = useState("");
   const [leaveType, setLeaveType] = useState<LeaveRequest["leaveType"]>("Annual Leave");
   const [leaveStartDate, setLeaveStartDate] = useState("");
   const [leaveEndDate, setLeaveEndDate] = useState("");
   const [leaveDurationDays, setLeaveDurationDays] = useState(14);
   const [leaveReason, setLeaveReason] = useState("");
-  const [leaveReliefGuardName, setLeaveReliefGuardName] = useState("");
+  const [leaveReliefSecurityOfficerName, setLeaveReliefSecurityOfficerName] = useState("");
 
   const handleCreateLeaveRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    const guard = guards.find((g) => g.id === leaveGuardId) || guards[0];
+    const securityOfficer = securityOfficers.find((g) => g.id === leaveForceNumber) || securityOfficers[0];
     const newLeave: LeaveRequest = {
       id: `lev-${Date.now()}`,
-      guardId: guard ? guard.id : "grd-101",
-      guardName: guard ? guard.fullName : "John Bosco Kateregga",
-      forceNumber: guard ? guard.forceNumber : "SG-2024-001",
+      securityOfficerName: securityOfficer ? securityOfficer.fullName : "John Bosco Kateregga",
+      forceNumber: securityOfficer ? securityOfficer.forceNumber : "SG-2024-001",
       leaveType,
       startDate: leaveStartDate || "2026-08-01",
       endDate: leaveEndDate || "2026-08-14",
       durationDays: Number(leaveDurationDays) || 14,
       reason: leaveReason || "Scheduled annual leave & family rest.",
-      reliefGuardName: leaveReliefGuardName || "Assigned Relief Officer",
+      reliefSecurityOfficerName: leaveReliefSecurityOfficerName || "Assigned Relief Officer",
       appliedDate: new Date().toISOString().split("T")[0],
       status: "Pending HR Approval",
       notes: "Submitted via HR Portal.",
@@ -65,8 +64,8 @@ export function useLeaveRequestForm(guards: Guard[], initialLeaveRequests: Leave
     setLeaveFilter,
     showLeaveModal,
     setShowLeaveModal,
-    leaveGuardId,
-    setLeaveGuardId,
+    leaveForceNumber,
+    setLeaveForceNumber,
     leaveType,
     setLeaveType,
     leaveStartDate,
@@ -77,8 +76,8 @@ export function useLeaveRequestForm(guards: Guard[], initialLeaveRequests: Leave
     setLeaveDurationDays,
     leaveReason,
     setLeaveReason,
-    leaveReliefGuardName,
-    setLeaveReliefGuardName,
+    leaveReliefSecurityOfficerName,
+    setLeaveReliefSecurityOfficerName,
     handleCreateLeaveRequest,
     handleApproveLeave,
     handleRejectLeave,

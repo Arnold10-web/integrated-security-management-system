@@ -54,14 +54,14 @@ async function nextForceNumber(seq?: number) {
       const existing = await tx.forceNumberSequence.findUnique({ where: { year: yyy } });
       if (!existing) {
         // Bootstrap from existing data once
-        const [drivers, guards, users] = await Promise.all([
+        const [drivers, officers, users] = await Promise.all([
           tx.driver.findMany({ where: { forceNumber: { not: null } }, select: { forceNumber: true } }),
-          tx.guard.findMany({ select: { forceNumber: true } }),
+          tx.securityOfficer.findMany({ select: { forceNumber: true } }),
           tx.user.findMany({ where: { forceNumber: { not: null } }, select: { forceNumber: true } }),
         ]);
         const all = [
           ...drivers.map((d) => d.forceNumber!),
-          ...guards.map((g) => g.forceNumber),
+          ...officers.map((g) => g.forceNumber),
           ...users.map((u) => u.forceNumber!),
         ];
         let max = 0;
@@ -79,14 +79,14 @@ async function nextForceNumber(seq?: number) {
     return `PSG${yyy}/${String(updated).padStart(3, "0")}`;
   } catch {
     // Fallback to legacy scan if transaction fails (e.g., table not yet migrated)
-    const [drivers, guards, users] = await Promise.all([
+    const [drivers, officers, users] = await Promise.all([
       prisma.driver.findMany({ where: { forceNumber: { not: null } }, select: { forceNumber: true } }),
-      prisma.guard.findMany({ select: { forceNumber: true } }),
+      prisma.securityOfficer.findMany({ select: { forceNumber: true } }),
       prisma.user.findMany({ where: { forceNumber: { not: null } }, select: { forceNumber: true } }),
     ]);
     const all = [
       ...drivers.map((d) => d.forceNumber!),
-      ...guards.map((g) => g.forceNumber),
+      ...officers.map((g) => g.forceNumber),
       ...users.map((u) => u.forceNumber!),
     ];
     let max = 0;
@@ -142,7 +142,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === "test" ? 5000 : 500,
+  max: Number(process.env.API_RATE_LIMIT_MAX) || (process.env.NODE_ENV === "test" ? 5000 : 500),
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -163,6 +163,38 @@ app.use("/api/auth/register", authLimiter);
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+/* Company logo drop-in branding: replace public/logo.png and every generated
+ * document (plus the UI via LOGO_PATH) picks it up automatically. Missing or
+ * unreadable files are skipped gracefully so documents never fail on branding. */
+let companyLogoBytes: Buffer | null | undefined;
+function loadCompanyLogoBytes(): Buffer | null {
+  if (companyLogoBytes !== undefined) return companyLogoBytes;
+  for (const p of [path.join(process.cwd(), "public", "logo.png"), path.join(process.cwd(), "dist", "logo.png")]) {
+    try {
+      companyLogoBytes = fs.readFileSync(p);
+      return companyLogoBytes;
+    } catch {
+      /* try next candidate */
+    }
+  }
+  companyLogoBytes = null;
+  return null;
+}
+async function embedCompanyLogo(pdf: import("pdf-lib").PDFDocument): Promise<import("pdf-lib").PDFImage | null> {
+  const bytes = loadCompanyLogoBytes();
+  if (!bytes) return null;
+  try {
+    return await pdf.embedPng(bytes);
+  } catch {
+    /* not a PNG */
+  }
+  try {
+    return await pdf.embedJpg(bytes);
+  } catch {
+    return null;
+  }
+}
 
 // Digital contract PDF storage
 const digitalContractStorageDir = path.join(process.cwd(), "digital_contracts");
@@ -239,7 +271,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-const createGuardSchema = z.object({
+const createSecurityOfficerSchema = z.object({
   fullName: z.string().min(1),
   forceNumber: z.string().min(1),
   designation: z.string().min(1),
@@ -303,11 +335,11 @@ const createSiteSchema = z.object({
   location: z.string().min(1),
   zone: z.string().min(1),
   region: z.string().optional(),
-  dayShiftGuards: z.number().int().nonnegative().optional(),
-  nightShiftGuards: z.number().int().nonnegative().optional(),
+  dayShiftSecurityOfficers: z.number().int().nonnegative().optional(),
+  nightShiftSecurityOfficers: z.number().int().nonnegative().optional(),
   dayShiftArmed: z.number().int().nonnegative().optional(),
   nightShiftArmed: z.number().int().nonnegative().optional(),
-  armedGuardsRequired: z.number().int().nonnegative().optional(),
+  armedSecurityOfficersRequired: z.number().int().nonnegative().optional(),
   k9Required: z.boolean().optional(),
   contactPerson: z.string().min(1),
   contactPhone: z.string().min(1),
@@ -355,7 +387,7 @@ const createContractSchema = z.object({
 const createIncidentSchema = z.object({
   title: z.string().min(1),
   siteName: z.string().min(1),
-  reportedByGuard: z.string().min(1),
+  reportedBySecurityOfficer: z.string().min(1),
   category: z.string().min(1),
   severity: z.string().min(1),
   description: z.string().min(1),
@@ -452,7 +484,7 @@ const VALID_USER_ROLES = [
   "Fleet Manager",
   "Training Officer",
   "Investigations Officer",
-  "Guard Officer",
+  "Security Officer",
   "Armorer",
   "K9 Supervisor",
   "K9 Handler",
@@ -636,10 +668,10 @@ async function effectiveModuleAccess(moduleName: string, user: JwtPayload): Prom
   const overrides = await resolveCustomOverrides(user.userId);
   const clientModule = SERVER_MODULE_TO_CLIENT[moduleName] ?? moduleName;
   // Parent cascade: revoking the client "operations" module blocks all server
-  // operations sub-modules (guards, armoury, k9s, etc.) even though guards
+  // operations sub-modules (security_officers, armoury, k9s, etc.) even though officers
   // maps to "hr" on the client. This matches the permission-overrides test
-  // expectation that `operations: "none"` cascades to guards/armoury.
-  const OPERATIONS_SUBS = new Set(["guards", "armoury", "k9s", "vehicles", "incidents", "roster", "patrol", "training", "deployments", "operations"]);
+  // expectation that `operations: "none"` cascades to security_officers/armoury.
+  const OPERATIONS_SUBS = new Set(["security_officers", "armoury", "k9s", "vehicles", "incidents", "roster", "patrol", "training", "deployments", "operations"]);
   if (overrides["operations"] === "none" && OPERATIONS_SUBS.has(moduleName)) return undefined;
   if (overrides["operations"] === "none" && OPERATIONS_SUBS.has(clientModule)) return undefined;
   const override = overrides[clientModule] ?? overrides[moduleName];
@@ -721,7 +753,7 @@ async function seedDatabase(): Promise<{ message: string } | undefined> {
     { name: "Francis Ogwang", email: "francis.ogwang@iscms.ug", forceNumber: "PSG026/112", role: "Fleet Manager", department: "Operations", region: "Kampala Central", phone: "+256 701 000011" },
     { name: "James Wamala", email: "james.wamala@iscms.ug", forceNumber: "PSG026/113", role: "Training Officer", department: "Operations", region: "Kampala Central", phone: "+256 701 000012" },
     { name: "Henry Kiyingi", email: "henry.kiyingi@iscms.ug", forceNumber: "PSG026/114", role: "Investigations Officer", department: "Investigations", region: "Kampala Central", phone: "+256 701 000013" },
-    { name: "Tom Ssemakula", email: "tom.ssemakula@iscms.ug", forceNumber: "PSG026/115", role: "Guard Officer", department: "Operations", region: "Kampala Central", phone: "+256 701 000014" },
+    { name: "Tom Ssemakula", email: "tom.ssemakula@iscms.ug", forceNumber: "PSG026/115", role: "Security Officer", department: "Operations", region: "Kampala Central", phone: "+256 701 000014" },
     { name: "Joseph Ochieng", email: "joseph.ochieng@iscms.ug", forceNumber: "PSG026/116", role: "Armorer", department: "Operations", region: "Kampala Central", phone: "+256 701 000015" },
     { name: "Diana Alowo", email: "diana.alowo@iscms.ug", forceNumber: "PSG026/117", role: "K9 Supervisor", department: "Operations", region: "Kampala Central", phone: "+256 701 000016" },
     { name: "Peter Okot", email: "peter.okot@iscms.ug", forceNumber: "PSG026/118", role: "K9 Handler", department: "Operations", region: "Kampala Central", phone: "+256 701 000017" },
@@ -1040,6 +1072,44 @@ app.put("/api/auth/users/:id", authenticateToken, requireModuleAccess("it", "ful
     region: z.string().optional(),
     status: z.string().optional(),
     customPermissions: z.record(z.string(), z.enum(["view", "full", "none"])).optional(),
+    // Personnel-file / biodata capture (Staff Biodata Modal + Bank Detail Form)
+    phone: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+    gender: z.string().optional(),
+    maritalStatus: z.string().optional(),
+    educationLevel: z.string().optional(),
+    motherName: z.string().optional(),
+    motherPhone: z.string().optional(),
+    fatherName: z.string().optional(),
+    fatherPhone: z.string().optional(),
+    fatherAlive: z.boolean().optional(),
+    fatherResidence: z.string().optional(),
+    nextOfKinName: z.string().optional(),
+    nextOfKinRelationship: z.string().optional(),
+    nextOfKinPhone: z.string().optional(),
+    nextOfKinResidence: z.string().optional(),
+    relativesOrReferees: z.string().optional(),
+    residenceDistrict: z.string().optional(),
+    residenceSubCounty: z.string().optional(),
+    residenceParish: z.string().optional(),
+    residenceVillage: z.string().optional(),
+    lc1Chairperson: z.string().optional(),
+    lc1Contact: z.string().optional(),
+    lc2Chairperson: z.string().optional(),
+    physicalAddress: z.string().optional(),
+    emergencyContactPhone: z.string().optional(),
+    surnameAtBirth: z.string().optional(),
+    nationality: z.string().optional(),
+    tribe: z.string().optional(),
+    placeOfBirth: z.string().optional(),
+    closeRelatives: z.array(z.string()).optional(),
+    neighbours: z.array(z.string()).optional(),
+    tin: z.string().optional(),
+    nssfNo: z.string().optional(),
+    bankAccountName: z.string().optional(),
+    bankAccount: z.string().optional(),
+    bankName: z.string().optional(),
+    bankBranch: z.string().optional(),
   }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
@@ -1062,7 +1132,7 @@ function actingGrantError(target: { id: string; role: string }, actingRole: stri
   if (target.role === "IT Officer") return "Acting privileges cannot be granted to an IT Officer";
   if (actingRole === target.role) return "Acting role must differ from the user's assigned role";
   if (!VALID_USER_ROLES.includes(actingRole as (typeof VALID_USER_ROLES)[number])) return `Invalid acting role: ${actingRole}`;
-  if (actingRole === "IT Officer") return "Acting IT Officer privileges are not permitted (self-escalation guard)";
+  if (actingRole === "IT Officer") return "Acting IT Officer privileges are not permitted (self-escalation protection)";
   if (actingRole === "Director") return "The Director role cannot be delegated as an acting privilege";
   if (actingRole === "General Manager" && target.role !== "Finance Manager") {
     return "The General Manager may only be covered by the Finance Manager (§11.6)";
@@ -1229,19 +1299,19 @@ app.delete("/api/auth/users/:id/acting", authenticateToken, requireModuleAccess(
   res.json({ ...updated, effectiveRole: effectiveRoleFor(updated) });
 });
 
-/* ─────────────── CRUD: Guards ─────────────── */
+/* ─────────────── CRUD: Security Officers ─────────────── */
 
-const GUARD_CREATORS = ["HR Manager", "HR Assistant"];
-const GUARD_LIFECYCLE_ROLES = ["Operations Manager", "Regional Manager", "HR Manager", "HR Assistant"];
-const GUARD_ID_FIELDS = ["idCardStatus", "idCardNumber", "idCardIssuedDate", "idCardExpiryDate", "idCardIssuerName", "idCardIssuerSignatureUrl", "photoUrl", "signatureUrl"];
+const SECURITY_OFFICER_CREATORS = ["HR Manager", "HR Assistant"];
+const SECURITY_OFFICER_LIFECYCLE_ROLES = ["Operations Manager", "Regional Manager", "HR Manager", "HR Assistant"];
+const SECURITY_OFFICER_ID_FIELDS = ["idCardStatus", "idCardNumber", "idCardIssuedDate", "idCardExpiryDate", "idCardIssuerName", "idCardIssuerSignatureUrl", "photoUrl", "signatureUrl"];
 
 /* The UI sends human-readable designations ("K9 Handler", "Site In-Charge")
    which are @map'd in the schema; Prisma expects the enum member names. */
-const mapGuardDesignation = (v: string) =>
-  v === "K9 Handler" ? "K9_Handler" : v === "Site In-Charge" ? "Site_In_Charge" : v;
+const mapSecurityOfficerDesignation = (v: string) =>
+  v === "K9 Handler" ? "K9_Handler" : v === "Site In-Charge" ? "Site_In_Charge" : v === "Security Officer" ? "Security_Officer" : v;
 /* Reverse mapping on read so the client always sees the display strings. */
-const unmapGuardDesignation = (v: string) =>
-  v === "K9_Handler" ? "K9 Handler" : v === "Site_In_Charge" ? "Site In-Charge" : v;
+const unmapSecurityOfficerDesignation = (v: string) =>
+  v === "K9_Handler" ? "K9 Handler" : v === "Site_In_Charge" ? "Site In-Charge" : v === "Security_Officer" ? "Security Officer" : v;
 
 function isRegionalManager(user: JwtPayload): boolean {
   return hasEffectiveRole(user, "Regional Manager");
@@ -1251,7 +1321,7 @@ app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
 });
 
-app.get("/api/guards", authenticateToken, requireModuleAccess("guards"), async (req, res) => {
+app.get("/api/security-officers", authenticateToken, requireModuleAccess("security_officers"), async (req, res) => {
   const user = (req as any).user as JwtPayload;
   const where: any = {};
   // Push region filter into DB instead of in-memory scan
@@ -1266,41 +1336,41 @@ app.get("/api/guards", authenticateToken, requireModuleAccess("guards"), async (
   if (hasListPagination(req)) {
     const { skip, take, page, limit } = parseListPagination(req);
     const [rows, total] = await Promise.all([
-      prisma.guard.findMany({ where, orderBy: { createdAt: "desc" }, take, skip }),
-      prisma.guard.count({ where }),
+      prisma.securityOfficer.findMany({ where, orderBy: { createdAt: "desc" }, take, skip }),
+      prisma.securityOfficer.count({ where }),
     ]);
-    res.json(paginatedEnvelope(rows.map((g) => ({ ...g, designation: unmapGuardDesignation(g.designation) })), total, page, limit));
+    res.json(paginatedEnvelope(rows.map((g) => ({ ...g, designation: unmapSecurityOfficerDesignation(g.designation) })), total, page, limit));
     return;
   }
-  const guards = await prisma.guard.findMany({
+  const officers = await prisma.securityOfficer.findMany({
     where,
     orderBy: { createdAt: "desc" },
     take: req.query.limit ? Math.min(Number(req.query.limit), 100) : undefined,
     skip: req.query.offset ? Number(req.query.offset) : undefined,
   });
-  res.json(guards.map((g) => ({ ...g, designation: unmapGuardDesignation(g.designation) })));
+  res.json(officers.map((g) => ({ ...g, designation: unmapSecurityOfficerDesignation(g.designation) })));
 });
 
-app.post("/api/guards", authenticateToken, async (req, res) => {
+app.post("/api/security-officers", authenticateToken, async (req, res) => {
   const user = (req as any).user as JwtPayload | undefined;
   if (!user) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  if (!GUARD_CREATORS.some((r) => hasEffectiveRole(user, r))) {
-    res.status(403).json({ error: `Access denied: guard enrolment is restricted to ${GUARD_CREATORS.join(" and ")}` });
+  if (!SECURITY_OFFICER_CREATORS.some((r) => hasEffectiveRole(user, r))) {
+    res.status(403).json({ error: `Access denied: security officer enrolment is restricted to ${SECURITY_OFFICER_CREATORS.join(" and ")}` });
     return;
   }
-  const parsed = createGuardSchema.safeParse(req.body);
+  const parsed = createSecurityOfficerSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
-  const { guard } = await prisma.$transaction(async (tx) => {
-    const g = await (tx.guard.create as any)({
+  const { securityOfficer } = await prisma.$transaction(async (tx) => {
+    const g = await (tx.securityOfficer.create as any)({
       data: {
         ...(parsed.data as any),
-        designation: parsed.data.designation ? mapGuardDesignation(parsed.data.designation) : parsed.data.designation,
+        designation: parsed.data.designation ? mapSecurityOfficerDesignation(parsed.data.designation) : parsed.data.designation,
         forceNumber: parsed.data.forceNumber,
         certifications: ["Basic Security Training", "Crowd Control & Ethics"],
         joinDate: parsed.data.joinDate ? new Date(parsed.data.joinDate as any) : new Date(),
@@ -1311,88 +1381,97 @@ app.post("/api/guards", authenticateToken, async (req, res) => {
         timestamp: new Date(),
         userName: (req as any).user?.userId || "system",
         userRole: actorRoleLabel((req as any).user) || "system",
-        action: "Guard Enrolment",
-        module: "Guard Personnel",
-        details: `Enrolled guard officer ${g.fullName} (${g.forceNumber}) to ${g.assignedSite}.`,
+        action: "Security Officer Enrolment",
+        module: "Security Officer Personnel",
+        details: `Enrolled security officer ${g.fullName} (${g.forceNumber}) to ${g.assignedSite}.`,
       },
     });
-    return { guard: g };
+    return { securityOfficer: g };
   });
-  res.status(201).json({ ...guard, designation: unmapGuardDesignation(guard.designation) });
+  res.status(201).json({ ...securityOfficer, designation: unmapSecurityOfficerDesignation(securityOfficer.designation) });
 });
 
-app.put("/api/guards/:id", authenticateToken, async (req, res) => {
+/* Resolve a security officer by force number first (canonical identifier),
+ * falling back to the record id for legacy clients. */
+async function resolveSecurityOfficer(key: string) {
+  return (
+    (await prisma.securityOfficer.findUnique({ where: { forceNumber: key } })) ??
+    (await prisma.securityOfficer.findUnique({ where: { id: key } }))
+  );
+}
+
+app.put("/api/security-officers/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const user = (req as any).user as JwtPayload | undefined;
   if (!user) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  const isHR = GUARD_CREATORS.some((r) => hasEffectiveRole(user, r));
+  const isHR = SECURITY_OFFICER_CREATORS.some((r) => hasEffectiveRole(user, r));
   const isRecords = hasEffectiveRole(user, "Records Officer");
   if (!isHR && !isRecords) {
-    res.status(403).json({ error: "Access denied: guard records are editable by HR roles; ID issuance is handled by the Records Officer" });
+    res.status(403).json({ error: "Access denied: security officer records are editable by HR roles; ID issuance is handled by the Records Officer" });
     return;
   }
-  const parsed = createGuardSchema.partial().safeParse(req.body);
+  const parsed = createSecurityOfficerSchema.partial().safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
   if (!isHR) {
-    const allowed = Object.keys(parsed.data).filter((k) => GUARD_ID_FIELDS.includes(k));
+    const allowed = Object.keys(parsed.data).filter((k) => SECURITY_OFFICER_ID_FIELDS.includes(k));
     if (allowed.length !== Object.keys(parsed.data).length) {
-      res.status(403).json({ error: `Access denied: Records Officer may only update ID fields (${GUARD_ID_FIELDS.join(", ")})` });
+      res.status(403).json({ error: `Access denied: Records Officer may only update ID fields (${SECURITY_OFFICER_ID_FIELDS.join(", ")})` });
       return;
     }
   }
   if (isHR && !isRecords) {
-    const idKeys = Object.keys(parsed.data).filter((k) => GUARD_ID_FIELDS.includes(k));
+    const idKeys = Object.keys(parsed.data).filter((k) => SECURITY_OFFICER_ID_FIELDS.includes(k));
     if (idKeys.length > 0) {
       res.status(403).json({ error: `Access denied: ID card fields (${idKeys.join(", ")}) are the responsibility of the Records Officer — use the Records issuance flow` });
       return;
     }
   }
-  const guard = await prisma.guard.findUnique({ where: { id } });
-  if (!guard) {
-    res.status(404).json({ error: "Guard not found" });
+  const officer = await resolveSecurityOfficer(id);
+  if (!officer) {
+    res.status(404).json({ error: "Security officer not found" });
     return;
   }
   // §5: a promotion changing the printed designation triggers a reissue
   // entry in the Records Officer queue (ID card must reflect the new title).
   let data = { ...(parsed.data as any) };
-  if (data.designation) data.designation = mapGuardDesignation(data.designation);
+  if (data.designation) data.designation = mapSecurityOfficerDesignation(data.designation);
   if (
     data.designation &&
-    data.designation !== guard.designation &&
-    (guard.idCardStatus === "Issued & Active" || guard.idCardStatus === "Reissue Required")
+    data.designation !== officer.designation &&
+    (officer.idCardStatus === "Issued & Active" || officer.idCardStatus === "Reissue Required")
   ) {
     data.idCardStatus = "Reissue Required";
   }
-  const updated = await (prisma.guard.update as any)({ where: { id }, data });
-  res.json({ ...updated, designation: unmapGuardDesignation(updated.designation) });
+  const updated = await (prisma.securityOfficer.update as any)({ where: { forceNumber: officer.forceNumber }, data });
+  res.json({ ...updated, designation: unmapSecurityOfficerDesignation(updated.designation) });
 });
 
-app.put("/api/guards/:id/lifecycle", authenticateToken, async (req, res) => {
+app.put("/api/security-officers/:id/lifecycle", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const user = (req as any).user as JwtPayload | undefined;
   if (!user) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  if (!GUARD_LIFECYCLE_ROLES.some((r) => hasEffectiveRole(user, r))) {
-    res.status(403).json({ error: `Access denied: ${actorRoleLabel(user)} cannot move guards through the lifecycle` });
+  if (!SECURITY_OFFICER_LIFECYCLE_ROLES.some((r) => hasEffectiveRole(user, r))) {
+    res.status(403).json({ error: `Access denied: ${actorRoleLabel(user)} cannot move security officers through the lifecycle` });
     return;
   }
   if (isRegionalManager(user)) {
-    const guard = await prisma.guard.findUnique({ where: { id }, select: { region: true } });
+    const officer = await resolveSecurityOfficer(id);
     const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { region: true } });
-    if (!guard) {
-      res.status(404).json({ error: "Guard not found" });
+    if (!officer) {
+      res.status(404).json({ error: "Security officer not found" });
       return;
     }
-    if (dbUser?.region && guard.region && guard.region !== dbUser.region) {
-      res.status(403).json({ error: "Access denied: this guard is outside your region" });
+    if (dbUser?.region && officer.region && officer.region !== dbUser.region) {
+      res.status(403).json({ error: "Access denied: this security officer is outside your region" });
       return;
     }
   }
@@ -1419,12 +1498,17 @@ app.put("/api/guards/:id/lifecycle", authenticateToken, async (req, res) => {
       return;
     }
     if (!terminationReason || !terminationReason.trim()) {
-      res.status(400).json({ error: "A reason is required to suspend/terminate/mark a guard as deserted" });
+      res.status(400).json({ error: "A reason is required to suspend/terminate/mark a security officer as deserted" });
       return;
     }
   }
-  const guard = await prisma.guard.update({
-    where: { id },
+  const existingOfficer = await resolveSecurityOfficer(id);
+  if (!existingOfficer) {
+    res.status(404).json({ error: "Security officer not found" });
+    return;
+  }
+  const officer = await prisma.securityOfficer.update({
+    where: { forceNumber: existingOfficer.forceNumber },
     data: {
       ...rest,
       ...(stage ? { lifecycleStage: stage } : {}),
@@ -1443,34 +1527,34 @@ app.put("/api/guards/:id/lifecycle", authenticateToken, async (req, res) => {
         {
           targetRole: "Operations Manager",
           type: "success",
-          title: "Guard Passed Out",
-          message: `${guard.fullName} (${guard.forceNumber}) passed out of the Academy and is ready for deployment.`,
+          title: "Security Officer Passed Out",
+          message: `${officer.fullName} (${officer.forceNumber}) passed out of the Academy and is ready for deployment.`,
           module: "Operations",
         },
         {
           targetRole: "Regional Manager",
           type: "info",
-          title: "Guard Passed Out",
-          message: `${guard.fullName} (${guard.forceNumber}) passed out of the Academy and is ready for deployment.`,
+          title: "Security Officer Passed Out",
+          message: `${officer.fullName} (${officer.forceNumber}) passed out of the Academy and is ready for deployment.`,
           module: "Operations",
         },
       ],
     });
   }
   if (terminationCategory) {
-    const detail = `${guard.fullName} (${guard.forceNumber}) ${terminationCategory.toLowerCase()} by ${user.role}. Reason: ${terminationReason}`;
+    const detail = `${officer.fullName} (${officer.forceNumber}) ${terminationCategory.toLowerCase()} by ${user.role}. Reason: ${terminationReason}`;
     await prisma.auditLog.createMany({
       data: [
-        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Guard ${terminationCategory}`, module: "HR", details: detail },
-        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Guard ${terminationCategory}`, module: "Operations", details: detail },
-        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Guard ${terminationCategory}`, module: "Finance", details: detail },
+        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Security Officer ${terminationCategory}`, module: "HR", details: detail },
+        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Security Officer ${terminationCategory}`, module: "Operations", details: detail },
+        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Security Officer ${terminationCategory}`, module: "Finance", details: detail },
       ],
     });
   }
-  res.json({ ...guard, designation: unmapGuardDesignation(guard.designation) });
+  res.json({ ...officer, designation: unmapSecurityOfficerDesignation(officer.designation) });
 });
 
-app.put("/api/guards/:id/issue-id", authenticateToken, async (req, res) => {
+app.put("/api/security-officers/:id/issue-id", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const user = (req as any).user as JwtPayload | undefined;
   if (!user) {
@@ -1489,8 +1573,13 @@ app.put("/api/guards/:id/issue-id", authenticateToken, async (req, res) => {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
-  const guard = await prisma.guard.update({
-    where: { id },
+  const existingCard = await resolveSecurityOfficer(id);
+  if (!existingCard) {
+    res.status(404).json({ error: "Security officer not found" });
+    return;
+  }
+  const officer = await prisma.securityOfficer.update({
+    where: { forceNumber: existingCard.forceNumber },
     data: {
       idCardStatus: "Issued & Active",
       idCardNumber: parsed.data.idCardNumber,
@@ -1509,10 +1598,10 @@ app.put("/api/guards/:id/issue-id", authenticateToken, async (req, res) => {
       userRole: actorRoleLabel(user),
       action: "ID Card Issued",
       module: "HR",
-      details: `Records Officer issued ID ${parsed.data.idCardNumber} to ${guard.fullName} (${guard.forceNumber}).`,
+      details: `Records Officer issued ID ${parsed.data.idCardNumber} to ${officer.fullName} (${officer.forceNumber}).`,
     },
   });
-  res.json({ ...guard, designation: unmapGuardDesignation(guard.designation) });
+  res.json({ ...officer, designation: unmapSecurityOfficerDesignation(officer.designation) });
 });
 
 /* Staff (plastic) identity card issuance — Records Officer only. Issue date is
@@ -1567,15 +1656,20 @@ app.put("/api/auth/users/:id/issue-id", authenticateToken, async (req, res) => {
   res.json(userRecord);
 });
 
-app.put("/api/guards/:id/archive", authenticateToken, async (req, res) => {
+app.put("/api/security-officers/:id/archive", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const user = (req as any).user as JwtPayload | undefined;
   if (!user || (!hasEffectiveRole(user, "HR Manager") && !hasEffectiveRole(user, "HR Assistant"))) {
-    res.status(403).json({ error: "Access denied: guard archival is restricted to HR Manager / HR Assistant" });
+    res.status(403).json({ error: "Access denied: security officer archival is restricted to HR Manager / HR Assistant" });
     return;
   }
-  const guard = await prisma.guard.update({
-    where: { id },
+  const existingArchived = await resolveSecurityOfficer(id);
+  if (!existingArchived) {
+    res.status(404).json({ error: "Security officer not found" });
+    return;
+  }
+  const officer = await prisma.securityOfficer.update({
+    where: { forceNumber: existingArchived.forceNumber },
     data: { status: "Archived", lifecycleStage: "DEPLOYED" },
   });
   await prisma.auditLog.create({
@@ -1583,33 +1677,33 @@ app.put("/api/guards/:id/archive", authenticateToken, async (req, res) => {
       timestamp: new Date(),
       userName: (req as any).user?.userId || "system",
       userRole: actorRoleLabel((req as any).user) || "system",
-      action: "Guard Archived",
+      action: "Security Officer Archived",
       module: "HR",
-      details: `Archived guard ${guard.fullName} (${guard.forceNumber}).`,
+      details: `Archived security officer ${officer.fullName} (${officer.forceNumber}).`,
     },
   });
-  res.json({ ...guard, designation: unmapGuardDesignation(guard.designation) });
+  res.json({ ...officer, designation: unmapSecurityOfficerDesignation(officer.designation) });
 });
 
-app.delete("/api/guards/:id", authenticateToken, requireAnyRole("IT Officer"), async (req, res) => {
+app.delete("/api/security-officers/:id", authenticateToken, requireAnyRole("IT Officer"), async (req, res) => {
   const { id } = req.params;
-  const guard = await prisma.guard.findUnique({ where: { id } });
-  if (!guard) {
-    res.status(404).json({ error: "Guard not found" });
+  const officer = await resolveSecurityOfficer(id);
+  if (!officer) {
+    res.status(404).json({ error: "Security officer not found" });
     return;
   }
-  await prisma.guard.delete({ where: { id } });
+  await prisma.securityOfficer.delete({ where: { forceNumber: officer!.forceNumber } });
   await prisma.auditLog.create({
     data: {
       timestamp: new Date(),
       userName: (req as any).user?.userId || "system",
       userRole: actorRoleLabel((req as any).user) || "system",
-      action: "Guard Hard Deleted",
+      action: "Security Officer Hard Deleted",
       module: "HR",
-      details: `IT Officer hard-deleted guard ${guard.fullName} (${guard.forceNumber}).`,
+      details: `IT Officer hard-deleted security officer ${officer.fullName} (${officer.forceNumber}).`,
     },
   });
-  res.json({ message: "Guard permanently removed" });
+  res.json({ message: "Security officer permanently removed" });
 });
 
 /* ─────────────── CRUD: Sites ─────────────── */
@@ -2423,7 +2517,7 @@ app.post("/api/cashier-transactions", authenticateToken, requireModuleAccess("fi
     return;
   }
   const parsed = z.object({
-    guardName: z.string().min(1),
+    securityOfficerName: z.string().min(1),
     forceNumber: z.string().min(1),
     type: z.string().min(1),
     amount: z.number().positive(),
@@ -2446,6 +2540,61 @@ app.post("/api/cashier-transactions", authenticateToken, requireModuleAccess("fi
     },
   });
   res.status(201).json(tx);
+});
+
+/* Salary Advance Register (paper form digitised): batch-post many
+   disbursements in one submission. Same role gate as single entry. */
+app.post("/api/cashier-transactions/batch", authenticateToken, requireModuleAccess("finance", "full"), async (req, res) => {
+  const user = (req as any).user as JwtPayload | undefined;
+  if (!user || (!hasEffectiveRole(user, "Cashier") && !hasEffectiveRole(user, "Finance Manager"))) {
+    res.status(403).json({ error: "Only the Cashier (or Finance Manager) can post a disbursement register" });
+    return;
+  }
+  const parsed = z.object({
+    type: z.string().min(1).default("Salary Advance"),
+    items: z.array(z.object({
+      securityOfficerName: z.string().min(1),
+      forceNumber: z.string().min(1),
+      amount: z.number().positive(),
+      phone: z.string().optional(),
+      signatureUrl: z.string().optional(),
+      notes: z.string().optional(),
+    })).min(1).max(50),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const cashier = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
+  const today = new Date().toISOString().split("T")[0];
+  const created = [];
+  for (const item of parsed.data.items) {
+    created.push(await prisma.cashierTransaction.create({
+      data: {
+        securityOfficerName: item.securityOfficerName,
+        forceNumber: item.forceNumber,
+        amount: item.amount,
+        type: parsed.data.type,
+        phone: item.phone,
+        signatureUrl: item.signatureUrl,
+        notes: item.notes,
+        processedBy: cashier?.name ?? user.role,
+        date: today,
+        status: "Pending Approval",
+      },
+    }));
+  }
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Disbursement Register Posted",
+      module: "Finance",
+      details: `${created.length} ${parsed.data.type} transaction(s) batch-posted by ${cashier?.name ?? user.role}.`,
+    },
+  });
+  res.status(201).json(created);
 });
 
 /* Cashier disbursement FM-approval flow (§Phase 3): a Cashier-initiated
@@ -2967,7 +3116,7 @@ app.put("/api/breakdowns/:id", authenticateToken, requireModuleAccess("fleet", "
 
 /* ─────────────── CRUD: Patrol Inspections ─────────────── */
 
-const PATROL_KEYS = ["siteName", "supervisorName", "guardOnDuty", "inspectionTime", "radioCheckStatus", "uniformTurnout", "weaponEquipmentCheck", "overallRating", "remarks"];
+const PATROL_KEYS = ["siteName", "supervisorName", "securityOfficerOnDuty", "inspectionTime", "radioCheckStatus", "uniformTurnout", "weaponEquipmentCheck", "overallRating", "remarks"];
 
 app.get("/api/patrol-inspections", authenticateToken, requireModuleAccess("patrol"), async (req, res) => {
   if (hasListPagination(req)) {
@@ -3006,7 +3155,7 @@ app.delete("/api/patrol-inspections/:id", authenticateToken, requireModuleAccess
 
 /* ─────────────── CRUD: Duty Roster ─────────────── */
 
-const ROSTER_KEYS = ["guardId", "guardName", "siteId", "siteName", "region", "shiftDate", "shiftType", "status", "checkInTime", "checkOutTime"];
+const ROSTER_KEYS = ["forceNumber", "securityOfficerName", "siteId", "siteName", "region", "shiftDate", "shiftType", "status", "checkInTime", "checkOutTime"];
 
 app.get("/api/roster", authenticateToken, requireModuleAccess("roster"), async (req, res) => {
   if (hasListPagination(req)) {
@@ -3044,7 +3193,7 @@ app.delete("/api/roster/:id", authenticateToken, requireModuleAccess("roster", "
 
 /* ─────────────── CRUD: Admin Requisitions ─────────────── */
 
-const REQ_KEYS = ["reqCode", "department", "requestedBy", "itemDescription", "quantity", "estimatedCostUgx", "priority", "status", "dateRequested", "issuedToGuardId", "issuedToGuardName", "issuedToGuardCode", "itemUnitCostUgx", "issuedDate"];
+const REQ_KEYS = ["reqCode", "department", "requestedBy", "itemDescription", "quantity", "estimatedCostUgx", "priority", "status", "dateRequested", "issuedToForceNumber", "issuedToSecurityOfficerName", "itemUnitCostUgx", "issuedDate"];
 
 app.get("/api/requisitions", authenticateToken, async (_req, res) => {
   const rows = await prisma.adminRequisition.findMany({ orderBy: { createdAt: "desc" } });
@@ -3255,12 +3404,12 @@ app.put("/api/trainees/:id/graduate", authenticateToken, requireModuleAccess("tr
       where: { id: trainee.cohortId },
       data: { passedOutCount: { increment: 1 } },
     }),
-    prisma.guard.create({
+    prisma.securityOfficer.create({
       data: {
         forceNumber,
         fullName: trainee.fullName,
         nationalId: trainee.nationalIdNumber,
-        designation: "Guard",
+        designation: "Security_Officer",
         assignedSite: "Standby Operations Reserve",
         location: trainee.assignedRegion || "Kampala Central",
         phone: "+256 700 000000",
@@ -3574,7 +3723,7 @@ app.delete("/api/k9-health/:id", authenticateToken, requireModuleAccess("k9s", "
 
 /* ─────────────── CRUD: Armoury (Write Ops + Issue/Return) ─────────────── */
 
-const ARMOURY_KEYS = ["assetTag", "serialNumber", "category", "name", "caliberOrSpecs", "totalQuantity", "availableQuantity", "condition", "assignedToGuardId", "assignedToGuardName", "location"];
+const ARMOURY_KEYS = ["assetTag", "serialNumber", "category", "name", "caliberOrSpecs", "totalQuantity", "availableQuantity", "condition", "assignedToForceNumber", "assignedToSecurityOfficerName", "location"];
 
 app.post("/api/armoury", authenticateToken, requireModuleAccess("armoury", "full"), async (req, res) => {
   const row = await prisma.armouryItem.create({ data: whitelistFields(req.body, ARMOURY_KEYS) as any });
@@ -3592,11 +3741,11 @@ app.delete("/api/armoury/:id", authenticateToken, requireModuleAccess("armoury",
 });
 
 app.post("/api/armoury-logs", authenticateToken, requireModuleAccess("armoury", "full"), async (req, res) => {
-  const { assetId, guardId, locationName, ammoRoundsOut, dateOut, timeOut, signOutConfirmed, armourerInCharge, notes } = req.body || {};
+  const { assetId, forceNumber, locationName, ammoRoundsOut, dateOut, timeOut, signOutConfirmed, armourerInCharge, notes } = req.body || {};
   const item = await prisma.armouryItem.findUnique({ where: { id: assetId } });
-  const guard = await prisma.guard.findUnique({ where: { id: guardId } });
-  if (!item || !guard) {
-    res.status(400).json({ error: "Armoury item or guard not found" });
+  const officer = await prisma.securityOfficer.findUnique({ where: { forceNumber } });
+  if (!item || !officer) {
+    res.status(400).json({ error: "Armoury item or security officer not found" });
     return;
   }
   const serialNumberLog = `SL-2026-${String((await prisma.armouryLog.count()) + 1).padStart(3, "0")}`;
@@ -3604,9 +3753,9 @@ app.post("/api/armoury-logs", authenticateToken, requireModuleAccess("armoury", 
     prisma.armouryLog.create({
       data: {
         serialNumberLog,
-        guardId: guard.id,
-        guardName: guard.fullName,
-        locationName: locationName || guard.assignedSite || "Assigned Duty Post",
+        forceNumber: officer.forceNumber,
+        securityOfficerName: officer.fullName,
+        locationName: locationName || officer.assignedSite || "Assigned Duty Post",
         firearmSerialNumber: item.serialNumber,
         assetName: item.name,
         assetTag: item.assetTag,
@@ -3624,8 +3773,8 @@ app.post("/api/armoury-logs", authenticateToken, requireModuleAccess("armoury", 
       data: {
         availableQuantity: Math.max(0, item.availableQuantity - 1),
         location: "Issued Out",
-        assignedToGuardId: guard.id,
-        assignedToGuardName: guard.fullName,
+        assignedToForceNumber: officer.forceNumber,
+        assignedToSecurityOfficerName: officer.fullName,
       },
     }),
   ]);
@@ -3657,8 +3806,8 @@ app.put("/api/armoury-logs/:id/return", authenticateToken, requireModuleAccess("
       data: {
         availableQuantity: { increment: 1 },
         location: "Main Vault",
-        assignedToGuardId: null,
-        assignedToGuardName: null,
+        assignedToForceNumber: null,
+        assignedToSecurityOfficerName: null,
       },
     }),
   ]);
@@ -3703,7 +3852,7 @@ app.get("/api/regional-offices", authenticateToken, requireAnyModuleAccess("it",
       regionalManagerName: o.regionalManagerName,
       phone: o.phone,
       email: o.email,
-      activeGuardsCount: o.activeGuardsCount,
+      activeSecurityOfficersCount: o.activeSecurityOfficersCount,
       clientSitesCount: o.clientSitesCount,
       armouryVaultStatus: o.armouryVaultStatus,
       vehiclesAssigned: o.vehiclesAssigned,
@@ -3771,10 +3920,10 @@ async function notifyUser(targetUserId: string, type: string, title: string, mes
   });
 }
 
-async function createLeaveApproval(leaveId: string, requesterId: string, requesterName: string, guardId: string) {
+async function createLeaveApproval(leaveId: string, requesterId: string, requesterName: string, forceNumber?: string) {
   const workflow = await prisma.workflow.findUnique({ where: { code: "LEAVE-REQ" }, include: { steps: { orderBy: { stepOrder: "asc" } } } });
   if (!workflow) return null;
-  const isGuardLeave = !!(await prisma.guard.findUnique({ where: { id: guardId } }));
+  const isOfficerLeave = !!(forceNumber && (await prisma.securityOfficer.findUnique({ where: { forceNumber } })));
   const approval = await prisma.approval.create({
     data: {
       workflowId: workflow.id,
@@ -3786,19 +3935,19 @@ async function createLeaveApproval(leaveId: string, requesterId: string, request
       requestedBy: requesterId,
       requestedByName: requesterName,
       regionScope: null,
-      meta: isGuardLeave ? JSON.stringify({ excludeOptional: true }) : JSON.stringify({ excludeOptional: false }),
+      meta: isOfficerLeave ? JSON.stringify({ excludeOptional: true }) : JSON.stringify({ excludeOptional: false }),
     },
   });
   return approval;
 }
 
-async function computeLeaveBalance(guardId: string, currentDuration: number) {
-  // §5 leave-balance fix: entitlement/taken/balance derive from the guard's
+async function computeLeaveBalance(forceNumber: string, currentDuration: number) {
+  // §5 leave-balance fix: entitlement/taken/balance derive from the officer's
   // leave history instead of rendering as blank dashes. Annual entitlement is
   // 21 days; taken = previously approved annual leave + the current request.
   const year = new Date().getFullYear();
   const history = await prisma.leaveRequest.findMany({
-    where: { guardId, status: "Approved" },
+    where: { forceNumber, status: "Approved" },
   });
   const entitlement = ANNUAL_LEAVE_ENTITLEMENT_DAYS;
   const priorTaken = history
@@ -3811,7 +3960,7 @@ async function computeLeaveBalance(guardId: string, currentDuration: number) {
   return { entitlement, taken, balance: entitlement - taken };
 }
 
-/* Annual leave entitlement per staff member / guard (company policy). */
+/* Annual leave entitlement per staff member / security officer (company policy). */
 const ANNUAL_LEAVE_ENTITLEMENT_DAYS = 21;
 
 /* Days of approved annual leave already spent by a user in the current leave
@@ -3888,10 +4037,10 @@ async function actOnLeaveApproval(leaveId: string, action: "Approved" | "Rejecte
         userRole: actorRoleLabel(user),
         action: "Leave Rejected",
         module: "HR",
-        details: `${leave.guardName} leave request ${leaveId} rejected by ${actorName}`,
+        details: `${leave.securityOfficerName} leave request ${leaveId} rejected by ${actorName}`,
       },
     });
-    await notifyUser((leave as any).requestedBy ?? leave.guardId, "error", "Leave Rejected", `${leave.guardName} leave (${leave.leaveType}) was rejected by ${actorName}${comment ? ` — ${comment}` : ""}.`, "HR");
+    await notifyUser((leave as any).requesterUserId ?? leave.forceNumber, "error", "Leave Rejected", `${leave.securityOfficerName} leave (${leave.leaveType}) was rejected by ${actorName}${comment ? ` — ${comment}` : ""}.`, "HR");
     return { status: "Rejected" };
   }
 
@@ -3924,10 +4073,10 @@ async function actOnLeaveApproval(leaveId: string, action: "Approved" | "Rejecte
         userRole: actorRoleLabel(user),
         action: "Leave Approved",
         module: "HR",
-        details: `${leave.guardName} leave request ${leaveId} fully approved by ${actorName}`,
+        details: `${leave.securityOfficerName} leave request ${leaveId} fully approved by ${actorName}`,
       },
     });
-    await notifyUser((leave as any).requestedBy ?? leave.guardId, "success", "Leave Approved", `${leave.guardName} leave (${leave.leaveType}) has been fully approved.`, "HR");
+    await notifyUser((leave as any).requesterUserId ?? leave.forceNumber, "success", "Leave Approved", `${leave.securityOfficerName} leave (${leave.leaveType}) has been fully approved.`, "HR");
     return { status: "Approved" };
   }
 
@@ -3945,13 +4094,13 @@ async function actOnLeaveApproval(leaveId: string, action: "Approved" | "Rejecte
       userRole: actorRoleLabel(user),
       action: "Leave Advanced",
       module: "HR",
-      details: `${leave.guardName} leave request ${leaveId} advanced to step ${nextStep} by ${actorName}`,
+      details: `${leave.securityOfficerName} leave request ${leaveId} advanced to step ${nextStep} by ${actorName}`,
     },
   });
   if (nextStatus === "Pending GM Approval") {
-    await notifyRole("General Manager", "info", "Leave Awaiting GM Approval", `${leave.guardName} leave (${leave.leaveType}) approved by HR Manager — awaiting your final approval.`, "HR");
+    await notifyRole("General Manager", "info", "Leave Awaiting GM Approval", `${leave.securityOfficerName} leave (${leave.leaveType}) approved by HR Manager — awaiting your final approval.`, "HR");
   } else {
-    await notifyUser((leave as any).requestedBy ?? leave.guardId, "info", "Leave Progressing", `${leave.guardName} leave (${leave.leaveType}) approved by ${actorName}; continuing through the approval flow.`, "HR");
+    await notifyUser((leave as any).requesterUserId ?? leave.forceNumber, "info", "Leave Progressing", `${leave.securityOfficerName} leave (${leave.leaveType}) approved by ${actorName}; continuing through the approval flow.`, "HR");
   }
   return { status: `Advanced to step ${nextStep}` };
 }
@@ -3966,17 +4115,17 @@ app.get("/api/leave-requests", authenticateToken, requireModuleAccess("leave"), 
     const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { region: true } });
     const region = dbUser?.region;
     if (region) {
-      const guards = await prisma.guard.findMany({ where: { region }, select: { id: true } });
-      const guardIds = new Set(guards.map((g) => g.id));
-      visible = requests.filter((r) => guardIds.has(r.guardId));
+      const officers = await prisma.securityOfficer.findMany({ where: { region }, select: { forceNumber: true } });
+      const officerForceNumbers = new Set(officers.map((o) => o.forceNumber));
+      visible = requests.filter((r) => officerForceNumbers.has(r.forceNumber));
     }
-  } else if (hasEffectiveRole(user, "Guard Officer")) {
+  } else if (hasEffectiveRole(user, "Security Officer")) {
     const me = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
-    const myGuard = await prisma.guard.findFirst({
+    const myOfficer = await prisma.securityOfficer.findFirst({
       where: { OR: [{ linkedUserId: user.userId }, { fullName: me?.name ?? "__none__" }] },
-      select: { id: true },
+      select: { forceNumber: true },
     });
-    visible = myGuard ? requests.filter((r) => r.guardId === myGuard.id) : [];
+    visible = myOfficer ? requests.filter((r) => r.forceNumber === myOfficer.forceNumber) : [];
   }
   if (hasListPagination(req)) {
     const page = Math.max(Number(req.query.page) || 1, 1);
@@ -3995,9 +4144,9 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
     return;
   }
   /* Staff self-service: any authenticated employee may request leave for
-   * themselves (no guardId in the body). The request follows the same
-   * HR Manager → optional GM approval workflow as guard leave. */
-  const isSelfService = !req.body?.guardId || req.body?.selfService === true;
+   * themselves (no forceNumber in the body). The request follows the same
+   * HR Manager → optional GM approval workflow as security-officer duty-cover leave. */
+  const isSelfService = !req.body?.forceNumber || req.body?.selfService === true;
   if (isSelfService) {
     const parsed = z.object({
       leaveType: z.string().min(1),
@@ -4033,8 +4182,7 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
         category: "staff",
         requesterUserId: dbUser.id,
         requesterRole: actorRoleLabel(user),
-        guardId: dbUser.id,
-        guardName: dbUser.name,
+        securityOfficerName: dbUser.name,
         forceNumber: dbUser.forceNumber || `STAFF-${dbUser.id.slice(-6).toUpperCase()}`,
         leaveType: parsed.data.leaveType,
         startDate: parsed.data.startDate,
@@ -4069,21 +4217,20 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
     res.status(201).json(result);
     return;
   }
-  const allowedRequesters = ["Guard Officer", "Regional Manager", "Operations Manager", "HR Manager", "HR Assistant"];
+  const allowedRequesters = ["Security Officer", "Regional Manager", "Operations Manager", "HR Manager", "HR Assistant"];
   if (!allowedRequesters.some((r) => hasEffectiveRole(user, r))) {
     res.status(403).json({ error: `Access denied: ${actorRoleLabel(user)} cannot submit leave requests` });
     return;
   }
   const parsed = z.object({
-    guardId: z.string().min(1),
-    guardName: z.string().min(1),
+    securityOfficerName: z.string().min(1),
     forceNumber: z.string().min(1),
     leaveType: z.string().min(1),
     startDate: z.string().min(1),
     endDate: z.string().min(1),
     durationDays: z.number().int().positive(),
     reason: z.string().min(1),
-    reliefGuardName: z.string().optional(),
+    reliefSecurityOfficerName: z.string().optional(),
     reliefForceNumber: z.string().optional(),
     contactAddress: z.string().optional(),
   }).safeParse(req.body);
@@ -4092,10 +4239,10 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
     return;
   }
   if (hasEffectiveRole(user, "Regional Manager")) {
-    const guard = await prisma.guard.findUnique({ where: { id: parsed.data.guardId } });
+    const officer = await prisma.securityOfficer.findUnique({ where: { forceNumber: parsed.data.forceNumber } });
     const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { region: true } });
-    if (guard && dbUser?.region && guard.region && guard.region !== dbUser.region) {
-      res.status(403).json({ error: "Access denied: you may only request leave for guards in your own region" });
+    if (officer && dbUser?.region && officer.region && officer.region !== dbUser.region) {
+      res.status(403).json({ error: "Access denied: you may only request leave for security officers in your own region" });
       return;
     }
   }
@@ -4106,7 +4253,7 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
       status: "Pending HR Approval",
     },
   });
-  const approval = await createLeaveApproval(leave.id, user.userId, parsed.data.guardName, parsed.data.guardId);
+  const approval = await createLeaveApproval(leave.id, user.userId, parsed.data.securityOfficerName, parsed.data.forceNumber);
   if (approval) {
     await prisma.leaveRequest.update({ where: { id: leave.id }, data: { approvalId: approval.id } });
   }
@@ -4117,10 +4264,10 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
       userRole: actorRoleLabel(user),
       action: "Leave Requested",
       module: "HR",
-      details: `${parsed.data.guardName} requested ${parsed.data.leaveType} from ${parsed.data.startDate} to ${parsed.data.endDate}`,
+      details: `${parsed.data.securityOfficerName} requested ${parsed.data.leaveType} from ${parsed.data.startDate} to ${parsed.data.endDate}`,
     },
   });
-  await notifyRole("HR Manager", "info", "New Leave Request", `${parsed.data.guardName} (${parsed.data.forceNumber}) requested ${parsed.data.leaveType} for ${parsed.data.durationDays} day(s) from ${parsed.data.startDate}.`, "HR");
+  await notifyRole("HR Manager", "info", "New Leave Request", `${parsed.data.securityOfficerName} (${parsed.data.forceNumber}) requested ${parsed.data.leaveType} for ${parsed.data.durationDays} day(s) from ${parsed.data.startDate}.`, "HR");
   const result = await prisma.leaveRequest.findUnique({ where: { id: leave.id } });
   res.status(201).json(result);
 });
@@ -4133,13 +4280,13 @@ app.get("/api/my/leave", authenticateToken, async (req, res) => {
     res.status(404).json({ error: "User record not found" });
     return;
   }
-  // Own staff requests + any guard-leave requests linked to this user's guard record.
-  const myGuard = await prisma.guard.findFirst({
+  // Own staff requests + any officer duty-cover requests linked to this user's officer record.
+  const myOfficer = await prisma.securityOfficer.findFirst({
     where: { OR: [{ linkedUserId: dbUser.id }, { fullName: dbUser.name }] },
-    select: { id: true },
+    select: { forceNumber: true },
   });
-  const where = myGuard
-    ? { OR: [{ requesterUserId: dbUser.id }, { guardId: myGuard.id }] }
+  const where = myOfficer
+    ? { OR: [{ requesterUserId: dbUser.id }, { forceNumber: myOfficer.forceNumber }] }
     : { requesterUserId: dbUser.id };
   const [requests, summary] = await Promise.all([
     prisma.leaveRequest.findMany({ where, orderBy: { createdAt: "desc" } }),
@@ -4184,7 +4331,7 @@ app.delete("/api/leave-requests/:id", authenticateToken, async (req, res) => {
       userRole: actorRoleLabel(user),
       action: "Leave Request Withdrawn",
       module: "HR",
-      details: `${leave.guardName} withdrew their ${leave.leaveType} request (${leave.startDate} → ${leave.endDate})`,
+      details: `${leave.securityOfficerName} withdrew their ${leave.leaveType} request (${leave.startDate} → ${leave.endDate})`,
     },
   });
   res.json({ ok: true });
@@ -4235,7 +4382,7 @@ app.put("/api/leave-requests/:id/hr-approve", authenticateToken, requireModuleAc
         }
       }
       if (updateData.entitlement === undefined || updateData.taken === undefined || updateData.balance === undefined) {
-        const computed = await computeLeaveBalance(existing.guardId, existing.durationDays);
+        const computed = await computeLeaveBalance(existing.forceNumber, existing.durationDays);
         updateData.entitlement = computed.entitlement;
         updateData.taken = computed.taken;
         updateData.balance = computed.balance;
@@ -4756,8 +4903,8 @@ app.put("/api/site-surveys/:id/complete", authenticateToken, async (req, res) =>
     entryPoints: z.number().int().optional(),
     riskLevel: z.string().optional(),
     highValueAssets: z.string().optional(),
-    dayGuardsNeeded: z.number().int().optional(),
-    nightGuardsNeeded: z.number().int().optional(),
+    daySecurityOfficersNeeded: z.number().int().optional(),
+    nightSecurityOfficersNeeded: z.number().int().optional(),
     armedDay: z.boolean().optional(),
     armedNight: z.boolean().optional(),
     equipmentNeeded: z.string().optional(),
@@ -4933,7 +5080,7 @@ app.put("/api/contract-inquiries/:id/respond", authenticateToken, requireRole("R
 
 /* ─────────────── CRUD: Documents ─────────────── */
 
-const HR_CATEGORIES = ["HR", "Personnel", "Employment", "Disciplinary", "Staff", "Guard File"];
+const HR_CATEGORIES = ["HR", "Personnel", "Employment", "Disciplinary", "Staff", "Officer File"];
 const FINANCE_CATEGORIES = ["Finance", "Invoice", "Expense", "Payroll", "Vendor"];
 const HR_DOC_ROLES = ["HR Manager", "HR Assistant", "Records Officer", "IT Officer"];
 const FINANCE_DOC_ROLES = ["Finance Manager", "Accountant", "Assistant Accountant", "Internal Auditor", "Cashier", "IT Officer"];
@@ -5165,8 +5312,7 @@ app.get("/api/performance-reviews", authenticateToken, requireModuleAccess("perf
 
 app.post("/api/performance-reviews", authenticateToken, requireModuleAccess("performance", "full"), async (req, res) => {
   const parsed = z.object({
-    guardId: z.string().min(1),
-    guardName: z.string().min(1),
+    securityOfficerName: z.string().min(1),
     forceNumber: z.string().min(1),
     reviewPeriod: z.string().min(1),
     reviewType: z.string().min(1),
@@ -5412,6 +5558,177 @@ app.put("/api/complaints/:id/refer", authenticateToken, requireModuleAccess("com
 
 /* ─────────────── CRUD: Disciplinary Actions (RM → Ops → HR chain) ─────────────── */
 
+/* ─────────────── Charge Sheet PDF (canonical archive, generated at HR finalization) ─────────────── */
+
+async function generateChargeSheetPdf(actionId: string): Promise<{ buffer: Buffer; fileName: string } | null> {
+  const action = await prisma.disciplinaryAction.findUnique({ where: { id: actionId } });
+  if (!action) return null;
+  const officer = await prisma.securityOfficer.findUnique({ where: { forceNumber: action.forceNumber } });
+  const prior = await prisma.disciplinaryAction.findMany({
+    where: { forceNumber: action.forceNumber, id: { not: action.id } },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { actionCode: true, actionType: true, offence: true, offenceCategory: true, status: true, createdAt: true },
+  });
+  const linkedIncident = action.linkedIncidentCode
+    ? await prisma.incident.findFirst({ where: { incidentCode: action.linkedIncidentCode } })
+    : null;
+  const linkedComplaint = action.linkedComplaintCode
+    ? await prisma.complaint.findFirst({ where: { complaintCode: action.linkedComplaintCode } })
+    : null;
+
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const W = 595;
+  const H = 842;
+  const M = 50;
+  let page = pdf.addPage([W, H]);
+  let y = H - M;
+
+  const newPage = () => {
+    page = pdf.addPage([W, H]);
+    y = H - M;
+  };
+  const companyLogo = await embedCompanyLogo(pdf);
+  const ensure = (needed: number) => {
+    if (y - needed < M + 20) newPage();
+  };
+  const wrap = (s: string, size: number, maxW: number): string[] => {
+    const words = String(s || "").split(/\s+/);
+    const lines: string[] = [];
+    let line = "";
+    for (const w of words) {
+      const test = line ? `${line} ${w}` : w;
+      if (font.widthOfTextAtSize(test, size) > maxW) {
+        if (line) lines.push(line);
+        line = w;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : [""];
+  };
+  const text = (s: string, x: number, size = 10, isBold = false) => {
+    page.drawText(s, { x, y, size, font: isBold ? bold : font, color: rgb(0.1, 0.1, 0.12) });
+  };
+  const para = (s: string, size = 10, indent = 0) => {
+    for (const line of wrap(s, size, W - M * 2 - indent)) {
+      ensure(size + 4);
+      text(line, M + indent, size);
+      y -= size + 4;
+    }
+  };
+  const sectionTitle = (s: string) => {
+    ensure(30);
+    y -= 8;
+    text(s.toUpperCase(), M, 11, true);
+    y -= 4;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.7, color: rgb(0.15, 0.2, 0.35) });
+    y -= 14;
+  };
+  const field = (label: string, value?: string | null) => {
+    ensure(16);
+    text(`${label}:`, M, 10, true);
+    text(value && value.trim() ? value : "—", M + 150, 10);
+    y -= 16;
+  };
+
+  // Header
+  page.drawRectangle({ x: M, y: y - 58, width: W - M * 2, height: 66, color: rgb(0.93, 0.95, 0.98), borderColor: rgb(0.12, 0.23, 0.37), borderWidth: 1.2 });
+  if (companyLogo) {
+    page.drawImage(companyLogo, { x: M + 14, y: y - 52, width: 46, height: 46 });
+  }
+  y -= 24;
+  page.drawText("INTEGRATED SECURITY COMPANY LTD", { x: W / 2 - bold.widthOfTextAtSize("INTEGRATED SECURITY COMPANY LTD", 15) / 2, y, size: 15, font: bold, color: rgb(0.12, 0.23, 0.37) });
+  y -= 18;
+  page.drawText("DISCIPLINARY CHARGE SHEET", { x: W / 2 - bold.widthOfTextAtSize("DISCIPLINARY CHARGE SHEET", 12) / 2, y, size: 12, font: bold });
+  y -= 16;
+  page.drawText(`Ref: ${action.actionCode}    Issued: ${new Date().toISOString().split("T")[0]}`, { x: W / 2 - font.widthOfTextAtSize(`Ref: ${action.actionCode}    Issued: ${new Date().toISOString().split("T")[0]}`, 9) / 2, y, size: 9, font });
+  y -= 34;
+
+  sectionTitle("1. Employee Particulars (Force Number as primary identifier)");
+  field("Name", action.securityOfficerName);
+  field("Force Number", action.forceNumber);
+  field("Rank / Designation", officer?.designation);
+  field("Station / Site", officer?.assignedSite);
+  field("Region", officer?.region);
+
+  sectionTitle("2. Offence");
+  field("Category", action.offenceCategory);
+  field("Offence", action.offence);
+  field("Date of Offence", action.offenceDate);
+  field("Time", action.offenceTime);
+  field("Zone / Location", action.zone);
+
+  sectionTitle("3. Particulars of Allegation (Grounds)");
+  para(action.reason);
+
+  if (linkedIncident || linkedComplaint) {
+    sectionTitle("4. Linked Records");
+    if (linkedIncident) {
+      field("Incident", `${linkedIncident.incidentCode} — ${linkedIncident.title}`);
+      para(linkedIncident.description || "", 9, 12);
+    }
+    if (linkedComplaint) {
+      field("Complaint", `${linkedComplaint.complaintCode} — ${linkedComplaint.clientName} (${linkedComplaint.siteName})`);
+      para(linkedComplaint.description || "", 9, 12);
+    }
+  }
+
+  sectionTitle("5. Previous Disciplinary Record");
+  if (prior.length === 0) {
+    para("No previous disciplinary actions on record.", 10);
+  } else {
+    for (const p of prior) {
+      para(`• ${p.actionCode} — ${p.actionType}${p.offence ? ` (${p.offence})` : ""} — ${p.status} — ${new Date(p.createdAt).toISOString().split("T")[0]}`, 9, 8);
+    }
+  }
+
+  sectionTitle("6. Hearing & Employee Response");
+  field("Hearing Date", action.hearingDate);
+  if (action.employeeResponse) {
+    para(`"${action.employeeResponse}"`, 10, 12);
+    y -= 4;
+    field("Recorded By", `${action.responseRecordedBy || "—"}${action.responseRecordedAt ? ` on ${action.responseRecordedAt}` : ""}`);
+  } else {
+    para("No employee response recorded at the time of finalization.", 10);
+  }
+
+  sectionTitle("7. Decision & Action Taken");
+  field("Decision", action.actionType);
+  field("Severity", action.severity);
+  field("Action Taken", action.actionTaken);
+  field("Fine (UGX)", action.fineAmountUgx ? `${action.fineAmountUgx.toLocaleString("en-UG")}/=` : undefined);
+  field("Received By", action.receivedBy);
+
+  sectionTitle("8. Approval Trail");
+  field("Initiated By (Investigations)", action.initiatedBy);
+  field("Regional Manager", action.regionalApprovedBy);
+  field("Operations Manager", action.operationsApprovedBy);
+  field("HR Manager (Final)", action.hrApprovedBy);
+  field("Finalized On", action.approvedAt);
+
+  ensure(90);
+  y -= 10;
+  const sigY = y;
+  const sig = (x: number, label: string) => {
+    page.drawLine({ start: { x, y: sigY - 28 }, end: { x: x + 110, y: sigY - 28 }, thickness: 0.8, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText(label, { x, y: sigY - 42, size: 8, font, color: rgb(0.35, 0.35, 0.4) });
+  };
+  sig(M, "Investigations Officer");
+  sig(M + 140, "Regional Manager");
+  sig(M + 280, "Operations Manager");
+  sig(M + 420, "HR Manager");
+  page.drawLine({ start: { x: M, y: sigY - 78 }, end: { x: M + 200, y: sigY - 78 }, thickness: 0.8, color: rgb(0.1, 0.1, 0.1) });
+  page.drawText("Employee Acknowledgement (Force No. " + action.forceNumber + ") — signature confirms receipt; not an admission", { x: M, y: sigY - 92, size: 8, font, color: rgb(0.35, 0.35, 0.4) });
+
+  const bytes = await pdf.save();
+  return { buffer: Buffer.from(bytes), fileName: `chargesheet_${action.actionCode}.pdf` };
+}
+
 app.get("/api/disciplinary", authenticateToken, requireModuleAccess("disciplinary"), async (req, res) => {
   const user = (req as any).user as JwtPayload;
   let actions = await prisma.disciplinaryAction.findMany({ orderBy: { createdAt: "desc" } });
@@ -5419,9 +5736,16 @@ app.get("/api/disciplinary", authenticateToken, requireModuleAccess("disciplinar
     const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { region: true } });
     const region = dbUser?.region;
     if (region) {
-      const guardIds = new Set((await prisma.guard.findMany({ where: { region }, select: { id: true } })).map((g) => g.id));
-      actions = actions.filter((a) => guardIds.has(a.guardId));
+      const officerForceNumbers = new Set((await prisma.securityOfficer.findMany({ where: { region }, select: { forceNumber: true } })).map((o) => o.forceNumber));
+      actions = actions.filter((a) => officerForceNumbers.has(a.forceNumber));
     }
+  }
+  if (hasListPagination(req)) {
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limitRaw = Number(req.query.limit);
+    const limit = Math.min(Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    res.json(paginatedEnvelope(actions.slice((page - 1) * limit, page * limit), actions.length, page, limit));
+    return;
   }
   res.json(actions);
 });
@@ -5429,15 +5753,16 @@ app.get("/api/disciplinary", authenticateToken, requireModuleAccess("disciplinar
 app.post("/api/disciplinary", authenticateToken, requireModuleAccess("disciplinary", "full"), async (req, res) => {
   const user = (req as any).user as JwtPayload;
   const parsed = z.object({
-    guardId: z.string().min(1),
-    guardName: z.string().min(1),
+    securityOfficerName: z.string().min(1),
     forceNumber: z.string().min(1),
     actionType: z.string().min(1),
     reason: z.string().min(1),
     severity: z.string().optional(),
     linkedIncidentCode: z.string().optional(),
     linkedComplaintCode: z.string().optional(),
-    offenceCategory: z.enum(["Category 1", "Category 2"]).optional(),
+    offenceCategory: z.enum(["Category 1", "Category 2", "Category 3"]).optional(),
+    fineAmountUgx: z.number().int().positive().optional(),
+    receivedBy: z.string().optional(),
     offence: z.string().optional(),
     offenceDate: z.string().optional(),
     offenceTime: z.string().optional(),
@@ -5468,6 +5793,15 @@ app.put("/api/disciplinary/:id/regional-approve", authenticateToken, async (req,
     res.status(403).json({ error: "Only a Regional Manager can approve at this disciplinary step" });
     return;
   }
+  const existing = await prisma.disciplinaryAction.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Disciplinary action not found" });
+    return;
+  }
+  if (existing.status !== "Initiated") {
+    res.status(400).json({ error: `Cannot approve ${existing.actionCode}: expected status "Initiated" but current status is "${existing.status}".` });
+    return;
+  }
   const actorName = (await contractActorName(req)) || user.role;
   const action = await prisma.disciplinaryAction.update({ where: { id }, data: { status: "Pending Ops Approval", regionalApprovedBy: actorName } });
   res.json(action);
@@ -5480,8 +5814,65 @@ app.put("/api/disciplinary/:id/ops-approve", authenticateToken, async (req, res)
     res.status(403).json({ error: "Only the Operations Manager can approve at this disciplinary step" });
     return;
   }
+  const existing = await prisma.disciplinaryAction.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Disciplinary action not found" });
+    return;
+  }
+  if (existing.status !== "Pending Ops Approval") {
+    res.status(400).json({ error: `Cannot approve ${existing.actionCode}: expected status "Pending Ops Approval" but current status is "${existing.status}".` });
+    return;
+  }
   const actorName = (await contractActorName(req)) || user.role;
   const action = await prisma.disciplinaryAction.update({ where: { id }, data: { status: "Pending HR Approval", operationsApprovedBy: actorName } });
+  res.json(action);
+});
+
+/* Investigations Officer records the hearing date and the employee's response/defense. */
+app.put("/api/disciplinary/:id/response", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const user = (req as any).user as JwtPayload | undefined;
+  if (!user || !hasEffectiveRole(user, "Investigations Officer")) {
+    res.status(403).json({ error: "Only the Investigations Officer can record the employee's response" });
+    return;
+  }
+  const parsed = z.object({
+    hearingDate: z.string().optional(),
+    employeeResponse: z.string().min(1, "Employee response is required"),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const existing = await prisma.disciplinaryAction.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Disciplinary action not found" });
+    return;
+  }
+  if (["Finalized", "Rejected"].includes(existing.status)) {
+    res.status(400).json({ error: `Cannot record a response on a ${existing.status.toLowerCase()} case` });
+    return;
+  }
+  const actorName = (await contractActorName(req)) || user.role;
+  const action = await prisma.disciplinaryAction.update({
+    where: { id },
+    data: {
+      hearingDate: parsed.data.hearingDate || existing.hearingDate,
+      employeeResponse: parsed.data.employeeResponse,
+      responseRecordedBy: actorName,
+      responseRecordedAt: new Date().toISOString().split("T")[0],
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Charge Sheet Response Recorded",
+      module: "HR",
+      details: `${existing.securityOfficerName} (${existing.forceNumber}) — employee response recorded for ${existing.actionCode}`,
+    },
+  });
   res.json(action);
 });
 
@@ -5497,22 +5888,73 @@ app.put("/api/disciplinary/:id/hr-approve", authenticateToken, async (req, res) 
     res.status(404).json({ error: "Disciplinary action not found" });
     return;
   }
+  if (existing.status !== "Pending HR Approval") {
+    res.status(400).json({ error: `Cannot finalize ${existing.actionCode}: expected status "Pending HR Approval" but current status is "${existing.status}". The Regional and Operations approvals must come first.` });
+    return;
+  }
   const actorName = (await contractActorName(req)) || user.role;
+  // Charge-sheet due process: Category 1 offences and custodial decisions require a
+  // recorded employee response before HR may finalize.
+  const needsResponse =
+    existing.offenceCategory === "Category 1" ||
+    ["Termination", "Suspension", "Desertion"].includes(existing.actionType);
+  if (needsResponse && !existing.employeeResponse?.trim()) {
+    res.status(400).json({
+      error: `Cannot finalize ${existing.actionCode}: this is a ${existing.offenceCategory || "custodial"} case (${existing.actionType}) and the employee's response has not been recorded. The Investigations Officer must record the hearing response first.`,
+    });
+    return;
+  }
+  const extras = z.object({
+    fineAmountUgx: z.number().int().positive().optional(),
+    receivedBy: z.string().min(1).optional(),
+  }).safeParse(req.body || {});
   const action = await prisma.disciplinaryAction.update({
     where: { id },
-    data: { status: "Finalized", hrApprovedBy: actorName, approvedAt: new Date().toISOString().split("T")[0] },
+    data: {
+      status: "Finalized",
+      hrApprovedBy: actorName,
+      approvedAt: new Date().toISOString().split("T")[0],
+      ...(extras.success && extras.data.fineAmountUgx ? { fineAmountUgx: extras.data.fineAmountUgx } : {}),
+      ...(extras.success && extras.data.receivedBy ? { receivedBy: extras.data.receivedBy } : {}),
+    },
   });
+  // Generate and file the canonical charge sheet PDF into the Records vault.
+  try {
+    const generated = await generateChargeSheetPdf(id);
+    if (generated) {
+      fs.writeFileSync(path.join(uploadDir, generated.fileName), generated.buffer);
+      const checksum = crypto.createHash("sha256").update(generated.buffer).digest("hex");
+      await prisma.document.create({
+        data: {
+          code: `DOC-CS-${Date.now()}`,
+          name: `Charge Sheet ${existing.actionCode} — ${existing.securityOfficerName} (${existing.forceNumber})`,
+          category: "Disciplinary",
+          referenceType: "DisciplinaryAction",
+          referenceId: id,
+          mimeType: "application/pdf",
+          fileSize: generated.buffer.length,
+          filePath: generated.fileName,
+          checksum,
+          uploadedBy: user.userId,
+          notes: `Auto-generated on HR finalization (${action.approvedAt}). Decision: ${existing.actionType}.`,
+        },
+      });
+      await prisma.disciplinaryAction.update({ where: { id }, data: { archivedPdfPath: generated.fileName } });
+    }
+  } catch (pdfErr) {
+    console.error("[disciplinary] charge sheet PDF generation failed:", pdfErr);
+  }
   if (existing.actionType === "Warning Letter") {
-    await prisma.guard.update({
-      where: { id: existing.guardId },
+    await prisma.securityOfficer.update({
+      where: { forceNumber: existing.forceNumber },
       data: { warningLettersCount: { increment: 1 } },
     });
   }
   if (existing.actionType === "Suspension" || existing.actionType === "Termination" || existing.actionType === "Desertion") {
     const reason = `${existing.actionType} - ${existing.reason}`;
     const category = existing.actionType;
-    await prisma.guard.update({
-      where: { id: existing.guardId },
+    await prisma.securityOfficer.update({
+      where: { forceNumber: existing.forceNumber },
       data: {
         status: category === "Suspension" ? "Suspended" : category,
         terminationReason: existing.reason,
@@ -5521,12 +5963,12 @@ app.put("/api/disciplinary/:id/hr-approve", authenticateToken, async (req, res) 
         ...(category === "Desertion" ? { isDeserter: true, desertionDate: new Date() } : {}),
       },
     });
-    const detail = `${existing.guardName} (${existing.forceNumber}) ${category.toLowerCase()} after disciplinary chain. Reason: ${existing.reason}`;
+    const detail = `${existing.securityOfficerName} (${existing.forceNumber}) ${category.toLowerCase()} after disciplinary chain. Reason: ${existing.reason}`;
     await prisma.auditLog.createMany({
       data: [
-        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Guard ${category}`, module: "HR", details: detail },
-        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Guard ${category}`, module: "Operations", details: detail },
-        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Guard ${category}`, module: "Finance", details: detail },
+        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Security Officer ${category}`, module: "HR", details: detail },
+        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Security Officer ${category}`, module: "Operations", details: detail },
+        { timestamp: new Date(), userName: user.userId, userRole: actorRoleLabel(user), action: `Security Officer ${category}`, module: "Finance", details: detail },
       ],
     });
   }
@@ -5540,11 +5982,368 @@ app.put("/api/disciplinary/:id/reject", authenticateToken, async (req, res) => {
     res.status(403).json({ error: "Access denied: cannot reject this disciplinary action" });
     return;
   }
-  const action = await prisma.disciplinaryAction.update({ where: { id }, data: { status: "Rejected" } });
+  const parsed = z.object({ notes: z.string().optional() }).safeParse(req.body ?? {});
+  const notes = parsed.success ? parsed.data.notes : undefined;
+  const existing = await prisma.disciplinaryAction.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Disciplinary action not found" });
+    return;
+  }
+  if (existing.status === "Finalized") {
+    res.status(400).json({ error: `Cannot reject ${existing.actionCode}: it has already been finalized by HR.` });
+    return;
+  }
+  const actorName = (await contractActorName(req)) || user.role;
+  const action = await prisma.disciplinaryAction.update({
+    where: { id },
+    data: { status: "Rejected", resolutionNotes: notes || null, rejectedBy: actorName, rejectedAt: new Date().toISOString().split("T")[0] },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Disciplinary Charge Sheet Rejected",
+      module: "HR",
+      details: `${existing.actionCode} (${existing.securityOfficerName}, ${existing.forceNumber}) rejected by ${actorName}${notes ? ` — ${notes}` : ""}`,
+    },
+  });
   res.json(action);
 });
 
-/* ─────────────── CRUD: Site Deployments (Ops picks guards after a contract is won) ─────────────── */
+
+/* ─────────────── Employment Contracts (Contract for Guards → per-officer PDF, on-screen signing) ─────────────── */
+
+const EC_SALARY_DEFAULT = 180000;
+
+async function generateEmploymentContractPdf(contractId: string): Promise<{ buffer: Buffer; fileName: string } | null> {
+  const c = await prisma.securityOfficerEmploymentContract.findUnique({ where: { id: contractId } });
+  if (!c) return null;
+  const officer = await prisma.securityOfficer.findUnique({ where: { forceNumber: c.forceNumber } });
+
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const W = 595;
+  const H = 842;
+  const M = 50;
+  let page = pdf.addPage([W, H]);
+  let y = H - M;
+
+  const newPage = () => { page = pdf.addPage([W, H]); y = H - M; };
+  const companyLogo = await embedCompanyLogo(pdf);
+  const ensure = (needed: number) => { if (y - needed < M + 20) newPage(); };
+  const wrap = (t: string, size: number, maxW: number): string[] => {
+    const words = String(t || "").split(/\s+/);
+    const lines: string[] = [];
+    let line = "";
+    for (const w of words) {
+      const test = line ? `${line} ${w}` : w;
+      if (font.widthOfTextAtSize(test, size) > maxW) { if (line) lines.push(line); line = w; } else { line = test; }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : [""];
+  };
+  const text = (t: string, x: number, size = 10, isBold = false) => {
+    page.drawText(t, { x, y, size, font: isBold ? bold : font, color: rgb(0.1, 0.1, 0.12) });
+  };
+  const para = (t: string, size = 9.5, indent = 0) => {
+    for (const line of wrap(t, size, W - M * 2 - indent)) {
+      ensure(size + 4);
+      text(line, M + indent, size);
+      y -= size + 4;
+    }
+  };
+  const sectionTitle = (t: string) => {
+    ensure(30);
+    y -= 8;
+    text(t.toUpperCase(), M, 11, true);
+    y -= 4;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.7, color: rgb(0.15, 0.2, 0.35) });
+    y -= 14;
+  };
+  const fmtUgx = (n: number) => n.toLocaleString("en-UG");
+
+  /* Header */
+  if (companyLogo) {
+    page.drawImage(companyLogo, { x: W - M - 54, y: y - 56, width: 52, height: 52 });
+  }
+  text("PYRAMID SECURITY GROUP LTD", M, 15, true);
+  y -= 20;
+  text("Plot 7, Kampala Road · P.O. Box 7183, Kampala, Uganda", M, 9);
+  y -= 12;
+  text("Tel: +256 414 000 000 · Email: hr@pyramidsecurity.co.ug", M, 9);
+  y -= 16;
+  page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.2, color: rgb(0.15, 0.2, 0.35) });
+  y -= 20;
+  text("CONTRACT OF EMPLOYMENT — SECURITY OFFICER", W / 2 - 120, 13, true);
+  y -= 10;
+  text(`Contract No.: ${c.contractCode}`, W / 2 - 50, 9);
+  y -= 22;
+
+  sectionTitle("Parties");
+  para(`This Contract of Employment ("the Contract") is made between PYRAMID SECURITY GROUP LTD, a company incorporated in the Republic of Uganda (hereinafter "the Company"), of the one part; and ${c.securityOfficerName} (Force No. ${c.forceNumber}), hereinafter "the Employee", of the other part.`);
+  y -= 6;
+  para(`The Company hereby employs the Employee as a SECURITY OFFICER, and the Employee accepts employment on the terms and conditions set out below with effect from ${c.startDate}.`);
+
+  sectionTitle("1. Position & Duties");
+  para("1.1  The Employee shall serve the Company as a SECURITY OFFICER and shall perform such duties as are assigned from time to time, including access control, patrols, incident reporting, guard-duty at client posts, and any other lawful duties consistent with the role.");
+  para("1.2  The Employee may be assigned to duty at any company post or client site within Uganda, and may be re-assigned as operational needs require.");
+  para(`1.3  Assigned station at commencement: ${(officer?.assignedSite || "Standby Operations Reserve")}. Region: ${(officer?.region || "Kampala Central")}.`);
+
+  sectionTitle("2. Probation");
+  para(`2.1  Employment commences with a probationary period of ${c.probationMonths} month(s).`);
+  para("2.2  During probation either party may terminate this Contract by not less than two (2) weeks' written notice, or by payment of two weeks' salary in lieu of notice.");
+  para("2.3  On successful completion of probation, employment shall be confirmed in writing subject to the remaining terms of this Contract.");
+
+  sectionTitle("3. Remuneration");
+  para(`3.1  The Company shall pay the Employee a monthly salary of UGX ${fmtUgx(c.monthlySalaryUgx)} (${c.monthlySalaryUgx} shillings), payable in arrears by the last working day of each calendar month by direct bank transfer.`);
+  para(`3.2  Bank: ${(officer?.bankName || "Stanbic Bank Uganda")}. Account: ${(officer?.bankAccount || "—")}.`);
+  para("3.3  Salary is inclusive of any allowances except where expressly agreed otherwise in writing. Statutory deductions (PAYE, NSSF) shall be effected as required by law.");
+  para("3.4  Overtime, where authorised in writing by a manager, shall be compensated in accordance with the Employment Act, Cap 219.");
+
+  sectionTitle("4. Hours of Work & Shifts");
+  para("4.1  The Employee's duties are performed on a shift basis. Average normal hours shall not exceed forty-eight (48) per week as lawfully permitted for security services.");
+  para("4.2  The Employee may be rostered for day shifts, night shifts, weekend duty and public holidays in accordance with site rosters issued by the Operations Department.");
+  para("4.3  The Employee shall report for duty punctually, in full uniform, and shall remain at post until properly relieved.");
+
+  sectionTitle("5. Annual Leave");
+  para("5.1  The Employee shall be entitled to twenty-one (21) days of paid annual leave after twelve (12) months of continuous service, exclusive of public holidays.");
+  para("5.2  Leave shall be taken at times approved in advance by management through the company leave system; untaken days may, with approval, be carried forward once to the following year.");
+
+  sectionTitle("6. Social Security (NSSF)");
+  para(`6.1  The Company shall contribute ten percent (10%) of the Employee's gross monthly salary to the National Social Security Fund, and shall deduct the Employee's statutory contribution of five percent (5%) from the monthly salary.`);
+
+  sectionTitle("7. Sick Leave & Medical");
+  para("7.1  In case of incapacity due to sickness, and upon a signed medical certificate from a registered medical practitioner, the Employee shall be entitled to sick leave with pay in accordance with the Employment Act, Cap 219.");
+  para("7.2  The Employee declares that they are medically fit to perform security duties, including standing duty for extended periods.");
+
+  sectionTitle("8. Conduct, Uniform & Company Property");
+  para("8.1  The Employee shall observe all company policies, standing orders, post instructions, client-site rules and lawful directions of supervisors.");
+  para("8.2  Uniforms, firearms (where licensed and issued), radios and other equipment issued remain the property of the Company and must be returned on demand or upon separation.");
+  para("8.3  The Employee shall not accept any gift, gratuity or reward in connection with their duties without prior written consent of the Company.");
+  para("8.4  Breach of company policy, negligence, dishonesty, insubordination or intoxication while on duty may result in disciplinary action up to summary dismissal in accordance with the law.");
+
+  sectionTitle("9. Covenants");
+  para("9.1  Non-Solicitation / Non-Competition: For a period of twelve (12) months after cessation of employment, the Employee shall not, directly or indirectly, solicit business from, or engage in competing security services for, any client of the Company to whom the Employee was posted or made privy during employment, within Uganda.");
+  para("9.2  Confidentiality: The Employee shall keep secret all confidential information relating to the Company, its clients, posts, alarm protocols, patrol routes and staffing, both during and after employment, and shall not disclose the same save in the proper performance of duties or as required by law.");
+  para("9.3  The Employee confirms that these covenants are reasonable for the protection of the Company's legitimate business interests.");
+
+  sectionTitle("10. Termination");
+  para("10.1  After confirmation, either party may terminate this Contract by giving not less than thirty (30) days' written notice, or payment of one month's salary in lieu by the Company.");
+  para("10.2  The Company may summarily dismiss the Employee without notice for just cause in accordance with the Employment Act, Cap 219.");
+  para("10.3  On termination the Employee shall return all company property, uniform, ID card and any firearms or equipment issued, and shall be paid all accrued but untaken leave entitlements.");
+
+  sectionTitle("11. Interpretation Certification");
+  if (c.interpreterName && c.interpreterLanguage && c.interpreterLanguage.trim()) {
+    para(`11.1  This Contract having been interpreted to the Employee in ${c.interpreterLanguage} by ${c.interpreterName}, and the Employee appearing to fully understand its contents, the parties hereto set their hands.`);
+  } else {
+    para("11.1  This Contract has been read over and explained to the Employee, who appears to fully understand its contents, and the parties hereto set their hands accordingly.");
+  }
+
+  /* Signature blocks with embedded signatures */
+  ensure(150);
+  y -= 24;
+  const sigLineY = () => { page.drawLine({ start: { x: M, y }, end: { x: M + 200, y }, thickness: 0.8, color: rgb(0.25, 0.25, 0.28) }); };
+
+  async function embedSig(dataUrl?: string | null) {
+    if (!dataUrl || !dataUrl.startsWith("data:image/")) return null;
+    try {
+      const base64 = dataUrl.split(",")[1] || "";
+      const bytes = Buffer.from(base64, "base64");
+      return dataUrl.includes("image/png")
+        ? await pdf.embedPng(bytes)
+        : await pdf.embedJpg(bytes);
+    } catch { return null; }
+  }
+
+  const officerImg = await embedSig(c.officerSignatureUrl);
+  const hrImg = await embedSig(c.hrSignatureUrl);
+
+  // Employee block
+  if (officerImg) { const d = officerImg.scale(0.35); page.drawImage(officerImg, { x: M, y: y - d.height + 14, width: d.width, height: d.height }); y -= d.height - 10; }
+  sigLineY(); y -= 4;
+  text(`${c.securityOfficerName} — EMPLOYEE`, M, 9, true);
+  text(`Force No. ${c.forceNumber}`, M, 8);
+  text(`Date: ${c.officerSignedAt ? new Date(c.officerSignedAt).toISOString().split("T")[0] : "____________"}`, M, 8);
+  y -= 34;
+
+  // Employer block
+  if (hrImg) { const d = hrImg.scale(0.35); page.drawImage(hrImg, { x: W - M - 200, y: y - d.height + 14, width: d.width, height: d.height }); y -= d.height - 10; }
+  page.drawLine({ start: { x: W - M - 200, y }, end: { x: W - M, y }, thickness: 0.8, color: rgb(0.25, 0.25, 0.28) });
+  y -= 4;
+  text(`${c.hrSignerName || "For: PYRAMID SECURITY GROUP LTD"} — EMPLOYER`, W - M - 200, 9, true);
+  text(`Date: ${c.hrSignedAt ? new Date(c.hrSignedAt).toISOString().split("T")[0] : "____________"}`, W - M - 200, 8);
+  y -= 34;
+
+  // Witness block
+  text(`Witness: ${c.witnessName || "________________________"}${c.witnessDesignation ? ` (${c.witnessDesignation})` : ""}`, M, 9);
+  y -= 26;
+
+  text(`Generated by ISCMS on ${new Date().toISOString().split("T")[0]} · Contract ${c.contractCode}`, M, 7.5);
+
+  const buffer = Buffer.from(await pdf.save());
+  const fileName = `EC-${Date.now()}-${c.forceNumber.replace(/[^A-Za-z0-9]/g, "")}.pdf`;
+  return { buffer, fileName };
+}
+
+/* GET latest contract for an officer */
+app.get("/api/security-officers/:key/employment-contract", authenticateToken, async (req, res) => {
+  const contract = await prisma.securityOfficerEmploymentContract.findFirst({
+    where: { OR: [{ forceNumber: req.params.key }, { id: req.params.key }] },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(contract ?? null);
+});
+
+/* HR creates a draft contract for an officer */
+app.post("/api/security-officers/:key/employment-contract", authenticateToken, requireModuleAccess("security_officers"), async (req, res) => {
+  const user = (req as any).user as JwtPayload | undefined;
+  if (!user) { res.status(401).json({ error: "Not authenticated" }); return; }
+  if (!["HR Manager", "HR Assistant"].some((r) => hasEffectiveRole(user, r))) {
+    res.status(403).json({ error: "Access denied: only HR may issue employment contracts" });
+    return;
+  }
+  const officer = await resolveSecurityOfficer(req.params.key);
+  if (!officer) { res.status(404).json({ error: "Security officer not found" }); return; }
+  const parsed = z.object({
+    monthlySalaryUgx: z.number().int().positive().optional(),
+    startDate: z.string().min(1),
+    probationMonths: z.number().int().min(0).max(12).optional(),
+    interpreterName: z.string().optional(),
+    interpreterLanguage: z.string().optional(),
+    witnessName: z.string().optional(),
+    witnessDesignation: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.issues }); return; }
+
+  const existingActive = await prisma.securityOfficerEmploymentContract.findFirst({
+    where: { forceNumber: officer.forceNumber, status: { in: ["Draft", "Pending Officer Signature", "Fully Signed"] } },
+  });
+  if (existingActive) { res.status(409).json({ error: `${officer.fullName} already has contract ${existingActive.contractCode} (${existingActive.status})` }); return; }
+
+  const count = await prisma.securityOfficerEmploymentContract.count();
+  const contract = await prisma.securityOfficerEmploymentContract.create({
+    data: {
+      contractCode: `EC-2026-${String(count + 1).padStart(3, "0")}`,
+      forceNumber: officer.forceNumber,
+      securityOfficerName: officer.fullName,
+      monthlySalaryUgx: parsed.data.monthlySalaryUgx ?? officer.monthlySalaryUgx ?? EC_SALARY_DEFAULT,
+      startDate: parsed.data.startDate,
+      probationMonths: parsed.data.probationMonths ?? 3,
+      interpreterName: parsed.data.interpreterName || null,
+      interpreterLanguage: parsed.data.interpreterLanguage || null,
+      status: "Pending Officer Signature",
+      createdBy: user.userId,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Employment Contract Created",
+      module: "HR",
+      details: `Drafted contract ${contract.contractCode} for ${officer.fullName} (${officer.forceNumber}) — UGX ${(contract.monthlySalaryUgx).toLocaleString("en-UG")}/month effective ${contract.startDate}.`,
+    },
+  });
+  res.status(201).json(contract);
+});
+
+async function maybeFinalizeEmploymentContract(id: string, actorUserId: string, actorLabel: string) {
+  const c = await prisma.securityOfficerEmploymentContract.findUnique({ where: { id } });
+  if (!c || !c.officerSignatureUrl || !c.hrSignatureUrl) return c;
+  const generated = await generateEmploymentContractPdf(id);
+  if (!generated) return c;
+  fs.writeFileSync(path.join(uploadDir, generated.fileName), generated.buffer);
+  const checksum = crypto.createHash("sha256").update(generated.buffer).digest("hex");
+  const finalized = await prisma.securityOfficerEmploymentContract.update({
+    where: { id },
+    data: { status: "Fully Signed", pdfPath: generated.fileName, checksum },
+  });
+  await prisma.document.create({
+    data: {
+      code: `DOC-${finalized.contractCode}`,
+      name: `Employment Contract ${finalized.contractCode} — ${finalized.securityOfficerName} (${finalized.forceNumber})`,
+      category: "Employment",
+      referenceType: "SecurityOfficerEmploymentContract",
+      referenceId: id,
+      mimeType: "application/pdf",
+      fileSize: generated.buffer.length,
+      filePath: generated.fileName,
+      checksum,
+      uploadedBy: actorUserId,
+      notes: "Auto-generated on completion of dual on-screen signing.",
+    },
+  });
+  await prisma.auditLog.createMany({
+    data: [
+      { timestamp: new Date(), userName: actorUserId, userRole: actorLabel, action: "Employment Contract Fully Signed", module: "HR", details: `Both parties signed ${finalized.contractCode}; canonical PDF filed to Records vault.` },
+      { timestamp: new Date(), userName: actorUserId, userRole: actorLabel, action: "Employment Contract Filed", module: "Records", details: `${finalized.contractCode} archived (sha256 ${checksum.slice(0, 16)}…).` },
+    ],
+  });
+  return finalized;
+}
+
+/* Officer signs (captured on-screen during HR session) */
+app.put("/api/security-officers/:key/employment-contract/officer-sign", authenticateToken, requireModuleAccess("security_officers"), async (req, res) => {
+  const user = (req as any).user as JwtPayload | undefined;
+  if (!user) { res.status(401).json({ error: "Not authenticated" }); return; }
+  if (!["HR Manager", "HR Assistant"].some((r) => hasEffectiveRole(user, r))) {
+    res.status(403).json({ error: "Access denied: contracts are executed during HR-managed sessions" });
+    return;
+  }
+  const parsed = z.object({ signatureUrl: z.string().min(10) }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.issues }); return; }
+  const contract = await prisma.securityOfficerEmploymentContract.findFirst({
+    where: { OR: [{ forceNumber: req.params.key }, { id: req.params.key }], status: { in: ["Draft", "Pending Officer Signature", "Pending HR Signature"] } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!contract) { res.status(404).json({ error: "No active employment contract found for this security officer" }); return; }
+  if (contract.officerSignatureUrl) { res.status(409).json({ error: "The officer has already signed this contract" }); return; }
+  const updated = await prisma.securityOfficerEmploymentContract.update({
+    where: { id: contract.id },
+    data: { officerSignatureUrl: parsed.data.signatureUrl, officerSignedAt: new Date(), status: "Pending HR Signature" },
+  });
+  res.json(await maybeFinalizeEmploymentContract(updated.id, user.userId, actorRoleLabel(user)));
+});
+
+/* HR signs */
+app.put("/api/security-officers/:key/employment-contract/hr-sign", authenticateToken, requireModuleAccess("security_officers"), async (req, res) => {
+  const user = (req as any).user as JwtPayload | undefined;
+  if (!user) { res.status(401).json({ error: "Not authenticated" }); return; }
+  if (!hasEffectiveRole(user, "HR Manager")) {
+    res.status(403).json({ error: "Access denied: only the HR Manager may execute the employer signature" });
+    return;
+  }
+  const parsed = z.object({
+    signatureUrl: z.string().min(10),
+    signerName: z.string().optional(),
+    witnessName: z.string().optional(),
+    witnessDesignation: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.issues }); return; }
+  const contract = await prisma.securityOfficerEmploymentContract.findFirst({
+    where: { OR: [{ forceNumber: req.params.key }, { id: req.params.key }], status: { in: ["Draft", "Pending Officer Signature", "Pending HR Signature"] } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!contract) { res.status(404).json({ error: "No active employment contract found for this security officer" }); return; }
+  if (contract.hrSignatureUrl) { res.status(409).json({ error: "The employer has already signed this contract" }); return; }
+  const updated = await prisma.securityOfficerEmploymentContract.update({
+    where: { id: contract.id },
+    data: {
+      hrSignatureUrl: parsed.data.signatureUrl,
+      hrSignedAt: new Date(),
+      hrSignerName: parsed.data.signerName || actorRoleLabel(user),
+      ...(parsed.data.witnessName ? { witnessName: parsed.data.witnessName } : {}),
+      ...(parsed.data.witnessDesignation ? { witnessDesignation: parsed.data.witnessDesignation } : {}),
+    },
+  });
+  res.json(await maybeFinalizeEmploymentContract(updated.id, user.userId, actorRoleLabel(user)));
+});
+
+/* ─────────────── CRUD: Site Deployments (Ops picks security officers after a contract is won) ─────────────── */
 
 app.get("/api/deployments", authenticateToken, requireModuleAccess("deployments"), async (req, res) => {
   const user = (req as any).user as JwtPayload;
@@ -5566,8 +6365,8 @@ app.post("/api/deployments", authenticateToken, requireModuleAccess("deployments
     siteId: z.string().min(1),
     siteName: z.string().min(1),
     clientName: z.string().min(1),
-    guardId: z.string().min(1),
-    guardName: z.string().min(1),
+    forceNumber: z.string().min(1),
+    securityOfficerName: z.string().min(1),
     shiftType: z.string().min(1),
   }).safeParse(req.body);
   if (!parsed.success) {
@@ -5584,8 +6383,8 @@ app.post("/api/deployments", authenticateToken, requireModuleAccess("deployments
       deployedAt: new Date().toISOString().split("T")[0],
     },
   });
-  await prisma.guard.update({
-    where: { id: parsed.data.guardId },
+  await prisma.securityOfficer.update({
+    where: { forceNumber: parsed.data.forceNumber },
     data: { lifecycleStage: "DEPLOYED", assignedSite: parsed.data.siteName },
   });
   await prisma.clientSite.update({ where: { id: parsed.data.siteId }, data: { deploymentStatus: "Deployed" } });
@@ -5598,7 +6397,7 @@ app.put("/api/deployments/:id/end", authenticateToken, requireModuleAccess("depl
   res.json(deployment);
 });
 
-/* ─────────────── Deployment Orders (Ops issues → RM fills from region guard pool) ─────────────── */
+/* ─────────────── Deployment Orders (Ops issues → RM fills from region security-officer pool) ─────────────── */
 
 app.get("/api/deployment-orders", authenticateToken, requireModuleAccess("deployments"), async (_req, res) => {
   const orders = await prisma.deploymentOrder.findMany({ orderBy: { createdAt: "desc" } });
@@ -5625,7 +6424,7 @@ app.post("/api/deployment-orders", authenticateToken, requireModuleAccess("deplo
   const actorName = (await prisma.user.findUnique({ where: { id: user.userId } }))?.name || user.role;
   const orderCode = `ORD-2026-${String((await prisma.deploymentOrder.count()) + 1).padStart(3, "0")}`;
   const order = await prisma.deploymentOrder.create({
-    data: { ...parsed.data, orderCode, requestedBy: actorName, status: "Open", assignedGuardIds: [] },
+    data: { ...parsed.data, orderCode, requestedBy: actorName, status: "Open", assignedSecurityOfficerForceNumbers: [] },
   });
   await prisma.notification.createMany({
     data: [
@@ -5633,7 +6432,7 @@ app.post("/api/deployment-orders", authenticateToken, requireModuleAccess("deplo
         targetRole: "Regional Manager",
         type: "info",
         title: "Deployment Order Issued",
-        message: `${order.orderCode} — ${order.requiredHeadcount} guard(s) for ${order.siteName} (${order.region ?? "HQ"}). Review and fill the order.`,
+        message: `${order.orderCode} — ${order.requiredHeadcount} security officer(s) for ${order.siteName} (${order.region ?? "HQ"}). Review and fill the order.`,
         module: "Operations",
       },
     ],
@@ -5642,7 +6441,7 @@ app.post("/api/deployment-orders", authenticateToken, requireModuleAccess("deplo
 });
 
 app.put("/api/deployment-orders/:id/assign", authenticateToken, requireModuleAccess("deployments", "full"), requireRole("Regional Manager"), async (req, res) => {
-  const parsed = z.object({ guardIds: z.array(z.string().min(1)).min(1) }).safeParse(req.body);
+  const parsed = z.object({ forceNumbers: z.array(z.string().min(1)).min(1) }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
@@ -5662,31 +6461,31 @@ app.put("/api/deployment-orders/:id/assign", authenticateToken, requireModuleAcc
     res.status(403).json({ error: `Order region ${order.region} does not match your region ${rmUser.region}` });
     return;
   }
-  const guardIds = [...new Set(parsed.data.guardIds)].slice(0, order.requiredHeadcount);
-  const guards = await prisma.guard.findMany({
+  const officerForceNumbers = [...new Set(parsed.data.forceNumbers)].slice(0, order.requiredHeadcount);
+  const officers = await prisma.securityOfficer.findMany({
     where: {
-      id: { in: guardIds },
+      forceNumber: { in: officerForceNumbers },
       lifecycleStage: "PASSED_OUT",
       ...(order.region ? { region: order.region } : {}),
     },
   });
-  if (guards.length === 0) {
-    res.status(400).json({ error: "No deployable (passed-out) guards found in the order region pool" });
+  if (officers.length === 0) {
+    res.status(400).json({ error: "No deployable (passed-out) security officers found in the order region pool" });
     return;
   }
   const actorName = rmUser?.name || user.role;
 
-  const assignedGuardIds = guards.map((g) => g.id);
+  const assignedSecurityOfficerForceNumbers = officers.map((o) => o.forceNumber);
   const tx = await prisma.$transaction([
-    ...guards.map((g) =>
+    ...officers.map((o) =>
       prisma.siteDeployment.create({
         data: {
-          deploymentCode: `DEP-2026-${Date.now()}-${g.id.slice(-4)}`,
+          deploymentCode: `DEP-2026-${Date.now()}-${o.forceNumber.slice(-4)}`,
           siteId: order.siteId,
           siteName: order.siteName,
           clientName: order.clientName,
-          guardId: g.id,
-          guardName: g.fullName,
+          forceNumber: o.forceNumber,
+          securityOfficerName: o.fullName,
           shiftType: order.shiftType,
           deployedBy: `${actorName} (via ${order.orderCode})`,
           deployedAt: new Date().toISOString().split("T")[0],
@@ -5694,13 +6493,13 @@ app.put("/api/deployment-orders/:id/assign", authenticateToken, requireModuleAcc
         },
       })
     ),
-    ...guards.map((g) =>
-      prisma.guard.update({ where: { id: g.id }, data: { lifecycleStage: "DEPLOYED", assignedSite: order.siteName } })
+    ...officers.map((o) =>
+      prisma.securityOfficer.update({ where: { forceNumber: o.forceNumber }, data: { lifecycleStage: "DEPLOYED", assignedSite: order.siteName } })
     ),
     prisma.clientSite.updateMany({ where: { id: order.siteId }, data: { deploymentStatus: "Deployed" } }),
     prisma.deploymentOrder.update({
       where: { id: order.id },
-      data: { assignedGuardIds, status: assignedGuardIds.length >= order.requiredHeadcount ? "Filled" : "Assigned" },
+      data: { assignedSecurityOfficerForceNumbers, status: assignedSecurityOfficerForceNumbers.length >= order.requiredHeadcount ? "Filled" : "Assigned" },
     }),
   ]);
   res.json(tx[tx.length - 1]);
@@ -5720,8 +6519,8 @@ app.put("/api/deployment-orders/:id/cancel", authenticateToken, requireModuleAcc
 
 app.get("/api/analytics/summary", authenticateToken, requireModuleAccess("directorate"), async (_req, res) => {
   const [
-    totalGuards,
-    activeGuards,
+    totalSecurityOfficers,
+    activeSecurityOfficers,
     totalSites,
     openIncidents,
     totalVehicles,
@@ -5729,8 +6528,8 @@ app.get("/api/analytics/summary", authenticateToken, requireModuleAccess("direct
     pendingLeave,
     totalUsers,
   ] = await Promise.all([
-    prisma.guard.count(),
-    prisma.guard.count({ where: { status: "On Duty" } }),
+    prisma.securityOfficer.count(),
+    prisma.securityOfficer.count({ where: { status: "On Duty" } }),
     prisma.clientSite.count(),
     prisma.incident.count({ where: { status: { in: ["Open", "UnderInvestigation"] } } }),
     prisma.vehicle.count(),
@@ -5739,8 +6538,8 @@ app.get("/api/analytics/summary", authenticateToken, requireModuleAccess("direct
     prisma.user.count(),
   ]);
   res.json({
-    totalGuards,
-    activeGuards,
+    totalSecurityOfficers,
+    activeSecurityOfficers,
     totalSites,
     openIncidents,
     totalVehicles,

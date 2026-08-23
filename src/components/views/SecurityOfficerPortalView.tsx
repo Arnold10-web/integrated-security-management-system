@@ -1,23 +1,25 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Clock, AlertTriangle, CheckCircle2,
-  Calendar, ShieldAlert, Send, UserCheck, CalendarRange, XCircle, ClipboardList,
+  Calendar, ShieldAlert, Send, UserCheck, CalendarRange, XCircle, ClipboardList, FileText,
 } from "lucide-react";
-import type { User, Incident, LeaveRequest, Guard, DutyRoster } from "../../types";
+import type { User, Incident, LeaveRequest, SecurityOfficer, DutyRoster, SecurityOfficerEmploymentContract } from "../../types";
+import { domainApi } from "../../services/domainApi";
+import { EmploymentContractModal } from "../organisms/EmploymentContractModal";
 
-interface GuardPortalViewProps {
+interface SecurityOfficerPortalViewProps {
   currentUser: User;
   onLogIncident: (newInc: Omit<Incident, "id">) => void;
   onAddLeaveRequest: (r: Omit<LeaveRequest, "id">) => void;
   onUpdateLeaveRequest: (id: string, updates: Partial<LeaveRequest>) => void;
   onDeleteLeaveRequest: (id: string) => void;
   leaveRequests: LeaveRequest[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   dutyRoster: DutyRoster[];
 }
 
-export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
-  currentUser, onLogIncident, onAddLeaveRequest, onDeleteLeaveRequest, leaveRequests, guards, dutyRoster,
+export const SecurityOfficerPortalView: React.FC<SecurityOfficerPortalViewProps> = ({
+  currentUser, onLogIncident, onAddLeaveRequest, onDeleteLeaveRequest, leaveRequests, securityOfficers, dutyRoster,
 }) => {
   const [checkedIn, setCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
@@ -28,12 +30,22 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
   const [description, setDescription] = useState("");
   const [leaveForm, setLeaveForm] = useState({
     leaveType: "Annual Leave" as LeaveRequest["leaveType"], startDate: "", endDate: "", durationDays: 1, reason: "",
-    reliefGuardName: "", reliefForceNumber: "", contactAddress: "",
+    reliefSecurityOfficerName: "", reliefForceNumber: "", contactAddress: "",
   });
 
-  const myGuard = guards.find((g) => g.linkedUserId === currentUser.id || g.fullName === currentUser.name);
-  const forceNumber = myGuard?.forceNumber || "GUARD-001";
-  const guardName = myGuard?.fullName || currentUser.name;
+  const mySecurityOfficer = securityOfficers.find((g) => g.linkedUserId === currentUser.id || g.fullName === currentUser.name);
+  const forceNumber = mySecurityOfficer?.forceNumber || "SECURITY OFFICER-001";
+  const [showContract, setShowContract] = useState(false);
+  const [contract, setContract] = useState<SecurityOfficerEmploymentContract | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    domainApi.securityOfficers.employmentContract.get(mySecurityOfficer?.forceNumber || "-")
+      .then((c) => { if (!cancelled) setContract(c); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [mySecurityOfficer]);
+  const securityOfficerName = mySecurityOfficer?.fullName || currentUser.name;
 
   const handleCheckIn = () => {
     setCheckedIn(true);
@@ -47,7 +59,7 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
       incidentCode: `INC-${Date.now().toString().slice(-4)}`,
       title,
       siteName: "Bank of East Africa Headquarters",
-      reportedByGuard: currentUser.name,
+      reportedBySecurityOfficer: currentUser.name,
       incidentDate: new Date().toISOString().split("T")[0],
       severity,
       category: "Security Breach",
@@ -66,21 +78,20 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
     const end = new Date(leaveForm.endDate);
     const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     onAddLeaveRequest({
-      guardId: myGuard?.id || "",
-      guardName: guardName,
-      forceNumber: forceNumber,
+      forceNumber: mySecurityOfficer?.id || "",
+      securityOfficerName: securityOfficerName,
       leaveType: leaveForm.leaveType,
       startDate: leaveForm.startDate,
       endDate: leaveForm.endDate,
       durationDays: days,
       reason: leaveForm.reason,
-      reliefGuardName: leaveForm.reliefGuardName,
+      reliefSecurityOfficerName: leaveForm.reliefSecurityOfficerName,
       reliefForceNumber: leaveForm.reliefForceNumber,
       contactAddress: leaveForm.contactAddress || undefined,
       appliedDate: new Date().toISOString().split("T")[0],
       status: "Pending HR Approval",
     });
-    setLeaveForm({ leaveType: "Annual Leave", startDate: "", endDate: "", durationDays: 1, reason: "", reliefGuardName: "", reliefForceNumber: "", contactAddress: "" });
+    setLeaveForm({ leaveType: "Annual Leave", startDate: "", endDate: "", durationDays: 1, reason: "", reliefSecurityOfficerName: "", reliefForceNumber: "", contactAddress: "" });
     setShowLeaveModal(false);
   };
 
@@ -100,7 +111,7 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
             </div>
             <h1 className="text-2xl font-black tracking-tight text-white">{currentUser.name}</h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Guard • Assigned Post: Bank of East Africa Headquarters
+              Security Officer • Assigned Post: Bank of East Africa Headquarters
             </p>
           </div>
         </div>
@@ -139,8 +150,8 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
             <span>Current Post</span>
             <Calendar className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="font-extrabold text-sm text-slate-900">{myGuard?.assignedSite || "—"}</div>
-          <div className="text-[11px] text-slate-500">{myGuard?.region || "Central (Kampala HQ)"} · {forceNumber}</div>
+          <div className="font-extrabold text-sm text-slate-900">{mySecurityOfficer?.assignedSite || "—"}</div>
+          <div className="text-[11px] text-slate-500">{mySecurityOfficer?.region || "Central (Kampala HQ)"} · {forceNumber}</div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -148,8 +159,8 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
             <span>Lifecycle</span>
             <ShieldAlert className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="font-extrabold text-sm text-slate-900">{myGuard?.lifecycleStage || "DEPLOYED"}</div>
-          <div className="text-[11px] text-slate-500">ID: {myGuard?.idCardStatus || "Pending Records Issuance"}</div>
+          <div className="font-extrabold text-sm text-slate-900">{mySecurityOfficer?.lifecycleStage || "DEPLOYED"}</div>
+          <div className="text-[11px] text-slate-500">ID: {mySecurityOfficer?.idCardStatus || "Pending Records Issuance"}</div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -157,10 +168,10 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
             <span>Disciplinary Record</span>
             <UserCheck className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className={`font-extrabold text-sm ${myGuard?.status === "Suspended" || myGuard?.terminationCategory ? "text-rose-700" : "text-emerald-700"}`}>
-            {myGuard?.terminationCategory || myGuard?.status || "Good Standing"}
+          <div className={`font-extrabold text-sm ${mySecurityOfficer?.status === "Suspended" || mySecurityOfficer?.terminationCategory ? "text-rose-700" : "text-emerald-700"}`}>
+            {mySecurityOfficer?.terminationCategory || mySecurityOfficer?.status || "Good Standing"}
           </div>
-          <div className="text-[11px] text-slate-500">{myGuard?.warningLettersCount || 0} Warning Letters</div>
+          <div className="text-[11px] text-slate-500">{mySecurityOfficer?.warningLettersCount || 0} Warning Letters</div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -170,10 +181,23 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
           </div>
           <div className="font-extrabold text-sm text-slate-900">Day Shift</div>
           <div className="text-[11px] text-slate-500">
-            {dutyRoster.find((r) => r.guardName === guardName || r.guardId === myGuard?.id)?.siteName || myGuard?.assignedSite || "—"}
+            {dutyRoster.find((r) => r.securityOfficerName === securityOfficerName || r.forceNumber === mySecurityOfficer?.id)?.siteName || mySecurityOfficer?.assignedSite || "—"}
           </div>
         </div>
+
+        <button onClick={() => setShowContract(true)} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2 text-left cursor-pointer hover:border-emerald-300 transition-colors">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
+            <span>Employment Contract</span>
+            <FileText className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="font-extrabold text-sm text-slate-900">{contract ? contract.contractCode : "Not issued"}</div>
+          <div className="text-[11px] text-slate-500">{contract ? (contract.status === "Fully Signed" ? "Fully signed — view PDF" : contract.status) : "Contact HR"}</div>
+        </button>
       </div>
+
+      {showContract && (
+        <EmploymentContractModal show={showContract} securityOfficer={mySecurityOfficer || null} onClose={() => setShowContract(false)} />
+      )}
 
       {showLeaveModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -215,12 +239,12 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Relief Guard Name</label>
-                  <input value={leaveForm.reliefGuardName} onChange={(e) => setLeaveForm({ ...leaveForm, reliefGuardName: e.target.value })}
+                  <label className="font-bold text-slate-700 block mb-1">Relief Security Officer Name</label>
+                  <input value={leaveForm.reliefSecurityOfficerName} onChange={(e) => setLeaveForm({ ...leaveForm, reliefSecurityOfficerName: e.target.value })}
                     className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Relief Guard Force Number</label>
+                  <label className="font-bold text-slate-700 block mb-1">Relief Security Officer Force Number</label>
                   <input value={leaveForm.reliefForceNumber} onChange={(e) => setLeaveForm({ ...leaveForm, reliefForceNumber: e.target.value })}
                     className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" />
                 </div>
@@ -250,12 +274,12 @@ export const GuardPortalView: React.FC<GuardPortalViewProps> = ({
           <CalendarRange className="w-4 h-4 text-blue-600" />
           My Leave Requests
         </h2>
-        {leaveRequests.filter((lr) => lr.guardId === myGuard?.id || lr.guardName === currentUser.name).length === 0 ? (
+        {leaveRequests.filter((lr) => lr.forceNumber === mySecurityOfficer?.id || lr.securityOfficerName === currentUser.name).length === 0 ? (
           <p className="text-xs text-slate-400 font-semibold py-4 text-center">No leave requests found.</p>
         ) : (
           <div className="space-y-2">
             {leaveRequests
-              .filter((lr) => lr.guardId === myGuard?.id || lr.guardName === currentUser.name)
+              .filter((lr) => lr.forceNumber === mySecurityOfficer?.id || lr.securityOfficerName === currentUser.name)
               .map((lr) => (
                 <div key={lr.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <div className="text-xs space-y-0.5">

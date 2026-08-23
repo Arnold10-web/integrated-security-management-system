@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Star, Target, CheckCircle2, Plus, Search, FileText, Pencil } from "lucide-react";
-import type { PerformanceReviewRecord, Guard } from "../../types";
+import type { PerformanceReviewRecord, SecurityOfficer } from "../../types";
 
 interface PerformanceReviewsViewProps {
   reviews: PerformanceReviewRecord[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   onAddReview: (r: Omit<PerformanceReviewRecord, "id">) => void;
   onUpdateReview?: (id: string, updates: Partial<PerformanceReviewRecord>) => void;
 }
@@ -13,14 +13,14 @@ const periods = ["Q1 2026", "Mid-Year 2026", "Q3 2026", "Annual 2026"];
 const reviewTypes = ["Annual Evaluation", "Mid-Year Review", "Quarterly Review", "Probation Assessment"];
 const statuses: PerformanceReviewRecord["status"][] = ["Draft", "Pending Approval", "Approved & Archived"];
 
-export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ reviews, guards, onAddReview, onUpdateReview }) => {
+export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ reviews, securityOfficers, onAddReview, onUpdateReview }) => {
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterPeriod, setFilterPeriod] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [form, setForm] = useState({
-    guardId: "", reviewPeriod: "Annual 2026", reviewType: "Annual Evaluation", evaluatorName: "",
+    forceNumber: "", reviewPeriod: "Annual 2026", reviewType: "Annual Evaluation", evaluatorName: "",
     evaluationDate: new Date().toISOString().split("T")[0],
     disciplineScore: 3, punctualityScore: 3, clientRatingScore: 3, appearanceScore: 3, incidentHandlingScore: 3,
     comments: "", keyStrengths: "", growthAreas: "", developmentGoals: "",
@@ -28,7 +28,7 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
   });
 
   const filtered = reviews.filter((r) => {
-    const s = r.guardName.toLowerCase().includes(search.toLowerCase()) || r.forceNumber.toLowerCase().includes(search.toLowerCase());
+    const s = r.securityOfficerName.toLowerCase().includes(search.toLowerCase()) || r.forceNumber.toLowerCase().includes(search.toLowerCase());
     const p = filterPeriod === "ALL" || r.reviewPeriod === filterPeriod;
     const st = filterStatus === "ALL" || r.status === filterStatus;
     return s && p && st;
@@ -73,7 +73,7 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
   const openEdit = (r: PerformanceReviewRecord) => {
     setEditId(r.id);
     setForm({
-      guardId: r.guardId, reviewPeriod: r.reviewPeriod, reviewType: r.reviewType,
+      forceNumber: r.forceNumber, reviewPeriod: r.reviewPeriod, reviewType: r.reviewType,
       evaluatorName: r.evaluatorName, evaluationDate: r.evaluationDate,
       disciplineScore: r.disciplineScore, punctualityScore: r.punctualityScore,
       clientRatingScore: r.clientRatingScore, appearanceScore: r.appearanceScore,
@@ -87,12 +87,12 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const guard = guards.find((g) => g.id === form.guardId);
-    if (!guard) return;
+    const securityOfficer = securityOfficers.find((g) => g.id === form.forceNumber);
+    if (!securityOfficer) return;
     const scores = { d: form.disciplineScore, p: form.punctualityScore, c: form.clientRatingScore, a: form.appearanceScore, i: form.incidentHandlingScore };
     const avg = (scores.d + scores.p + scores.c + scores.a + scores.i) / 5;
     const payload = {
-      guardId: form.guardId, guardName: guard.fullName, forceNumber: guard.forceNumber,
+      forceNumber: form.forceNumber, securityOfficerName: securityOfficer.fullName,
       reviewPeriod: form.reviewPeriod, reviewType: form.reviewType,
       evaluatorName: form.evaluatorName, evaluationDate: form.evaluationDate,
       disciplineScore: form.disciplineScore, punctualityScore: form.punctualityScore,
@@ -109,7 +109,7 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
     }
     setShowModal(false);
     setEditId(null);
-    setForm({ guardId: "", reviewPeriod: "Annual 2026", reviewType: "Annual Evaluation", evaluatorName: "", evaluationDate: new Date().toISOString().split("T")[0], disciplineScore: 3, punctualityScore: 3, clientRatingScore: 3, appearanceScore: 3, incidentHandlingScore: 3, comments: "", keyStrengths: "", growthAreas: "", developmentGoals: "", status: "Draft" });
+    setForm({ forceNumber: "", reviewPeriod: "Annual 2026", reviewType: "Annual Evaluation", evaluatorName: "", evaluationDate: new Date().toISOString().split("T")[0], disciplineScore: 3, punctualityScore: 3, clientRatingScore: 3, appearanceScore: 3, incidentHandlingScore: 3, comments: "", keyStrengths: "", growthAreas: "", developmentGoals: "", status: "Draft" });
   };
 
   const ScoreBar: React.FC<{ label: string; value: number }> = ({ label, value }) => (
@@ -129,7 +129,7 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-2xl bg-purple-100 text-purple-700"><Star className="w-6 h-6" /></div>
           <div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">Guard Performance Reviews</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Security Officer Performance Reviews</h2>
             <p className="text-xs text-slate-500">Score-based evaluations with automated overall ratings and recommendations</p>
           </div>
         </div>
@@ -172,10 +172,10 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-black text-sm">
-                      {r.guardName.substring(0, 2).toUpperCase()}
+                      {r.securityOfficerName.substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <div className="text-sm font-black text-slate-900">{r.guardName}</div>
+                      <div className="text-sm font-black text-slate-900">{r.securityOfficerName}</div>
                       <div className="text-[10px] text-slate-400 font-mono">{r.forceNumber}</div>
                     </div>
                   </div>
@@ -231,11 +231,11 @@ export const PerformanceReviewsView: React.FC<PerformanceReviewsViewProps> = ({ 
             <form onSubmit={handleSubmit} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Guard</label>
-                  <select required value={form.guardId} onChange={(e) => setForm({ ...form, guardId: e.target.value })}
+                  <label className="font-bold text-slate-700 block mb-1">Security Officer</label>
+                  <select required value={form.forceNumber} onChange={(e) => setForm({ ...form, forceNumber: e.target.value })}
                     className="w-full p-2.5 border border-slate-300 rounded-xl outline-none bg-white font-semibold">
-                    <option value="">Select guard...</option>
-                    {guards.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber})</option>)}
+                    <option value="">Select securityOfficer...</option>
+                    {securityOfficers.map((g) => <option key={g.id} value={g.id}>{g.fullName} ({g.forceNumber})</option>)}
                   </select>
                 </div>
                 <div>

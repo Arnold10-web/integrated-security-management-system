@@ -43,7 +43,7 @@ export function useITSystemMaintenance(usersCount: number, auditLogsCount: numbe
       checksumSHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       timestamp: "2026-07-27 02:15:00",
       status: "VERIFIED_INTACT",
-      tablesIncluded: "Guard Roster, Armoury Vault, Accounts, Incidents, Audit Telemetry",
+      tablesIncluded: "Security Officer Roster, Armoury Vault, Accounts, Incidents, Audit Telemetry",
     },
     {
       id: "BK-20260726-00",
@@ -73,13 +73,13 @@ export function useITSystemMaintenance(usersCount: number, auditLogsCount: numbe
     {
       id: "INT-1001",
       category: "DATABASE",
-      component: "Guard Personnel & HR Roster Ledger",
+      component: "Security Officer Personnel & HR Roster Ledger",
       testPerformed: "Row Checksum & Encryption Vector Verification",
       hashSignature: "0x8F9A43B172E901C2",
       recordsAudited: 420,
       status: "HEALTHY_INTACT",
       lastChecked: "Just Now",
-      notes: "All 420 guard personnel records and national ID encryption hashes match primary key index.",
+      notes: "All 420 security officer personnel records and national ID encryption hashes match primary key index.",
     },
     {
       id: "INT-1002",

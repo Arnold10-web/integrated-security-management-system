@@ -1,18 +1,18 @@
 import { useState } from "react";
-import type { Guard } from "../types";
+import type { SecurityOfficer } from "../types";
 import { nextForceNumber } from "../utils/forceNumber";
 
-export interface GuardFormState {
+export interface SecurityOfficerFormState {
   fullName: string;
   forceNumber: string;
   photoUrl: string;
-  designation: Guard["designation"];
+  designation: SecurityOfficer["designation"];
   phone: string;
   nationalId: string;
   assignedSite: string;
   region: string;
   zone: string;
-  guardLocation: string;
+  securityOfficerLocation: string;
   bankAccount: string;
   bankName: string;
   finishedProbation: boolean;
@@ -21,8 +21,8 @@ export interface GuardFormState {
   tin: string;
   nssfNo: string;
   dateOfBirth: string;
-  gender: Guard["gender"];
-  maritalStatus: Guard["maritalStatus"];
+  gender: SecurityOfficer["gender"];
+  maritalStatus: SecurityOfficer["maritalStatus"];
   educationLevel: string;
   motherName: string;
   motherPhone: string;
@@ -55,18 +55,18 @@ export interface GuardFormState {
   recruitmentTab: "primary" | "statutory" | "family" | "residence" | "referees" | "biodata";
 }
 
-export function useGuardForm(onAddGuard: (guard: Omit<Guard, "id">) => void, existingForceNumbers: string[] = []) {
-  const [state, setState] = useState<GuardFormState>({
+export function useSecurityOfficerForm(onAddSecurityOfficer: (securityOfficer: Omit<SecurityOfficer, "id">) => void, existingForceNumbers: string[] = []) {
+  const [state, setState] = useState<SecurityOfficerFormState>({
     fullName: "",
     forceNumber: "",
     photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
-    designation: "Guard",
+    designation: "Security Officer",
     phone: "",
     nationalId: "",
     assignedSite: "Bank of East Africa Headquarters",
     region: "Central (Kampala HQ)",
     zone: "",
-    guardLocation: "Kampala Central (CBD)",
+    securityOfficerLocation: "Kampala Central (CBD)",
     bankAccount: "",
     bankName: "Stanbic Bank Uganda",
     finishedProbation: true,
@@ -109,7 +109,7 @@ export function useGuardForm(onAddGuard: (guard: Omit<Guard, "id">) => void, exi
     recruitmentTab: "primary",
   });
 
-  const set = (partial: Partial<GuardFormState>) =>
+  const set = (partial: Partial<SecurityOfficerFormState>) =>
     setState((prev) => ({ ...prev, ...partial }));
 
   const reset = () =>
@@ -144,7 +144,7 @@ export function useGuardForm(onAddGuard: (guard: Omit<Guard, "id">) => void, exi
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAddGuard({
+    onAddSecurityOfficer({
       fullName: state.fullName,
       forceNumber: state.forceNumber || nextForceNumber(existingForceNumbers),
       photoUrl: state.photoUrl || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
@@ -158,7 +158,7 @@ export function useGuardForm(onAddGuard: (guard: Omit<Guard, "id">) => void, exi
       zone: state.zone || undefined,
       status: "On Duty",
       lifecycleStage: "ENROLLED",
-      location: state.guardLocation || "Kampala Central (CBD)",
+      location: state.securityOfficerLocation || "Kampala Central (CBD)",
       bankAccount: state.bankAccount || "90300188201",
       bankName: state.bankName || "Stanbic Bank Uganda",
       finishedProbation: state.finishedProbation,

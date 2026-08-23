@@ -13,7 +13,7 @@ datasource db {
  * the legacy enum (with Marketing_Supervisor / Assistant_Accountant_1/2) was
  * removed as dead code in the v2.7 doc/system alignment.
  */
-enum GuardLifecycleStage {
+enum SecurityOfficerLifecycleStage {
   ENROLLED
   HANDED_TO_OPERATIONS
   IN_TRAINING
@@ -21,7 +21,7 @@ enum GuardLifecycleStage {
   DEPLOYED
 }
 
-enum GuardStatus {
+enum SecurityOfficerStatus {
   On_Duty   @map("On Duty")
   Off_Duty  @map("Off Duty")
   On_Leave  @map("On Leave")
@@ -49,11 +49,11 @@ enum ContractStatus {
   Archived
 }
 
-enum GuardDesignation {
-  Guard
-  K9_Handler     @map("K9 Handler")
+enum SecurityOfficerDesignation {
+  Security_Officer @map("Security Officer")
+  K9_Handler       @map("K9 Handler")
   Armorer
-  Site_In_Charge @map("Site In-Charge")
+  Site_In_Charge   @map("Site In-Charge")
   Inspector
 }
 
@@ -114,24 +114,24 @@ enum DutyRosterStatus {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  name              String
-  email             String    @unique
-  password          String
-  role              String
-  department        String
-  region            String?
-  forceNumber       String?   @unique
-  phone             String?
-  avatarUrl         String?
-  lastActive        DateTime  @default(now())
-  status            String    @default("Active")
-  customPermissions Json? // Per-user module access overrides: { moduleName: "view" | "full" | "none" }
+  id                       String    @id @default(cuid())
+  name                     String
+  email                    String    @unique
+  password                 String
+  role                     String
+  department               String
+  region                   String?
+  forceNumber              String?   @unique
+  phone                    String?
+  avatarUrl                String?
+  lastActive               DateTime  @default(now())
+  status                   String    @default("Active")
+  customPermissions        Json? // Per-user module access overrides: { moduleName: "view" | "full" | "none" }
   // Time-bound delegation (§5.4): IT Officer grants a temporary elevated role.
-  actingRole        String? // effective role while acting (resolved at login)
-  actingExpiresAt   DateTime? // role falls back to base once past this
-  actingGrantedBy   String? // name of the IT Officer who granted it
-  actingGrantedAt   DateTime? // delegation grant time
+  actingRole               String? // effective role while acting (resolved at login)
+  actingExpiresAt          DateTime? // role falls back to base once past this
+  actingGrantedBy          String? // name of the IT Officer who granted it
+  actingGrantedAt          DateTime? // delegation grant time
   // Staff identity card (plastic) — same lifecycle as guard paper IDs.
   idCardStatus             String?
   idCardNumber             String?
@@ -140,40 +140,46 @@ model User {
   idCardIssuerName         String?
   idCardIssuerSignatureUrl String?
   // Staff biodata — captured the same way as guard biodata (§HR personnel).
-  photoUrl                String?
-  signatureUrl            String?
-  dateOfBirth             String?
-  gender                  String?
-  maritalStatus           String?
-  educationLevel          String?
-  motherName              String?
-  motherPhone             String?
-  fatherName              String?
-  fatherPhone             String?
-  nextOfKinName           String?
-  nextOfKinRelationship   String?
-  nextOfKinPhone          String?
-  nextOfKinResidence      String?
-  relativesOrReferees     String?
-  residenceDistrict       String?
-  residenceSubCounty      String?
-  residenceParish         String?
-  residenceVillage        String?
-  lc1Chairperson          String?
-  lc1Contact              String?
-  physicalAddress         String?
-  emergencyContactPhone   String?
-  surnameAtBirth          String?
-  nationality             String?
-  tribe                   String?
-  placeOfBirth            String?
-  lc2Chairperson          String?
-  closeRelatives          String[]
-  neighbours              String[]
-  fatherAlive             Boolean  @default(false)
-  fatherResidence         String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  photoUrl                 String?
+  signatureUrl             String?
+  dateOfBirth              String?
+  gender                   String?
+  maritalStatus            String?
+  educationLevel           String?
+  motherName               String?
+  motherPhone              String?
+  fatherName               String?
+  fatherPhone              String?
+  nextOfKinName            String?
+  nextOfKinRelationship    String?
+  nextOfKinPhone           String?
+  nextOfKinResidence       String?
+  relativesOrReferees      String?
+  residenceDistrict        String?
+  residenceSubCounty       String?
+  residenceParish          String?
+  residenceVillage         String?
+  lc1Chairperson           String?
+  lc1Contact               String?
+  physicalAddress          String?
+  emergencyContactPhone    String?
+  surnameAtBirth           String?
+  nationality              String?
+  tribe                    String?
+  placeOfBirth             String?
+  lc2Chairperson           String?
+  closeRelatives           String[]
+  neighbours               String[]
+  fatherAlive              Boolean   @default(false)
+  fatherResidence          String?
+  tin                      String?
+  nssfNo                   String?
+  bankAccountName          String?
+  bankAccount              String?
+  bankName                 String?
+  bankBranch               String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   sessions UserSession[]
 }
@@ -190,30 +196,31 @@ model Region {
 }
 
 model RegionalOffice {
-  id                  String   @id @default(cuid())
-  regionId            String
-  region              Region   @relation(fields: [regionId], references: [id])
-  code                String   @unique
-  name                String
-  locationCity        String
-  regionalManagerName String
-  phone               String
-  email               String
-  activeGuardsCount   Int      @default(0)
-  clientSitesCount    Int      @default(0)
-  armouryVaultStatus  String   @default("Fully Operational")
-  vehiclesAssigned    Int      @default(0)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  regionId                    String
+  region                      Region   @relation(fields: [regionId], references: [id])
+  code                        String   @unique
+  name                        String
+  locationCity                String
+  regionalManagerName         String
+  phone                       String
+  email                       String
+  activeSecurityOfficersCount Int      @default(0)
+  clientSitesCount            Int      @default(0)
+  armouryVaultStatus          String   @default("Fully Operational")
+  vehiclesAssigned            Int      @default(0)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 }
 
-model Guard {
-  id                       String              @id @default(cuid())
-  forceNumber              String              @unique // canonical unique identifier (force/PSG number)
+model SecurityOfficer {
+  id                       String                        @id @default(cuid())
+  forceNumber              String                        @unique // canonical unique identifier (force/PSG number)
   fullName                 String
   photoUrl                 String?
   signatureUrl             String?
-  designation              GuardDesignation    @default(Guard)
+  designation              SecurityOfficerDesignation    @default(Security_Officer)
+  monthlySalaryUgx         Int                           @default(180000)
   phone                    String
   nationalId               String
   tin                      String?
@@ -222,19 +229,19 @@ model Guard {
   location                 String?
   bankAccount              String?
   bankName                 String?
-  finishedProbation        Boolean             @default(false)
-  status                   String              @default("Off Duty")
-  lifecycleStage           GuardLifecycleStage @default(ENROLLED)
-  isDeserter               Boolean             @default(false)
+  finishedProbation        Boolean                       @default(false)
+  status                   String                        @default("Off Duty")
+  lifecycleStage           SecurityOfficerLifecycleStage @default(ENROLLED)
+  isDeserter               Boolean                       @default(false)
   desertionDate            DateTime?
   desertionNotes           String?
-  medicalCleared           Boolean             @default(false)
-  armedQualified           Boolean             @default(false)
-  k9Qualified              Boolean             @default(false)
-  joinDate                 DateTime            @default(now())
+  medicalCleared           Boolean                       @default(false)
+  armedQualified           Boolean                       @default(false)
+  k9Qualified              Boolean                       @default(false)
+  joinDate                 DateTime                      @default(now())
   region                   String?
   zone                     String?
-  warningLettersCount      Int                 @default(0)
+  warningLettersCount      Int                           @default(0)
   certifications           String[]
   terminationReason        String?
   terminationDate          String?
@@ -245,7 +252,7 @@ model Guard {
   idCardExpiryDate         String?
   idCardIssuerName         String?
   idCardIssuerSignatureUrl String?
-  hasSystemAccount         Boolean             @default(false)
+  hasSystemAccount         Boolean                       @default(false)
   linkedUserId             String?
   dateOfBirth              String?
   gender                   String?
@@ -275,13 +282,13 @@ model Guard {
   lc2Chairperson           String?
   closeRelatives           String[]
   neighbours               String[]
-  fatherAlive              Boolean             @default(false)
+  fatherAlive              Boolean                       @default(false)
   fatherResidence          String?
   bankAccountName          String?
   bankBranch               String?
-  biodata                  GuardBiodata?
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
+  biodata                  SecurityOfficerBiodata?
+  createdAt                DateTime                      @default(now())
+  updatedAt                DateTime                      @updatedAt
 
   @@index([region])
   @@index([status])
@@ -289,10 +296,10 @@ model Guard {
   @@index([forceNumber])
 }
 
-model GuardBiodata {
-  id                    String    @id @default(cuid())
-  guardId               String    @unique
-  guard                 Guard     @relation(fields: [guardId], references: [id], onDelete: Cascade)
+model SecurityOfficerBiodata {
+  id                    String          @id @default(cuid())
+  forceNumber           String          @unique
+  securityOfficer       SecurityOfficer @relation(fields: [forceNumber], references: [forceNumber], onDelete: Cascade)
   // PII / biodata — restricted to HR/Records reads (see Guard model comment)
   dateOfBirth           DateTime?
   gender                String?
@@ -324,15 +331,47 @@ model GuardBiodata {
   neighbours            String[]
   fatherAlive           Boolean?
   fatherResidence       String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+/**
+ * Contract of Employment for a Security Officer (Pyramid Security Group Ltd).
+ * Generated from the standard "Contract for Guards" instrument; both parties
+ * sign on-screen during the HR session — no external signing links.
+ */
+model SecurityOfficerEmploymentContract {
+  id                  String    @id @default(cuid())
+  contractCode        String    @unique // EC-2026-001
+  forceNumber         String // canonical officer identifier
+  securityOfficerName String
+  monthlySalaryUgx    Int       @default(180000)
+  startDate           String
+  probationMonths     Int       @default(3)
+  interpreterName     String?
+  interpreterLanguage String?
+  status              String    @default("Draft") // Draft | Pending Officer Signature | Fully Signed | Terminated
+  officerSignatureUrl String?
+  officerSignedAt     DateTime?
+  hrSignerName        String?
+  hrSignatureUrl      String?
+  hrSignedAt          DateTime?
+  witnessName         String?
+  witnessDesignation  String?
+  pdfPath             String?
+  checksum            String?
+  createdBy           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([forceNumber])
+  @@index([status])
 }
 
 model DisciplinaryAction {
   id                   String   @id @default(cuid())
   actionCode           String   @unique
-  guardId              String
-  guardName            String
+  securityOfficerName  String
   forceNumber          String
   actionType           String
   reason               String
@@ -351,6 +390,16 @@ model DisciplinaryAction {
   offenceTime          String?
   zone                 String?
   actionTaken          String?
+  hearingDate          String?
+  employeeResponse     String?
+  responseRecordedBy   String?
+  responseRecordedAt   String?
+  resolutionNotes      String?
+  rejectedBy           String?
+  rejectedAt           String?
+  archivedPdfPath      String?
+  fineAmountUgx        Int?
+  receivedBy           String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }
@@ -375,26 +424,26 @@ model Complaint {
 }
 
 model ClientSite {
-  id                  String    @id @default(cuid())
-  clientName          String
-  siteName            String
-  location            String
-  zone                String
-  dayShiftGuards      Int       @default(0)
-  nightShiftGuards    Int       @default(0)
-  dayShiftArmed       Int       @default(0)
-  nightShiftArmed     Int       @default(0)
-  armedGuardsRequired Int       @default(0)
-  k9Required          Boolean   @default(false)
-  contactPerson       String
-  contactPhone        String
-  slaStatus           SlaStatus @default(Compliant)
-  region              String?
-  satisfactionRating  Int?
-  deploymentStatus    String    @default("Not Deployed")
-  wonBy               String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                            String    @id @default(cuid())
+  clientName                    String
+  siteName                      String
+  location                      String
+  zone                          String
+  dayShiftSecurityOfficers      Int       @default(0)
+  nightShiftSecurityOfficers    Int       @default(0)
+  dayShiftArmed                 Int       @default(0)
+  nightShiftArmed               Int       @default(0)
+  armedSecurityOfficersRequired Int       @default(0)
+  k9Required                    Boolean   @default(false)
+  contactPerson                 String
+  contactPhone                  String
+  slaStatus                     SlaStatus @default(Compliant)
+  region                        String?
+  satisfactionRating            Int?
+  deploymentStatus              String    @default("Not Deployed")
+  wonBy                         String?
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
 
   @@index([region])
   @@index([slaStatus])
@@ -404,33 +453,33 @@ model ClientSite {
 }
 
 model ArmouryItem {
-  id                  String           @id @default(cuid())
-  assetTag            String
-  serialNumber        String
-  category            String
-  name                String
-  caliberOrSpecs      String
-  totalQuantity       Int
-  availableQuantity   Int
-  condition           ArmouryCondition @default(Good)
-  assignedToGuardId   String?
-  assignedToGuardName String?
-  location            String           @default("Main Vault")
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  id                            String           @id @default(cuid())
+  assetTag                      String
+  serialNumber                  String
+  category                      String
+  name                          String
+  caliberOrSpecs                String
+  totalQuantity                 Int
+  availableQuantity             Int
+  condition                     ArmouryCondition @default(Good)
+  assignedToForceNumber         String?
+  assignedToSecurityOfficerName String?
+  location                      String           @default("Main Vault")
+  createdAt                     DateTime         @default(now())
+  updatedAt                     DateTime         @updatedAt
 
   @@index([category])
   @@index([condition])
   @@index([location])
-  @@index([assignedToGuardId])
+  @@index([assignedToForceNumber])
   @@index([serialNumber])
 }
 
 model ArmouryLog {
   id                  String   @id @default(cuid())
   serialNumberLog     String
-  guardId             String
-  guardName           String
+  forceNumber         String
+  securityOfficerName String
   locationName        String
   firearmSerialNumber String
   assetName           String
@@ -449,7 +498,7 @@ model ArmouryLog {
   notes               String?
   createdAt           DateTime @default(now())
 
-  @@index([guardId])
+  @@index([forceNumber])
   @@index([locationName])
   @@index([status])
   @@index([dateOut])
@@ -673,19 +722,19 @@ model FleetBreakdownEmergency {
 }
 
 model Incident {
-  id               String         @id @default(cuid())
-  incidentCode     String         @unique
-  title            String
-  siteName         String
-  reportedByGuard  String
-  incidentDate     DateTime       @default(now())
-  category         String
-  severity         String
-  description      String
-  status           IncidentStatus @default(Open)
-  evidenceAttached Boolean        @default(false)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                        String         @id @default(cuid())
+  incidentCode              String         @unique
+  title                     String
+  siteName                  String
+  reportedBySecurityOfficer String
+  incidentDate              DateTime       @default(now())
+  category                  String
+  severity                  String
+  description               String
+  status                    IncidentStatus @default(Open)
+  evidenceAttached          Boolean        @default(false)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
 
   @@index([siteName])
   @@index([status])
@@ -757,22 +806,21 @@ model Expense {
 }
 
 model CashierTransaction {
-  id           String    @id @default(cuid())
-  guardName    String
-  forceNumber  String
-  type         String
-  amount       Float
-  date         String
-  status       String    @default("Pending Approval")
-  processedBy  String
-  guardId      String?
-  phone        String?
-  signatureUrl String?
-  notes        String?
-  approvedBy   String?
-  rejectedBy   String?
-  approvedAt   DateTime?
-  createdAt    DateTime  @default(now())
+  id                  String    @id @default(cuid())
+  securityOfficerName String
+  forceNumber         String
+  type                String
+  amount              Float
+  date                String
+  status              String    @default("Pending Approval")
+  processedBy         String
+  phone               String?
+  signatureUrl        String?
+  notes               String?
+  approvedBy          String?
+  rejectedBy          String?
+  approvedAt          DateTime?
+  createdAt           DateTime  @default(now())
 }
 
 model Lead {
@@ -810,21 +858,21 @@ model Campaign {
 }
 
 model DutyRoster {
-  id           String           @id @default(cuid())
-  guardId      String
-  guardName    String
-  siteId       String
-  siteName     String
-  region       String?
-  shiftDate    String
-  shiftType    String
-  status       DutyRosterStatus @default(Scheduled)
-  checkInTime  String?
-  checkOutTime String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id                  String           @id @default(cuid())
+  forceNumber         String
+  securityOfficerName String
+  siteId              String
+  siteName            String
+  region              String?
+  shiftDate           String
+  shiftType           String
+  status              DutyRosterStatus @default(Scheduled)
+  checkInTime         String?
+  checkOutTime        String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
-  @@index([guardId])
+  @@index([forceNumber])
   @@index([siteId])
   @@index([shiftDate])
   @@index([status])
@@ -832,38 +880,38 @@ model DutyRoster {
 }
 
 model SiteDeployment {
-  id             String   @id @default(cuid())
-  deploymentCode String   @unique
-  siteId         String
-  siteName       String
-  clientName     String
-  guardId        String
-  guardName      String
-  shiftType      String
-  deployedBy     String
-  deployedAt     String
-  status         String   @default("Active")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  deploymentCode      String   @unique
+  siteId              String
+  siteName            String
+  clientName          String
+  forceNumber         String
+  securityOfficerName String
+  shiftType           String
+  deployedBy          String
+  deployedAt          String
+  status              String   @default("Active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model DeploymentOrder {
-  id                String                @id @default(cuid())
-  orderCode         String                @unique
-  siteId            String
-  siteName          String
-  clientName        String
-  region            String?
-  requiredHeadcount Int
-  shiftType         String
-  targetStartDate   String
-  targetEndDate     String
-  requestedBy       String
-  status            DeploymentOrderStatus @default(Open)
-  assignedGuardIds  String[]
-  notes             String?
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  id                                  String                @id @default(cuid())
+  orderCode                           String                @unique
+  siteId                              String
+  siteName                            String
+  clientName                          String
+  region                              String?
+  requiredHeadcount                   Int
+  shiftType                           String
+  targetStartDate                     String
+  targetEndDate                       String
+  requestedBy                         String
+  status                              DeploymentOrderStatus @default(Open)
+  assignedSecurityOfficerForceNumbers String[]
+  notes                               String?
+  createdAt                           DateTime              @default(now())
+  updatedAt                           DateTime              @updatedAt
 
   @@index([siteId])
   @@index([status])
@@ -871,42 +919,41 @@ model DeploymentOrder {
 }
 
 model PatrolInspectionLog {
-  id                   String   @id @default(cuid())
-  inspectionCode       String   @unique
-  siteName             String
-  supervisorName       String
-  guardOnDuty          String
-  inspectionTime       String
-  radioCheckStatus     String
-  uniformTurnout       String
-  weaponEquipmentCheck String
-  overallRating        String
-  remarks              String
-  createdAt            DateTime @default(now())
+  id                    String   @id @default(cuid())
+  inspectionCode        String   @unique
+  siteName              String
+  supervisorName        String
+  securityOfficerOnDuty String
+  inspectionTime        String
+  radioCheckStatus      String
+  uniformTurnout        String
+  weaponEquipmentCheck  String
+  overallRating         String
+  remarks               String
+  createdAt             DateTime @default(now())
 }
 
 model AdminRequisition {
-  id                String   @id @default(cuid())
-  reqCode           String
-  department        String
-  requestedBy       String
-  itemDescription   String
-  quantity          Int
-  estimatedCostUgx  Float
-  priority          String   @default("Medium")
-  status            String   @default("Pending Approval")
-  dateRequested     String
-  approvedBy        String?
-  approvedAt        String?
-  rejectedBy        String?
-  rejectionReason   String?
-  issuedToGuardId   String?
-  issuedToGuardName String?
-  issuedToGuardCode String?
-  itemUnitCostUgx   Float?
-  issuedDate        String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  reqCode                     String
+  department                  String
+  requestedBy                 String
+  itemDescription             String
+  quantity                    Int
+  estimatedCostUgx            Float
+  priority                    String   @default("Medium")
+  status                      String   @default("Pending Approval")
+  dateRequested               String
+  approvedBy                  String?
+  approvedAt                  String?
+  rejectedBy                  String?
+  rejectionReason             String?
+  issuedToForceNumber         String?
+  issuedToSecurityOfficerName String?
+  itemUnitCostUgx             Float?
+  issuedDate                  String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 }
 
 model TrainingCohort {
@@ -1073,35 +1120,34 @@ model ITAsset {
 }
 
 model LeaveRequest {
-  id              String   @id @default(cuid())
-  // category distinguishes guard leave (duty-cover workflow) from staff
+  id                        String   @id @default(cuid())
+  // category distinguishes security-officer leave (duty-cover workflow) from staff
   // self-service leave requested by any system user for themselves.
-  category        String   @default("guard") // "guard" | "staff"
-  requesterUserId String? // staff self-service: the User who owns this request
-  requesterRole   String?
-  guardId         String
-  guardName       String
-  forceNumber     String
-  leaveType       String
-  startDate       String
-  endDate         String
-  durationDays    Int
-  reason          String
-  reliefGuardName String?
-  reliefForceNumber String?
-  appliedDate     String
-  status          String   @default("Pending Regional Approval")
-  approvedBy      String?
-  notes           String?
-  contactAddress  String?
-  entitlement     Int?
-  taken           Int?
-  balance         Int?
-  resumptionDate  String?
-  gmApprovedBy    String?
-  approvalId      String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  category                  String   @default("security_officer") // "security_officer" | "staff"
+  requesterUserId           String? // staff self-service: the User who owns this request
+  requesterRole             String?
+  securityOfficerName       String
+  forceNumber               String
+  leaveType                 String
+  startDate                 String
+  endDate                   String
+  durationDays              Int
+  reason                    String
+  reliefSecurityOfficerName String?
+  reliefForceNumber         String?
+  appliedDate               String
+  status                    String   @default("Pending Regional Approval")
+  approvedBy                String?
+  notes                     String?
+  contactAddress            String?
+  entitlement               Int?
+  taken                     Int?
+  balance                   Int?
+  resumptionDate            String?
+  gmApprovedBy              String?
+  approvalId                String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   @@index([requesterUserId])
   @@index([category])
@@ -1271,8 +1317,7 @@ model Candidate {
 
 model PerformanceReview {
   id                    String   @id @default(cuid())
-  guardId               String
-  guardName             String
+  securityOfficerName   String
   forceNumber           String
   reviewPeriod          String
   reviewType            String
@@ -1308,41 +1353,41 @@ model CustomRoleDefinition {
 }
 
 model Contract {
-  id               String               @id @default(cuid())
-  contractCode     String               @unique
-  title            String
-  contractType     String
-  partyName        String
-  category         String
-  startDate        DateTime
-  endDate          DateTime
-  valueUgx         Int?
-  status           String               @default("Active")
-  documentRef      String?
-  managedBy        String?
-  region           String?
-  autoRenew        Boolean              @default(false)
-  paymentTerms     String?
-  billingCycle     String?
-  slaTerms         String?
-  notes            String?
-  preparedBy       String?
-  issuedBy         String?
-  approvedBy       String?
-  approvedAt       String?
-  approvalStep     String?
+  id                 String    @id @default(cuid())
+  contractCode       String    @unique
+  title              String
+  contractType       String
+  partyName          String
+  category           String
+  startDate          DateTime
+  endDate            DateTime
+  valueUgx           Int?
+  status             String    @default("Active")
+  documentRef        String?
+  managedBy          String?
+  region             String?
+  autoRenew          Boolean   @default(false)
+  paymentTerms       String?
+  billingCycle       String?
+  slaTerms           String?
+  notes              String?
+  preparedBy         String?
+  issuedBy           String?
+  approvedBy         String?
+  approvedAt         String?
+  approvalStep       String?
   relatedForceNumber String?
-  relatedSiteName  String?
-  voidReason       String?
-  siteSurvey       String?
-  siteSurveyBy     String?
-  siteSurveyAt     String?
-  createdBy        String?
-  scanPages        Json?
-  isArchived       Boolean              @default(false)
-  archivedAt       DateTime?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  relatedSiteName    String?
+  voidReason         String?
+  siteSurvey         String?
+  siteSurveyBy       String?
+  siteSurveyAt       String?
+  createdBy          String?
+  scanPages          Json?
+  isArchived         Boolean   @default(false)
+  archivedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([endDate])
   @@index([region])
@@ -1352,66 +1397,66 @@ model Contract {
 // ── Digital Contract System (PDF-based) ──
 
 model PdfContractTemplate {
-  id              String   @id @default(cuid())
-  name            String
-  category        String   // "Client", "Staff", "Custom"
-  description     String?
-  pdfFilePath     String   // Path to uploaded PDF template
-  pdfFileName     String   // Original filename
-  fileSize        Int      // File size in bytes
-  pageCount       Int      // Number of pages in the PDF
-  version         Int      @default(1)
-  isActive        Boolean  @default(true)
-  createdBy       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  category    String // "Client", "Staff", "Custom"
+  description String?
+  pdfFilePath String // Path to uploaded PDF template
+  pdfFileName String // Original filename
+  fileSize    Int // File size in bytes
+  pageCount   Int // Number of pages in the PDF
+  version     Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  contracts       DigitalContract[]
+  contracts DigitalContract[]
 
   @@index([category])
   @@index([isActive])
 }
 
 model DigitalContract {
-  id                  String   @id @default(cuid())
-  contractId          String   @unique // Auto-generated: CC-2026-URA-001, SC-SG-2024-001-001, SCAN-2023-KAM-001
-  contractType        String   // "Client", "Staff", "Scanned"
-  title               String
-  category            String   // "Client", "Staff", "Custom"
-  templateId          String
-  template            PdfContractTemplate @relation(fields: [templateId], references: [id])
-  filledFields        Json     // { "clientName": "Acme Corp", ... }
-  status              String   @default("Draft") // Draft, PendingApproval, PendingSigning, PartiallySigned, FullySigned, Archived
-  signingOrder        Json     // Array of signer IDs in signing order
-  currentSignerIndex  Int      @default(0) // Index of current signer in signingOrder
+  id                 String              @id @default(cuid())
+  contractId         String              @unique // Auto-generated: CC-2026-URA-001, SC-SG-2024-001-001, SCAN-2023-KAM-001
+  contractType       String // "Client", "Staff", "Scanned"
+  title              String
+  category           String // "Client", "Staff", "Custom"
+  templateId         String
+  template           PdfContractTemplate @relation(fields: [templateId], references: [id])
+  filledFields       Json // { "clientName": "Acme Corp", ... }
+  status             String              @default("Draft") // Draft, PendingApproval, PendingSigning, PartiallySigned, FullySigned, Archived
+  signingOrder       Json // Array of signer IDs in signing order
+  currentSignerIndex Int                 @default(0) // Index of current signer in signingOrder
 
   // Finalized document
-  finalizedPdfPath    String? // Path to the final signed PDF
-  documentHash        String? // SHA-256 hash for tamper evidence
+  finalizedPdfPath String? // Path to the final signed PDF
+  documentHash     String? // SHA-256 hash for tamper evidence
 
   // For old/scanned contracts
-  isScanned           Boolean  @default(false)
-  scannedPdfPath      String?  // Path to scanned PDF
-  scannedAt           DateTime?
+  isScanned      Boolean   @default(false)
+  scannedPdfPath String? // Path to scanned PDF
+  scannedAt      DateTime?
 
   // Archive status
-  isArchived          Boolean  @default(false)
-  archivedAt          DateTime?
+  isArchived Boolean   @default(false)
+  archivedAt DateTime?
 
   // Metadata
-  partyName           String?
-  clientAbbreviation  String?  // Auto-generated abbreviation for client contracts
-  forceNumber         String?  // Force number for staff contracts
-  startDate           DateTime?
-  endDate             DateTime?
-  valueUgx            Int?
+  partyName          String?
+  clientAbbreviation String? // Auto-generated abbreviation for client contracts
+  forceNumber        String? // Force number for staff contracts
+  startDate          DateTime?
+  endDate            DateTime?
+  valueUgx           Int?
 
-  createdBy           String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  signers             DigitalContractSigner[]
-  auditLogs           DigitalContractAudit[]
+  signers   DigitalContractSigner[]
+  auditLogs DigitalContractAudit[]
 
   @@index([contractId])
   @@index([category])
@@ -1421,34 +1466,34 @@ model DigitalContract {
 }
 
 model DigitalContractSigner {
-  id              String   @id @default(cuid())
-  contractId      String
-  contract        DigitalContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id         String          @id @default(cuid())
+  contractId String
+  contract   DigitalContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   // Signer info
-  signerName      String
-  signerTitle     String?  // Job title/position
-  signerEmail     String?  // For notifications (encrypted at rest)
+  signerName  String
+  signerTitle String? // Job title/position
+  signerEmail String? // For notifications (encrypted at rest)
 
   // Signing order
-  signingOrder    Int      // 1, 2, 3, etc.
+  signingOrder Int // 1, 2, 3, etc.
 
   // Secure signing link
-  secureToken     String   @unique
-  expiresAt       DateTime
+  secureToken String   @unique
+  expiresAt   DateTime
 
   // Signature data
-  signatureData   String?  @db.Text // Base64 PNG signature
-  signedAt        DateTime?
-  ipAddress       String?
-  userAgent       String?
+  signatureData String?   @db.Text // Base64 PNG signature
+  signedAt      DateTime?
+  ipAddress     String?
+  userAgent     String?
 
   // Status
-  isCompleted     Boolean  @default(false)
-  declinedAt      DateTime?
-  declineReason   String?
+  isCompleted   Boolean   @default(false)
+  declinedAt    DateTime?
+  declineReason String?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([contractId])
   @@index([secureToken])
@@ -1456,21 +1501,21 @@ model DigitalContractSigner {
 }
 
 model DigitalContractAudit {
-  id              String   @id @default(cuid())
-  contractId      String
-  contract        DigitalContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id         String          @id @default(cuid())
+  contractId String
+  contract   DigitalContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
-  eventType       String   // "Created", "SentForSigning", "Viewed", "Signed", "Completed", "Archived"
-  description     String?
-  performedBy     String?  // User ID or "Signer:Name"
+  eventType   String // "Created", "SentForSigning", "Viewed", "Signed", "Completed", "Archived"
+  description String?
+  performedBy String? // User ID or "Signer:Name"
 
   // Cryptographic evidence
-  cryptoHash      String?  // SHA-256 of contract state at this event
+  cryptoHash String? // SHA-256 of contract state at this event
 
-  ipAddress       String?
-  userAgent       String?
+  ipAddress String?
+  userAgent String?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([contractId])
   @@index([eventType])
@@ -1508,34 +1553,34 @@ model RefreshToken {
 }
 
 model SiteSurvey {
-  id                    String   @id @default(cuid())
-  surveyCode            String   @unique
-  clientName            String
-  siteName              String
-  region                String?
-  status                String   @default("Requested") // Requested → In Progress → Completed
-  requestedBy           String
-  requestedByName       String
-  requestedDepartment   String
-  surveyedBy            String?
-  premisesType          String?
-  perimeterStatus       String?
-  entryPoints           Int?
-  riskLevel             String?
-  highValueAssets       String?
-  dayGuardsNeeded       Int?
-  nightGuardsNeeded     Int?
-  armedDay              Boolean?
-  armedNight            Boolean?
-  equipmentNeeded       String?
-  k9Required            Boolean?
-  patrolVehicleRequired Boolean?
-  accessHours           String?
-  recommendation        String?
-  notes                 String?
-  reportPath            String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  surveyCode                  String   @unique
+  clientName                  String
+  siteName                    String
+  region                      String?
+  status                      String   @default("Requested") // Requested → In Progress → Completed
+  requestedBy                 String
+  requestedByName             String
+  requestedDepartment         String
+  surveyedBy                  String?
+  premisesType                String?
+  perimeterStatus             String?
+  entryPoints                 Int?
+  riskLevel                   String?
+  highValueAssets             String?
+  daySecurityOfficersNeeded   Int?
+  nightSecurityOfficersNeeded Int?
+  armedDay                    Boolean?
+  armedNight                  Boolean?
+  equipmentNeeded             String?
+  k9Required                  Boolean?
+  patrolVehicleRequired       Boolean?
+  accessHours                 String?
+  recommendation              String?
+  notes                       String?
+  reportPath                  String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 }
 
 model ContractInquiry {

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { Guard } from "../../types";
+import type { SecurityOfficer } from "../../types";
 import { useAuthStore } from "../../stores/authStore";
 import { useDomainStore } from "../../stores/domainStore";
 import { IdentityCardPanel } from "../organisms/IdentityCardPanel";
@@ -12,29 +12,29 @@ export const RecordsIdentityView: React.FC = () => {
   const domain = useDomainStore();
   const [idCardFilter, setIdCardFilter] = useState<"ALL" | "PENDING" | "ISSUED" | "REVOKED">("ALL");
   const [idCardSearch, setIdCardSearch] = useState("");
-  const [selectedGuardForCard, setSelectedGuardForCard] = useState<Guard | null>(null);
+  const [selectedSecurityOfficerForCard, setSelectedSecurityOfficerForCard] = useState<SecurityOfficer | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
 
-  const guards = domain.guards;
+  const securityOfficers = domain.securityOfficers;
 
   return (
     <div className="space-y-6 animate-fadeIn">
       <RecordsOfficerWorkspace />
       <IdentityCardPanel
-        guards={guards}
+        securityOfficers={securityOfficers}
         idCardFilter={idCardFilter}
         idCardSearch={idCardSearch}
         onSetIdCardFilter={setIdCardFilter}
         onSetIdCardSearch={setIdCardSearch}
-        onSelectGuardForCard={setSelectedGuardForCard}
+        onSelectSecurityOfficerForCard={setSelectedSecurityOfficerForCard}
         onOpenPrintModal={() => setShowPrintModal(true)}
       />
 
       <IdentityCardPrintModal
         show={showPrintModal}
-        guard={selectedGuardForCard}
-        onClose={() => { setShowPrintModal(false); setSelectedGuardForCard(null); }}
-        onUpdateGuard={domain.updateGuard}
+        securityOfficer={selectedSecurityOfficerForCard}
+        onClose={() => { setShowPrintModal(false); setSelectedSecurityOfficerForCard(null); }}
+        onUpdateSecurityOfficer={domain.updateSecurityOfficer}
         issuerName={currentUser?.name}
       />
       <ContractInquiryPanel />

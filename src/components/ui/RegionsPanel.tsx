@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { MapPin, Users, Shield, Briefcase, Map as MapIcon, TrendingUp } from "lucide-react";
 import { UGANDA_REGIONS, OUTERSTATION_SITES, formatRegionLabel } from "../../constants/regions";
-import type { RegionalOffice, Guard, ClientSite, DutyRoster, ArmouryItem, K9Dog, Incident } from "../../types";
+import type { RegionalOffice, SecurityOfficer, ClientSite, DutyRoster, ArmouryItem, K9Dog, Incident } from "../../types";
 
 interface RegionsPanelProps {
   offices?: RegionalOffice[];
   title?: string;
-  guards?: Guard[];
+  securityOfficers?: SecurityOfficer[];
   sites?: ClientSite[];
   roster?: DutyRoster[];
   armoury?: ArmouryItem[];
@@ -22,7 +22,7 @@ interface RegionsPanelProps {
 export const RegionsPanel: React.FC<RegionsPanelProps> = ({
   offices = [],
   title = "Company Operating Regions",
-  guards = [],
+  securityOfficers = [],
   sites = [],
   roster = [],
   armoury = [],
@@ -33,19 +33,19 @@ export const RegionsPanel: React.FC<RegionsPanelProps> = ({
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
   const byName = new Map(offices.map((o) => [o.regionName, o] as const));
 
-  const getRegionGuardStats = (regionName: string) => {
-    const regionGuards = guards.filter(g => g.region === regionName);
-    const deployed = regionGuards.filter(g => g.lifecycleStage === "DEPLOYED").length;
-    const onDuty = regionGuards.filter(g => g.status === "On Duty").length;
-    const offDuty = regionGuards.filter(g => g.status === "Off Duty").length;
-    const onLeave = regionGuards.filter(g => g.status === "On Leave").length;
+  const getRegionSecurityOfficerStats = (regionName: string) => {
+    const regionalSecurityOfficers = securityOfficers.filter(g => g.region === regionName);
+    const deployed = regionalSecurityOfficers.filter(g => g.lifecycleStage === "DEPLOYED").length;
+    const onDuty = regionalSecurityOfficers.filter(g => g.status === "On Duty").length;
+    const offDuty = regionalSecurityOfficers.filter(g => g.status === "Off Duty").length;
+    const onLeave = regionalSecurityOfficers.filter(g => g.status === "On Leave").length;
     return {
-      total: regionGuards.length,
+      total: regionalSecurityOfficers.length,
       deployed,
       onDuty,
       offDuty,
       onLeave,
-      activePercentage: regionGuards.length > 0 ? Math.round((deployed / regionGuards.length) * 100) : 0
+      activePercentage: regionalSecurityOfficers.length > 0 ? Math.round((deployed / regionalSecurityOfficers.length) * 100) : 0
     };
   };
 
@@ -62,16 +62,16 @@ export const RegionsPanel: React.FC<RegionsPanelProps> = ({
   };
 
   const getRegionAnalytics = (regionName: string) => {
-    const guardStats = getRegionGuardStats(regionName);
+    const securityOfficerStats = getRegionSecurityOfficerStats(regionName);
     const siteStats = getRegionSiteStats(regionName);
     const regionIncidents = incidents.filter(i => i.region === regionName);
     const criticalIncidents = regionIncidents.filter(i => i.severity === "Critical").length;
-    const armouryInRegion = armoury.filter(a => a.assignedToGuardId ? guards.find(g => g.id === a.assignedToGuardId)?.region === regionName : false).length;
-    const k9sInRegion = k9s.filter(k => k.assignedHandlerId ? guards.find(g => g.id === k.assignedHandlerId)?.region === regionName : false).length;
+    const armouryInRegion = armoury.filter(a => a.assignedToForceNumber ? securityOfficers.find(g => g.id === a.assignedToForceNumber)?.region === regionName : false).length;
+    const k9sInRegion = k9s.filter(k => k.assignedHandlerId ? securityOfficers.find(g => g.id === k.assignedHandlerId)?.region === regionName : false).length;
     const activeRoster = roster.filter(r => r.region === regionName);
     
     return {
-      guardStats,
+      securityOfficerStats,
       siteStats,
       criticalIncidents,
       armouryInRegion,
@@ -129,7 +129,7 @@ export const RegionsPanel: React.FC<RegionsPanelProps> = ({
                       <div>RM: {office.regionalManagerName}</div>
                       <div className="flex items-center gap-1">
                         <Users className="w-3 h-3" />
-                        <span>{office.activeGuardsCount} guards</span>
+                        <span>{office.activeSecurityOfficersCount} securityOfficers</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <MapIcon className="w-3 h-3" />
@@ -157,13 +157,13 @@ export const RegionsPanel: React.FC<RegionsPanelProps> = ({
                     <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
                       <div className="flex items-center gap-1.5 mb-1">
                         <Users className="w-3.5 h-3.5 text-blue-600" />
-                        <span className="text-[10px] font-bold text-slate-700">Guard Strength</span>
+                        <span className="text-[10px] font-bold text-slate-700">Security Officer Strength</span>
                       </div>
-                      <div className="text-lg font-black text-slate-900">{analytics.guardStats.total}</div>
+                      <div className="text-lg font-black text-slate-900">{analytics.securityOfficerStats.total}</div>
                       <div className="text-[10px] text-slate-500">
-                        <span className="text-emerald-600 font-bold">{analytics.guardStats.deployed} deployed</span>
+                        <span className="text-emerald-600 font-bold">{analytics.securityOfficerStats.deployed} deployed</span>
                         <span className="mx-1">•</span>
-                        <span>{analytics.guardStats.activePercentage}% active</span>
+                        <span>{analytics.securityOfficerStats.activePercentage}% active</span>
                       </div>
                     </div>
 

@@ -2,15 +2,15 @@ import React, { useState } from "react";
 import { CheckCircle2, AlertTriangle, Printer, Camera, PenLine, FileDown, Info, UserCheck } from "lucide-react";
 import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
-import type { Guard, User } from "../../types";
+import type { SecurityOfficer, User } from "../../types";
 import { SignaturePad } from "./SignaturePad";
 import { IdCaptureCamera } from "./IdCaptureCamera";
 import { CompanyLogo } from "../ui/CompanyLogo";
 import { LOGO_PATH, LEGAL_COMPANY_NAME, COMPANY_RETURN_LOCATION, COMPANY_CONTACT } from "../../constants/branding";
 
-export type IdCardKind = "guard-paper" | "staff-plastic";
+export type IdCardKind = "security officer-paper" | "staff-plastic";
 
-/** Normalized card subject shared by guards (paper ID) and staff (plastic ID). */
+/** Normalized card subject shared by securityOfficers (paper ID) and staff (plastic ID). */
 export interface IdCardSubject {
   id: string;
   kind: IdCardKind;
@@ -29,23 +29,23 @@ export interface IdCardSubject {
   idCardIssuerSignatureUrl?: string;
 }
 
-export function guardToIdSubject(guard: Guard): IdCardSubject {
+export function securityOfficerToIdSubject(securityOfficer: SecurityOfficer): IdCardSubject {
   return {
-    id: guard.id,
-    kind: "guard-paper",
-    fullName: guard.fullName,
-    forceNumber: guard.forceNumber,
-    designation: guard.designation,
-    subLine: guard.assignedSite,
-    nationalId: guard.nationalId,
-    photoUrl: guard.photoUrl,
-    signatureUrl: guard.signatureUrl,
-    idCardStatus: guard.idCardStatus,
-    idCardNumber: guard.idCardNumber,
-    idCardIssuedDate: guard.idCardIssuedDate,
-    idCardExpiryDate: guard.idCardExpiryDate,
-    idCardIssuerName: guard.idCardIssuerName,
-    idCardIssuerSignatureUrl: guard.idCardIssuerSignatureUrl,
+    id: securityOfficer.id,
+    kind: "security officer-paper",
+    fullName: securityOfficer.fullName,
+    forceNumber: securityOfficer.forceNumber,
+    designation: securityOfficer.designation,
+    subLine: securityOfficer.assignedSite,
+    nationalId: securityOfficer.nationalId,
+    photoUrl: securityOfficer.photoUrl,
+    signatureUrl: securityOfficer.signatureUrl,
+    idCardStatus: securityOfficer.idCardStatus,
+    idCardNumber: securityOfficer.idCardNumber,
+    idCardIssuedDate: securityOfficer.idCardIssuedDate,
+    idCardExpiryDate: securityOfficer.idCardExpiryDate,
+    idCardIssuerName: securityOfficer.idCardIssuerName,
+    idCardIssuerSignatureUrl: securityOfficer.idCardIssuerSignatureUrl,
   };
 }
 
@@ -71,10 +71,10 @@ export function userToIdSubject(user: User): IdCardSubject {
 
 interface IdentityCardPrintModalProps {
   show: boolean;
-  guard?: Guard | null;
+  securityOfficer?: SecurityOfficer | null;
   staff?: User | null;
   onClose: () => void;
-  onUpdateGuard?: (guardId: string, updates: Partial<Guard>) => void;
+  onUpdateSecurityOfficer?: (forceNumber: string, updates: Partial<SecurityOfficer>) => void;
   onUpdateUser?: (userId: string, updates: Partial<User>) => void;
   onIssueStaffId?: (userId: string, idCardNumber: string) => void;
   /** When true (IT verification), the modal is view/verify only — no capture, issuance, or printing. */
@@ -86,8 +86,8 @@ interface IdentityCardPrintModalProps {
 const CR80_W = 1012; // 85.6mm @ 300 DPI
 const CR80_H = 638; // 54mm @ 300 DPI
 
-export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ show, guard, staff, onClose, onUpdateGuard, onUpdateUser, onIssueStaffId, readOnly = false, issuerName }) => {
-  const subject: IdCardSubject | null = staff ? userToIdSubject(staff) : guard ? guardToIdSubject(guard) : null;
+export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ show, securityOfficer, staff, onClose, onUpdateSecurityOfficer, onUpdateUser, onIssueStaffId, readOnly = false, issuerName }) => {
+  const subject: IdCardSubject | null = staff ? userToIdSubject(staff) : securityOfficer ? securityOfficerToIdSubject(securityOfficer) : null;
   const [photo, setPhoto] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
   const [issuerSignature, setIssuerSignature] = useState<string | null>(null);
@@ -102,13 +102,13 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
   if (!show || !subject) return null;
 
   const kind = subject.kind;
-  const isPaper = kind === "guard-paper";
+  const isPaper = kind === "security officer-paper";
   const effectivePhoto = photo ?? subject.photoUrl;
   const effectiveSignature = signature ?? subject.signatureUrl;
   const effectiveIssuerSignature = issuerSignature ?? subject.idCardIssuerSignatureUrl ?? null;
   const effectiveIssuerName = issuerName ?? subject.idCardIssuerName ?? "Records Officer";
   const isIssued = subject.idCardStatus === "Issued & Active";
-  const cardTitle = isPaper ? "Official Guard Paper Identity Card" : "Official Staff PVC Identity Card";
+  const cardTitle = isPaper ? "Official Security Officer Paper Identity Card" : "Official Staff PVC Identity Card";
 
   const issue = () => {
     if (subject.kind === "staff-plastic") {
@@ -132,13 +132,13 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
       }
       return;
     }
-    if (onUpdateGuard) {
+    if (onUpdateSecurityOfficer) {
       const today = new Date().toISOString().split("T")[0];
       const exp = new Date();
       exp.setFullYear(exp.getFullYear() + 3);
       const expStr = exp.toISOString().split("T")[0];
       const cardNum = `ID-UG-2026-${subject.forceNumber.replace(/\D/g, "") || String(Math.floor(1000 + Math.random() * 9000))}`;
-      onUpdateGuard(subject.id, {
+      onUpdateSecurityOfficer(subject.id, {
         idCardStatus: "Issued & Active",
         idCardNumber: cardNum,
         idCardIssuedDate: today,
@@ -214,7 +214,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
     ctx.fillStyle = "#020617";
     ctx.font = "bold 19px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(isPaper ? "GUARD ID" : "STAFF ID", badgeX + 75, padY + 26);
+    ctx.fillText(isPaper ? "SECURITY OFFICER ID" : "STAFF ID", badgeX + 75, padY + 26);
     ctx.textAlign = "left";
 
     const dividerY = padY + 72;
@@ -401,7 +401,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
         }
         const filename = `${base}-identity-card-${cardSides.toLowerCase()}-sided-${copies}-copies.pdf`;
         pdf.save(filename);
-        setExportStatus(`Guard paper ID exported as PDF: ${filename}${printerName ? ` → ${printerName}` : ""}`);
+        setExportStatus(`Security Officer paper ID exported as PDF: ${filename}${printerName ? ` → ${printerName}` : ""}`);
       } else {
         const filenameFront = `${base}-identity-card-front-CR80-300dpi.png`;
         const blob: Blob | null = await new Promise((resolve) => frontCanvas.toBlob((b) => resolve(b), "image/png"));
@@ -468,7 +468,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
             </div>
           </div>
           <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 border border-amber-300">
-            {isPaper ? "GUARD ID" : "STAFF ID"}
+            {isPaper ? "SECURITY OFFICER ID" : "STAFF ID"}
           </span>
         </div>
 
@@ -656,7 +656,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
               <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                {isPaper ? "Guard Paper ID — Issue & Export" : "Staff PVC ID — Issue & Export"}
+                {isPaper ? "Security Officer Paper ID — Issue & Export" : "Staff PVC ID — Issue & Export"}
               </h4>
               <div className="flex flex-wrap gap-2">
                 {!isIssued ? (
@@ -674,8 +674,8 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
                     onClick={() => {
                       if (subject.kind === "staff-plastic" && onUpdateUser) {
                         onUpdateUser(subject.id, { idCardStatus: "Revoked" });
-                      } else if (onUpdateGuard) {
-                        onUpdateGuard(subject.id, { idCardStatus: "Revoked" });
+                      } else if (onUpdateSecurityOfficer) {
+                        onUpdateSecurityOfficer(subject.id, { idCardStatus: "Revoked" });
                       }
                     }}
                     className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
@@ -745,7 +745,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
                 <p className="text-[10px] text-slate-500 font-semibold flex items-start gap-1.5">
                   <Info className="w-3.5 h-3.5 text-cyan-500 shrink-0 mt-0.5" />
                   {isPaper
-                    ? "Guard IDs are paper documents — exported as a CR80-sized PDF (with the return-details back side) you can print on standard paper or card stock."
+                    ? "Security Officer IDs are paper documents — exported as a CR80-sized PDF (with the return-details back side) you can print on standard paper or card stock."
                     : "Staff IDs are PVC cards. Browsers cannot drive ID card printers directly, so this exports a print-ready CR80 card image at 300 DPI which the card printer's vendor software (e.g. Magicard / Fargo driver) prints onto blank PVC cards."}
                 </p>
               </div>
@@ -759,7 +759,7 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                  {isPaper ? "Guard Paper ID Printing Guide" : "PVC Card Printing Setup Guide"}
+                  {isPaper ? "Security Officer Paper ID Printing Guide" : "PVC Card Printing Setup Guide"}
                 </h4>
                 <button onClick={() => setShowPrintHelp(false)} className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer p-1">✕</button>
               </div>

@@ -18,7 +18,7 @@ import { OperationsWorkspaceView } from "../components/views/OperationsWorkspace
 import { ContractInquiryPanel } from "../components/views/ContractInquiryPanel";
 import { GeneralManagerWorkspaceView } from "../components/views/GeneralManagerWorkspaceView";
 import { IncidentsView } from "../components/views/IncidentsView";
-import { GuardsHRView } from "../components/views/GuardsHRView";
+import { SecurityOfficersHRView } from "../components/views/SecurityOfficersHRView";
 import { MyLeaveSection } from "../components/organisms/MyLeaveSection";
 import { ActingRequestPanel } from "../components/views/ActingRequestPanel";
 import { ClientSitesView } from "../components/views/ClientSitesView";
@@ -30,7 +30,7 @@ import { ITAdminView } from "../components/views/ITAdminView";
 import { RecordsIdentityView } from "../components/views/RecordsIdentityView";
 import { FleetManagerWorkspaceView, InvestigationsWorkspace } from "../components/views/WorkspaceStrips";
 import { MarketingWorkspaceStrip, FinanceWorkspaceStrip, AdministrationWorkspaceStrip } from "../components/views/DeptOverhauls";
-import { GuardPortalView } from "../components/views/GuardPortalView";
+import { SecurityOfficerPortalView } from "../components/views/SecurityOfficerPortalView";
 import { LoginView } from "../components/views/LoginView";
 import { ReportsView } from "../components/views/ReportsView";
 import { RecruitmentView } from "../components/views/RecruitmentView";
@@ -42,7 +42,7 @@ import {
   ComplaintsPanel,
   DisciplinaryPanel,
   CampaignBudgetPanel,
-  GuardAvailabilityByRegion,
+  SecurityOfficerAvailabilityByRegion,
   CorporateGovernancePanel,
 } from "../components/views/GovernancePanels";
 import { ArmouryView } from "../components/views/ArmouryView";
@@ -73,7 +73,7 @@ export const DirectoratePage: React.FC = () => {
         onRegionClick={(regionName) => navigate(`/operations/regions/${encodeURIComponent(regionName)}`)}
       />
       <DashboardView
-        guards={domain.guards}
+        securityOfficers={domain.securityOfficers}
         sites={domain.sites}
         incidents={domain.incidents}
         auditLogs={auditLogs}
@@ -97,11 +97,11 @@ export const OperationsPage: React.FC = () => {
 
   const existingForceNumbers = React.useMemo(
     () => [
-      ...domain.guards.map((g) => g.forceNumber),
+      ...domain.securityOfficers.map((g) => g.forceNumber),
       ...domain.drivers.map((d) => d.forceNumber || d.driverCode),
       ...users.map((u) => u.forceNumber || "").filter(Boolean),
     ],
-    [domain.guards, domain.drivers, users]
+    [domain.securityOfficers, domain.drivers, users]
   );
 
   return (
@@ -125,7 +125,7 @@ export const OperationsPage: React.FC = () => {
         <ArmouryView
           items={domain.armoury}
           logs={domain.armouryLogs}
-          guards={domain.guards}
+          securityOfficers={domain.securityOfficers}
           activeRole={activeRole}
           onIssueItem={domain.issueArmouryItem}
           onReturnItem={domain.returnArmouryItem}
@@ -137,10 +137,10 @@ export const OperationsPage: React.FC = () => {
           k9s={domain.k9s}
           logs={domain.k9Logs}
           healthInspections={domain.k9HealthInspections}
-          guards={domain.guards}
+          securityOfficers={domain.securityOfficers}
           onPairHandler={(dogId, handlerId) => {
-            const guard = domain.guards.find((g) => g.id === handlerId);
-            domain.pairK9Handler(dogId, handlerId, guard?.fullName ?? "Handler");
+            const securityOfficer = domain.securityOfficers.find((g) => g.id === handlerId);
+            domain.pairK9Handler(dogId, handlerId, securityOfficer?.fullName ?? "Handler");
           }}
           onAddDog={domain.addK9Dog}
           onUpdateK9Dog={domain.updateK9Dog}
@@ -168,7 +168,7 @@ export const RegionDashboardPage: React.FC = () => {
     <RegionDashboardView
       regionName={region}
       offices={domain.regionalOffices}
-      guards={domain.guards}
+      securityOfficers={domain.securityOfficers}
       sites={domain.sites}
       incidents={domain.incidents}
       roster={domain.dutyRoster}
@@ -323,7 +323,7 @@ export const RecordsContractsPage: React.FC = () => {
   );
 };
 
-function HRGuardsViewWithTab({ initialTab }: { initialTab: "guards"|"leave"|"appraisals"|"contracts"|"remittances"|"staff"|"payroll" }) {
+function HRSecurityOfficersViewWithTab({ initialTab }: { initialTab: "securityOfficers"|"leave"|"appraisals"|"contracts"|"remittances"|"staff"|"payroll" }) {
   const activeRole = useActiveRole();
   const domain = useDomainStore();
   const staffUsers = useAuthStore((s) => s.users);
@@ -331,13 +331,13 @@ function HRGuardsViewWithTab({ initialTab }: { initialTab: "guards"|"leave"|"app
   const issueStaffId = useAuthStore((s) => s.issueStaffId);
   return (
     <div className="space-y-6">
-      <GuardsHRView
-      guards={domain.guards}
+      <SecurityOfficersHRView
+      securityOfficers={domain.securityOfficers}
       activeRole={activeRole}
       initialTab={initialTab}
-      onAddGuard={domain.addGuard}
-      onUpdateGuard={domain.updateGuard}
-      onMoveLifecycle={domain.moveGuardLifecycle}
+      onAddSecurityOfficer={domain.addSecurityOfficer}
+      onUpdateSecurityOfficer={domain.updateSecurityOfficer}
+      onMoveLifecycle={domain.moveSecurityOfficerLifecycle}
       leaveRequests={domain.leaveRequests}
       performanceReviews={domain.performanceReviews}
       onAddLeaveRequest={domain.addLeaveRequest}
@@ -352,7 +352,7 @@ function HRGuardsViewWithTab({ initialTab }: { initialTab: "guards"|"leave"|"app
       onArchiveContract={domain.archiveContract}
       onVoidContract={domain.voidContract}
       onAdvanceApproval={domain.advanceContractApproval}
-      onArchiveGuard={domain.archiveGuard}
+      onArchiveSecurityOfficer={domain.archiveSecurityOfficer}
       staff={staffUsers}
       onUpdateUser={updateUser}
       onIssueStaffId={issueStaffId}
@@ -370,12 +370,12 @@ export const HRPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <ActingRequestPanel />
-      <GuardsHRView
-      guards={domain.guards}
+      <SecurityOfficersHRView
+      securityOfficers={domain.securityOfficers}
       activeRole={activeRole}
-      onAddGuard={domain.addGuard}
-      onUpdateGuard={domain.updateGuard}
-      onMoveLifecycle={domain.moveGuardLifecycle}
+      onAddSecurityOfficer={domain.addSecurityOfficer}
+      onUpdateSecurityOfficer={domain.updateSecurityOfficer}
+      onMoveLifecycle={domain.moveSecurityOfficerLifecycle}
       leaveRequests={domain.leaveRequests}
       performanceReviews={domain.performanceReviews}
       onAddLeaveRequest={domain.addLeaveRequest}
@@ -390,7 +390,7 @@ export const HRPage: React.FC = () => {
       onArchiveContract={domain.archiveContract}
       onVoidContract={domain.voidContract}
       onAdvanceApproval={domain.advanceContractApproval}
-      onArchiveGuard={domain.archiveGuard}
+      onArchiveSecurityOfficer={domain.archiveSecurityOfficer}
       staff={staffUsers}
       onUpdateUser={updateUser}
       onIssueStaffId={issueStaffId}
@@ -399,19 +399,19 @@ export const HRPage: React.FC = () => {
   );
 };
 
-export const HRRegisterPage: React.FC = () => <HRGuardsViewWithTab initialTab="guards" />;
-export const HRLeavePage: React.FC = () => <HRGuardsViewWithTab initialTab="leave" />;
+export const HRRegisterPage: React.FC = () => <HRSecurityOfficersViewWithTab initialTab="securityOfficers" />;
+export const HRLeavePage: React.FC = () => <HRSecurityOfficersViewWithTab initialTab="leave" />;
 
 export const MyLeavePage: React.FC = () => {
   const currentUser = useAuthStore((s) => s.currentUser);
   if (!currentUser) return null;
   return <MyLeaveSection currentUser={currentUser} />;
 };
-export const HRAppraisalsPage: React.FC = () => <HRGuardsViewWithTab initialTab="appraisals" />;
-export const HRContractsPage: React.FC = () => <HRGuardsViewWithTab initialTab="contracts" />;
-export const HRRemittancesPage: React.FC = () => <HRGuardsViewWithTab initialTab="remittances" />;
-export const HRStaffPage: React.FC = () => <HRGuardsViewWithTab initialTab="staff" />;
-export const HRPayrollPage: React.FC = () => <HRGuardsViewWithTab initialTab="payroll" />;
+export const HRAppraisalsPage: React.FC = () => <HRSecurityOfficersViewWithTab initialTab="appraisals" />;
+export const HRContractsPage: React.FC = () => <HRSecurityOfficersViewWithTab initialTab="contracts" />;
+export const HRRemittancesPage: React.FC = () => <HRSecurityOfficersViewWithTab initialTab="remittances" />;
+export const HRStaffPage: React.FC = () => <HRSecurityOfficersViewWithTab initialTab="staff" />;
+export const HRPayrollPage: React.FC = () => <HRSecurityOfficersViewWithTab initialTab="payroll" />;
 
 export const IdentityPage: React.FC = () => {
   return <RecordsIdentityView />;
@@ -484,6 +484,7 @@ function FinanceViewWithTab({ initialTab }: { initialTab: "invoices" | "expenses
       onAddExpense={domain.addExpense}
       onDeleteExpense={domain.deleteExpense}
       onDisburseAdvance={domain.disburseAdvance}
+      onDisburseAdvanceBatch={domain.disburseAdvanceBatch}
       onApproveCashierTxn={domain.approveCashierTxn}
       onRejectCashierTxn={domain.rejectCashierTxn}
       contracts={domain.contracts}
@@ -682,7 +683,7 @@ export const ITPage: React.FC = () => {
   return (
     <ITAdminView
       users={users}
-      guards={domain.guards}
+      securityOfficers={domain.securityOfficers}
       customRoles={customRoles}
       servers={domain.itServers}
       tickets={domain.itTickets}
@@ -703,7 +704,7 @@ export const ITPage: React.FC = () => {
       onAddITAsset={domain.addITAsset}
       onUpdateITAsset={domain.updateITAsset}
       onDeleteITAsset={domain.deleteITAsset}
-      onUpdateGuard={domain.updateGuard}
+      onUpdateSecurityOfficer={domain.updateSecurityOfficer}
       onTriggerWalkthroughForUser={() => setShowWalkthroughModal(true)}
       onRevokeActingPrivilege={revokeActingPrivilege}
       onAddRegion={domain.addRegion}
@@ -722,7 +723,7 @@ export const ReportsPage: React.FC = () => {
   const domain = useDomainStore();
   return (
     <ReportsView
-      guards={domain.guards}
+      securityOfficers={domain.securityOfficers}
       sites={domain.sites}
       incidents={domain.incidents}
       vehicles={domain.vehicles}
@@ -783,7 +784,7 @@ export const PerformanceReviewsPage: React.FC = () => {
   return (
     <PerformanceReviewsView
       reviews={domain.performanceReviews}
-      guards={domain.guards}
+      securityOfficers={domain.securityOfficers}
       onAddReview={domain.addPerformanceReview}
       onUpdateReview={domain.updatePerformanceReview}
     />
@@ -794,24 +795,24 @@ export const EsignPage: React.FC = () => {
   return <DigitalContractsView />;
 };
 
-export const GuardPortalPage: React.FC = () => {
+export const SecurityOfficerPortalPage: React.FC = () => {
   const currentUser = useAuthStore((s) => s.currentUser);
   const addIncident = useDomainStore((s) => s.addIncident);
   const addLeaveRequest = useDomainStore((s) => s.addLeaveRequest);
   const updateLeaveRequest = useDomainStore((s) => s.updateLeaveRequest);
   const deleteLeaveRequest = useDomainStore((s) => s.deleteLeaveRequest);
   const leaveRequests = useDomainStore((s) => s.leaveRequests);
-  const guards = useDomainStore((s) => s.guards);
+  const securityOfficers = useDomainStore((s) => s.securityOfficers);
   const dutyRoster = useDomainStore((s) => s.dutyRoster);
   if (!currentUser) return null;
-  return <GuardPortalView
+  return <SecurityOfficerPortalView
     currentUser={currentUser}
     onLogIncident={addIncident}
     onAddLeaveRequest={addLeaveRequest}
     onUpdateLeaveRequest={updateLeaveRequest}
     onDeleteLeaveRequest={deleteLeaveRequest}
     leaveRequests={leaveRequests}
-    guards={guards}
+    securityOfficers={securityOfficers}
     dutyRoster={dutyRoster}
   />;
 };

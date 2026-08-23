@@ -233,7 +233,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
         <div className="min-w-0">
           <p className="text-xs font-black text-amber-900">Site survey gates the contract</p>
           <p className="text-[11px] text-amber-800 leading-snug mt-0.5">
-            Request a survey from Operations before proposing a contract. The completed survey (premises, perimeter, risk, guards, equipment) guides the draft, and Ops will send back details here.
+            Request a survey from Operations before proposing a contract. The completed survey (premises, perimeter, risk, securityOfficers, equipment) guides the draft, and Ops will send back details here.
           </p>
         </div>
       </div>

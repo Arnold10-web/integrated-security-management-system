@@ -13,9 +13,9 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
     "General Manager": "view",
     "Director": "view",
     "IT Officer": "view",
-    "Guard Officer": "view",
+    "Security Officer": "view",
   },
-  guards: {
+  "security_officers": {
     "HR Manager": "full",
     "HR Assistant": "full",
     "Records Officer": "full",
@@ -34,7 +34,7 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
     "General Manager": "view",
     "Director": "view",
     "IT Officer": "view",
-    "Guard Officer": "view",
+    "Security Officer": "view",
   },
   armoury: {
     "Armorer": "full",
@@ -47,7 +47,7 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
     "Investigations Officer": "full",
     "Operations Manager": "full",
     "Regional Manager": "full",
-    "Guard Officer": "view",
+    "Security Officer": "view",
     "General Manager": "view",
     "Director": "view",
     "IT Officer": "view",
@@ -141,7 +141,7 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
   patrol: {
     "Operations Manager": "full",
     "Regional Manager": "full",
-    "Guard Officer": "full",
+    "Security Officer": "full",
   },
   requisitions: {
     "Administrative Officer": "full",
@@ -226,7 +226,7 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
     "Director": "view",
   },
   leave: {
-    "Guard Officer": "view",
+    "Security Officer": "view",
     "Regional Manager": "view",
     "Operations Manager": "view",
     "HR Manager": "full",
@@ -250,7 +250,7 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
 };
 
 export const SERVER_MODULE_TO_CLIENT: Record<string, string> = {
-  guards: "hr",
+  "security_officers": "hr",
   armoury: "operations",
   incidents: "operations",
   vehicles: "fleet",
@@ -283,7 +283,7 @@ export const SERVER_MODULE_TO_CLIENT: Record<string, string> = {
 };
 
 export const MODULE_DISPLAY_NAMES: Record<string, string> = {
-  guards: "Guard Records",
+  "security_officers": "Security Officer Records",
   operations: "Operations",
   sites: "Client Sites",
   armoury: "Armoury",

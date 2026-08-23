@@ -115,7 +115,7 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
               <Users className="w-3 h-3 text-purple-400" />
               <span>HR & PERSONNEL WORKSPACE GUIDE</span>
             </span>
-            <span className="text-xs text-purple-300 font-mono font-bold">Module: Guards & HR</span>
+            <span className="text-xs text-purple-300 font-mono font-bold">Module: Security Officer & HR</span>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed">
             As an HR Officer, you oversee the recruitment, vetting, and biodata records of all security officers across Uganda.
@@ -123,7 +123,7 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
           <ul className="space-y-1.5 text-xs text-slate-200">
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-              <span><strong>New Guard Onboarding:</strong> Register personnel with passport photos, NIN validation, and emergency referees.</span>
+              <span><strong>New Security Officer Onboarding:</strong> Register personnel with passport photos, NIN validation, and emergency referees.</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
@@ -187,18 +187,18 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
       );
     }
 
-    if (role === "Guard Officer") {
+    if (role === "Security Officer") {
       return (
         <div className="bg-slate-900 text-white p-4 rounded-2xl border border-lime-500/30 space-y-3">
           <div className="flex items-center justify-between">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-lime-500/20 text-lime-300 border border-lime-500/40 flex items-center gap-1">
               <ShieldAlert className="w-3 h-3 text-lime-400" />
-              <span>FIELD GUARD PORTAL GUIDE</span>
+              <span>FIELD SECURITY OFFICER PORTAL GUIDE</span>
             </span>
-            <span className="text-xs text-lime-300 font-mono font-bold">Module: Guard Portal</span>
+            <span className="text-xs text-lime-300 font-mono font-bold">Module: Security Officer Portal</span>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed">
-            As a Guard Officer you work from the field portal to manage your duty shift, credentials, and incident reporting.
+            As a Security Officer you work from the field portal to manage your duty shift, credentials, and incident reporting.
           </p>
           <ul className="space-y-1.5 text-xs text-slate-200">
             <li className="flex items-start gap-2">
@@ -216,10 +216,10 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
           </ul>
           {onNavigateTab && (
             <button
-              onClick={() => handleJumpToTab("guard_portal")}
+              onClick={() => handleJumpToTab("security_officer_portal")}
               className="mt-2 w-full py-2 bg-lime-600 hover:bg-lime-500 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
-              <span>Open Your Guard Portal</span>
+              <span>Open Your Security Officer Portal</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           )}
@@ -287,7 +287,7 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
-              <span><strong>Pass-Out & Force Numbers:</strong> On graduation, allocate the guard's PSG force number (e.g. PSG026/004) and issue the certificate.</span>
+              <span><strong>Pass-Out & Force Numbers:</strong> On graduation, allocate the security officer's PSG force number (e.g. PSG026/004) and issue the certificate.</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
@@ -447,7 +447,7 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-fuchsia-400 shrink-0 mt-0.5" />
-              <span><strong>Client & Site Onboarding:</strong> Enroll new clients and their site guard requirements (day/night/armed/K9).</span>
+              <span><strong>Client & Site Onboarding:</strong> Enroll new clients and their site security officer requirements (day/night/armed/K9).</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-fuchsia-400 shrink-0 mt-0.5" />
@@ -518,12 +518,12 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
             <span className="text-xs text-emerald-300 font-mono font-bold">Module: Operations & Dispatch</span>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed">
-            Operations manages duty rosters, real-time guard deployment, patrol inspection logs, incident response, fleet, and K9/Armoury integration.
+            Operations manages duty rosters, real-time security officer deployment, patrol inspection logs, incident response, fleet, and K9/Armoury integration.
           </p>
           <ul className="space-y-1.5 text-xs text-slate-200">
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong>Duty Roster:</strong> Deploy guards to client sites (banks, embassies, industrial plants) with shift tracking.</span>
+              <span><strong>Duty Roster:</strong> Deploy security officers to client sites (banks, embassies, industrial plants) with shift tracking.</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -603,7 +603,7 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
         <ul className="space-y-1.5 text-xs text-slate-200">
           <li className="flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-            <span><strong>Live Security Metrics:</strong> Monitor active guard posts, K9 dogs on duty, fleet readiness, and incident alerts.</span>
+            <span><strong>Live Security Metrics:</strong> Monitor active security officer posts, K9 dogs on duty, fleet readiness, and incident alerts.</span>
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
@@ -889,7 +889,7 @@ export const SystemWalkthroughModal: React.FC<SystemWalkthroughModalProps> = ({
                         <div>
                           <strong className="text-white block font-extrabold">Automatic User Activity Tracking</strong>
                           <span className="text-slate-300 text-[11px]">
-                            When you add a guard, refuel a vehicle, approve an invoice, or issue an identity card, the system logs your name, timestamp, and module.
+                            When you add a securityOfficer, refuel a vehicle, approve an invoice, or issue an identity card, the system logs your name, timestamp, and module.
                           </span>
                         </div>
                       </div>

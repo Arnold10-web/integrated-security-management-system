@@ -77,7 +77,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({
             <div>
               <label className="block text-slate-700 font-bold mb-1">Contract Title / Name</label>
               <input type="text" required value={contractTitle} onChange={(e) => setContractTitle(e.target.value)}
-                placeholder="e.g. Guard Service SLA" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold outline-none" />
+                placeholder="e.g. Security Officer Service SLA" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold outline-none" />
             </div>
             <div>
               <label className="block text-slate-700 font-bold mb-1">Contract Code</label>
@@ -99,7 +99,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({
               <label className="block text-slate-700 font-bold mb-1">Category</label>
               <select value={category} onChange={(e) => setCategory(e.target.value as any)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
-                <option value="Guard Employment SLA">Guard Employment SLA</option>
+                <option value="Security Officer Employment SLA">Security Officer Employment SLA</option>
                 <option value="Executive Employment">Executive Employment</option>
                 <option value="Corporate Client Service Agreement">Corporate Client Service Agreement</option>
                 <option value="Retail Site Agreement">Retail Site Agreement</option>
@@ -161,7 +161,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({
 
           {contractType === "Staff Contract" ? (
             <div>
-              <label className="block text-slate-700 font-bold mb-1">Related Guard / Force Number</label>
+              <label className="block text-slate-700 font-bold mb-1">Related Security Officer / Force Number</label>
               <input type="text" value={relatedForceNumber} onChange={(e) => setRelatedForceNumber(e.target.value)}
                 placeholder="e.g. FORCE-2026-001" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold outline-none" />
             </div>
@@ -176,7 +176,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({
           <div>
             <label className="block text-slate-700 font-bold mb-1">Service Scope / SLA</label>
             <textarea rows={2} value={slaTerms} onChange={(e) => setSlaTerms(e.target.value)}
-              placeholder="e.g. 4 day guards, 2 night guards, patrols every 2 hours..."
+              placeholder="e.g. 4 day securityOfficers, 2 night securityOfficers, patrols every 2 hours..."
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold outline-none resize-none" />
           </div>
 

@@ -110,7 +110,7 @@ function daysUntil(dateStr: string | null | undefined): number | null {
 
 interface ExpiryAlertItem {
   id: string;
-  kind: "Guard ID" | "Staff ID" | "Contract";
+  kind: "Security Officer ID" | "Staff ID" | "Contract";
   name: string;
   reference: string;
   expiresOn: string;
@@ -121,17 +121,17 @@ export const RecordsOfficerWorkspace: React.FC = () => {
   const domain = useDomainStore();
   const staff = useAuthStore((s) => s.users);
   const activeRole = getEffectiveRole(useAuthStore((s) => s.currentUser)) as UserRole | null;
-  const pendingIds = domain.guards.filter((g) => g.idCardStatus === "Pending Records Issuance" || g.idCardStatus === "Reissue Required" || !g.idCardStatus).length;
+  const pendingIds = domain.securityOfficers.filter((g) => g.idCardStatus === "Pending Records Issuance" || g.idCardStatus === "Reissue Required" || !g.idCardStatus).length;
   const openInquiries = domain.contractInquiries.filter((c) => c.status === "Pending").length;
   const contracts = domain.contracts.filter((c) => c.contractType === "Client Contract" && c.status === "Active").length;
 
   const expiryAlerts: ExpiryAlertItem[] = [
-    ...domain.guards
+    ...domain.securityOfficers
       .filter((g) => g.idCardStatus === "Issued & Active")
       .map((g) => {
         const daysLeft = daysUntil(g.idCardExpiryDate);
         return daysLeft !== null && daysLeft <= 90
-          ? { id: g.id, kind: "Guard ID" as const, name: g.fullName, reference: g.forceNumber, expiresOn: g.idCardExpiryDate!, daysLeft }
+          ? { id: g.id, kind: "Security Officer ID" as const, name: g.fullName, reference: g.forceNumber, expiresOn: g.idCardExpiryDate!, daysLeft }
           : null;
       }),
     ...staff
@@ -166,12 +166,12 @@ export const RecordsOfficerWorkspace: React.FC = () => {
           </span>
           <h1 className="text-xl md:text-2xl font-black text-white tracking-tight mt-1">Personnel & Contract Records</h1>
           <p className="text-xs text-slate-400 font-medium">
-            Every member of staff and guard is identified by a unique force number; every client contract is retrievable via inquiry.
+            Every member of staff and security officer is identified by a unique force number; every client contract is retrievable via inquiry.
           </p>
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KPI icon={Users} label="Personnel (Guards)" value={domain.guards.length} tone="bg-sky-100 text-sky-700" />
+        <KPI icon={Users} label="Personnel ( SecurityOfficer)" value={domain.securityOfficers.length} tone="bg-sky-100 text-sky-700" />
         <KPI icon={Users} label="Staff Accounts" value={staff.filter((u) => u.status === "Active").length} tone="bg-indigo-100 text-indigo-700" />
         <KPI icon={CreditCard} label="Pending ID Issuance" value={pendingIds} tone="bg-amber-100 text-amber-700" />
         <KPI icon={FolderOpen} label="Open Inquiries" value={openInquiries} tone="bg-rose-100 text-rose-700" />

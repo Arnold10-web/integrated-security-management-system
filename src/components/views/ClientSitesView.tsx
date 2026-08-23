@@ -60,11 +60,11 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
   const [location, setLocation] = useState("");
   const [zone, setZone] = useState<SiteZone>("Central Business");
   const [region, setRegion] = useState("");
-  const [dayShiftGuards, setDayShiftGuards] = useState(6);
-  const [nightShiftGuards, setNightShiftGuards] = useState(6);
+  const [dayShiftSecurityOfficers, setDayShiftSecurityOfficers] = useState(6);
+  const [nightShiftSecurityOfficers, setNightShiftSecurityOfficers] = useState(6);
   const [dayShiftArmed, setDayShiftArmed] = useState(2);
   const [nightShiftArmed, setNightShiftArmed] = useState(2);
-  const [armedGuardsRequired, setArmedGuardsRequired] = useState(2);
+  const [armedSecurityOfficersRequired, setArmedSecurityOfficersRequired] = useState(2);
   const [k9Required, setK9Required] = useState(false);
   const [contactPerson, setContactPerson] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -89,8 +89,8 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
 
   const analytics = React.useMemo(() => {
     const totalSites = sites.length;
-    const daySlots = sites.reduce((a, s) => a + s.dayShiftGuards, 0);
-    const nightSlots = sites.reduce((a, s) => a + s.nightShiftGuards, 0);
+    const daySlots = sites.reduce((a, s) => a + s.dayShiftSecurityOfficers, 0);
+    const nightSlots = sites.reduce((a, s) => a + s.nightShiftSecurityOfficers, 0);
     const dayArmed = sites.reduce((a, s) => a + (s.dayShiftArmed || 0), 0);
     const nightArmed = sites.reduce((a, s) => a + (s.nightShiftArmed || 0), 0);
     const totalSlots = daySlots + nightSlots;
@@ -106,8 +106,8 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
       : "—";
     const zoneData = SITE_ZONES.map((z) => {
       const inZone = sites.filter((s) => s.zone === z);
-      const day = inZone.reduce((a, s) => a + s.dayShiftGuards, 0);
-      const night = inZone.reduce((a, s) => a + s.nightShiftGuards, 0);
+      const day = inZone.reduce((a, s) => a + s.dayShiftSecurityOfficers, 0);
+      const night = inZone.reduce((a, s) => a + s.nightShiftSecurityOfficers, 0);
       const dArmed = inZone.reduce((a, s) => a + (s.dayShiftArmed || 0), 0);
       const nArmed = inZone.reduce((a, s) => a + (s.nightShiftArmed || 0), 0);
       return {
@@ -134,11 +134,11 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
       location,
       zone,
       region: region || undefined,
-      dayShiftGuards: Number(dayShiftGuards),
-      nightShiftGuards: Number(nightShiftGuards),
-      dayShiftArmed: Math.min(Number(dayShiftArmed), Number(dayShiftGuards)),
-      nightShiftArmed: Math.min(Number(nightShiftArmed), Number(nightShiftGuards)),
-      armedGuardsRequired: Number(armedGuardsRequired),
+      dayShiftSecurityOfficers: Number(dayShiftSecurityOfficers),
+      nightShiftSecurityOfficers: Number(nightShiftSecurityOfficers),
+      dayShiftArmed: Math.min(Number(dayShiftArmed), Number(dayShiftSecurityOfficers)),
+      nightShiftArmed: Math.min(Number(nightShiftArmed), Number(nightShiftSecurityOfficers)),
+      armedSecurityOfficersRequired: Number(armedSecurityOfficersRequired),
       k9Required,
       contactPerson,
       contactPhone,
@@ -159,7 +159,7 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
           <div>
             <h2 className="text-xl font-extrabold text-slate-900">Clients & Site Post Directory</h2>
             <p className="text-xs text-slate-500">
-              Contract SLAs, day/night shift guard quotas with armed splits, zone & K9 requirements, post contact heads.
+              Contract SLAs, day/night shift security officer quotas with armed splits, zone & K9 requirements, post contact heads.
             </p>
           </div>
         </div>
@@ -196,7 +196,7 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
           </div>
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <div className="text-2xl font-black text-slate-900">{analytics.totalSlots}</div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Guard Slots / Shift</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Security Officer Slots / Shift</div>
           </div>
           <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
             <div className="text-2xl font-black text-purple-700">{analytics.totalArmed}</div>
@@ -218,7 +218,7 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
-              Guard Strength by Zone (Armed vs Unarmed)
+              Security Officer Strength by Zone (Armed vs Unarmed)
             </h4>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={analytics.zoneData}>
@@ -314,23 +314,23 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
             <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl">
               <div>
                 <span className="text-slate-400 text-[10px] font-bold uppercase block">☀️ Day Shift</span>
-                <span className="font-extrabold text-slate-900 text-sm">{site.dayShiftGuards} Guards</span>
+                <span className="font-extrabold text-slate-900 text-sm">{site.dayShiftSecurityOfficers} Security Officers</span>
                 <span className="block text-[11px] mt-0.5">
                   <span className="text-emerald-600 font-bold">{site.dayShiftArmed || 0} Armed</span>
                   <span className="text-slate-400"> • </span>
                   <span className="text-slate-500 font-semibold">
-                    {unarmed(site.dayShiftGuards, site.dayShiftArmed)} Unarmed
+                    {unarmed(site.dayShiftSecurityOfficers, site.dayShiftArmed)} Unarmed
                   </span>
                 </span>
               </div>
               <div>
                 <span className="text-slate-400 text-[10px] font-bold uppercase block">🌙 Night Shift</span>
-                <span className="font-extrabold text-slate-900 text-sm">{site.nightShiftGuards} Guards</span>
+                <span className="font-extrabold text-slate-900 text-sm">{site.nightShiftSecurityOfficers} Security Officers</span>
                 <span className="block text-[11px] mt-0.5">
                   <span className="text-emerald-600 font-bold">{site.nightShiftArmed || 0} Armed</span>
                   <span className="text-slate-400"> • </span>
                   <span className="text-slate-500 font-semibold">
-                    {unarmed(site.nightShiftGuards, site.nightShiftArmed)} Unarmed
+                    {unarmed(site.nightShiftSecurityOfficers, site.nightShiftArmed)} Unarmed
                   </span>
                 </span>
               </div>
@@ -449,22 +449,22 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Day Guards</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Day Security Officers</label>
                   <input
                     type="number"
                     min={1}
-                    value={dayShiftGuards}
-                    onChange={(e) => setDayShiftGuards(Number(e.target.value))}
+                    value={dayShiftSecurityOfficers}
+                    onChange={(e) => setDayShiftSecurityOfficers(Number(e.target.value))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Night Guards</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Night Security Officers</label>
                   <input
                     type="number"
                     min={1}
-                    value={nightShiftGuards}
-                    onChange={(e) => setNightShiftGuards(Number(e.target.value))}
+                    value={nightShiftSecurityOfficers}
+                    onChange={(e) => setNightShiftSecurityOfficers(Number(e.target.value))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
@@ -473,8 +473,8 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
                   <input
                     type="number"
                     min={0}
-                    value={armedGuardsRequired}
-                    onChange={(e) => setArmedGuardsRequired(Number(e.target.value))}
+                    value={armedSecurityOfficersRequired}
+                    onChange={(e) => setArmedSecurityOfficersRequired(Number(e.target.value))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
@@ -486,7 +486,7 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
                   <input
                     type="number"
                     min={0}
-                    max={Number(dayShiftGuards)}
+                    max={Number(dayShiftSecurityOfficers)}
                     value={dayShiftArmed}
                     onChange={(e) => setDayShiftArmed(Number(e.target.value))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -497,7 +497,7 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
                   <input
                     type="number"
                     min={0}
-                    max={Number(nightShiftGuards)}
+                    max={Number(nightShiftSecurityOfficers)}
                     value={nightShiftArmed}
                     onChange={(e) => setNightShiftArmed(Number(e.target.value))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -512,7 +512,7 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
                     type="text"
                     value={contactPerson}
                     onChange={(e) => setContactPerson(e.target.value)}
-                    placeholder="e.g. Chief Security Officer"
+                    placeholder="e.g. Chief "
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
@@ -582,11 +582,11 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
                   location: fd.get("location") as string,
                   zone: fd.get("zone") as SiteZone,
                   region: (fd.get("region") as string) || undefined,
-                  dayShiftGuards: Number(fd.get("dayShiftGuards")),
-                  nightShiftGuards: Number(fd.get("nightShiftGuards")),
+                  dayShiftSecurityOfficers: Number(fd.get("dayShiftSecurityOfficers")),
+                  nightShiftSecurityOfficers: Number(fd.get("nightShiftSecurityOfficers")),
                   dayShiftArmed: Number(fd.get("dayShiftArmed")),
                   nightShiftArmed: Number(fd.get("nightShiftArmed")),
-                  armedGuardsRequired: Number(fd.get("armedGuardsRequired")),
+                  armedSecurityOfficersRequired: Number(fd.get("armedSecurityOfficersRequired")),
                   k9Required: fd.get("k9Required") === "on",
                   contactPerson: fd.get("contactPerson") as string,
                   contactPhone: fd.get("contactPhone") as string,
@@ -662,32 +662,32 @@ export const ClientSitesView: React.FC<ClientSitesViewProps> = ({ sites, onAddSi
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Day Guards</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Day Security Officers</label>
                   <input
-                    name="dayShiftGuards"
+                    name="dayShiftSecurityOfficers"
                     type="number"
                     min={1}
-                    defaultValue={editSite.dayShiftGuards}
+                    defaultValue={editSite.dayShiftSecurityOfficers}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Night Guards</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Night Security Officers</label>
                   <input
-                    name="nightShiftGuards"
+                    name="nightShiftSecurityOfficers"
                     type="number"
                     min={1}
-                    defaultValue={editSite.nightShiftGuards}
+                    defaultValue={editSite.nightShiftSecurityOfficers}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Armed Quota</label>
                   <input
-                    name="armedGuardsRequired"
+                    name="armedSecurityOfficersRequired"
                     type="number"
                     min={0}
-                    defaultValue={editSite.armedGuardsRequired}
+                    defaultValue={editSite.armedSecurityOfficersRequired}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>

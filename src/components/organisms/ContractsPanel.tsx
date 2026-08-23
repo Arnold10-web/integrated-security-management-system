@@ -62,7 +62,7 @@ export const ContractsPanel: React.FC<ContractsPanelProps> = ({
   };
 
   const categoryBadge: Record<string, string> = {
-    "Guard Employment SLA": "bg-blue-50 text-blue-800 border-blue-200",
+    "Security Officer Employment SLA": "bg-blue-50 text-blue-800 border-blue-200",
     "Executive Employment": "bg-indigo-50 text-indigo-800 border-indigo-200",
     "Corporate Client Service Agreement": "bg-purple-50 text-purple-800 border-purple-200",
     "Retail Site Agreement": "bg-pink-50 text-pink-800 border-pink-200",

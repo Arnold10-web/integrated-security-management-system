@@ -10,11 +10,11 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { PatrolInspectionLog, Guard, ClientSite, UserRole } from "../../types";
+import { PatrolInspectionLog, SecurityOfficer, ClientSite, UserRole } from "../../types";
 
 interface PatrolInspectionViewProps {
   inspections: PatrolInspectionLog[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   activeRole: UserRole;
   onAddInspection: (newInspection: Omit<PatrolInspectionLog, "id">) => void;
@@ -24,7 +24,7 @@ interface PatrolInspectionViewProps {
 
 export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
   inspections,
-  guards,
+  securityOfficers,
   sites,
   onAddInspection,
   onUpdateInspection,
@@ -38,7 +38,7 @@ export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
   // Form State
   const [selectedSite, setSelectedSite] = useState(sites[0]?.siteName || "");
   const supervisorName = "Richard Okello";
-  const [selectedGuard, setSelectedGuard] = useState(guards[0]?.fullName || "");
+  const [selectedSecurityOfficer, setSelectedSecurityOfficer] = useState(securityOfficers[0]?.fullName || "");
   const [inspectionTime, setInspectionTime] = useState("02:30 AM");
   const [radioCheckStatus, setRadioCheckStatus] = useState<PatrolInspectionLog["radioCheckStatus"]>("Responsive & Clear");
   const [uniformTurnout, setUniformTurnout] = useState<PatrolInspectionLog["uniformTurnout"]>("Compliant");
@@ -49,20 +49,20 @@ export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
   const filtered = inspections.filter(
     (ins) =>
       ins.siteName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ins.guardOnDuty.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ins.securityOfficerOnDuty.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ins.supervisorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ins.inspectionCode.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSite || !selectedGuard) return;
+    if (!selectedSite || !selectedSecurityOfficer) return;
 
     onAddInspection({
       inspectionCode: `CHK-2026-${Math.floor(100 + Math.random() * 900)}`,
       siteName: selectedSite,
       supervisorName,
-      guardOnDuty: selectedGuard,
+      securityOfficerOnDuty: selectedSecurityOfficer,
       inspectionTime,
       radioCheckStatus,
       uniformTurnout,
@@ -80,7 +80,7 @@ export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
     setEditForm({
       siteName: ins.siteName,
       supervisorName: ins.supervisorName,
-      guardOnDuty: ins.guardOnDuty,
+      securityOfficerOnDuty: ins.securityOfficerOnDuty,
       inspectionTime: ins.inspectionTime,
       radioCheckStatus: ins.radioCheckStatus,
       uniformTurnout: ins.uniformTurnout,
@@ -157,7 +157,7 @@ export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search site, supervisor, guard code..."
+            placeholder="Search site, supervisor, security officer code..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium"
@@ -184,7 +184,7 @@ export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
               <tr className="bg-slate-100 text-[11px] font-extrabold text-slate-600 uppercase border-b border-slate-200">
                 <th className="p-3.5">Code / Time</th>
                 <th className="p-3.5">Client Site Post</th>
-                <th className="p-3.5">Guard On Duty</th>
+                <th className="p-3.5">Security Officer On Duty</th>
                 <th className="p-3.5">Supervisor</th>
                 <th className="p-3.5">Radio Status</th>
                 <th className="p-3.5">Turnout & Gear</th>
@@ -214,11 +214,11 @@ export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
                   </td>
                   <td className="p-3.5 font-semibold text-slate-900">
                     {isEditing ? (
-                      <select value={editForm.guardOnDuty || ins.guardOnDuty} onChange={(e) => setEditForm((f) => ({ ...f, guardOnDuty: e.target.value }))} className="p-1 bg-slate-50 border border-slate-200 rounded font-semibold text-xs text-slate-800 outline-none">
-                        {guards.map((g) => <option key={g.id} value={g.fullName}>{g.fullName}</option>)}
+                      <select value={editForm.securityOfficerOnDuty || ins.securityOfficerOnDuty} onChange={(e) => setEditForm((f) => ({ ...f, securityOfficerOnDuty: e.target.value }))} className="p-1 bg-slate-50 border border-slate-200 rounded font-semibold text-xs text-slate-800 outline-none">
+                        {securityOfficers.map((g) => <option key={g.id} value={g.fullName}>{g.fullName}</option>)}
                       </select>
                     ) : (
-                      ins.guardOnDuty
+                      ins.securityOfficerOnDuty
                     )}
                   </td>
                   <td className="p-3.5 font-medium text-slate-600">
@@ -350,14 +350,14 @@ export const PatrolInspectionView: React.FC<PatrolInspectionViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Guard On Duty</label>
+                  <label className="block font-bold text-slate-700 mb-1">Security Officer On Duty</label>
                   <select
                     required
-                    value={selectedGuard}
-                    onChange={(e) => setSelectedGuard(e.target.value)}
+                    value={selectedSecurityOfficer}
+                    onChange={(e) => setSelectedSecurityOfficer(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {guards.map((g) => (
+                    {securityOfficers.map((g) => (
                       <option key={g.id} value={g.fullName}>
                         {g.fullName} ({g.forceNumber})
                       </option>

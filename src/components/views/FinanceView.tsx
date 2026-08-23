@@ -25,6 +25,7 @@ interface FinanceViewProps {
   onAddExpense: (expense: Omit<Expense, "id">) => void;
   onDeleteExpense?: (id: string) => void;
   onDisburseAdvance: (txn: Omit<CashierTransaction, "id">) => void;
+  onDisburseAdvanceBatch?: (type: CashierTransaction["type"], items: Array<{ securityOfficerName: string; forceNumber?: string; amount: number; phone?: string; signatureUrl?: string; notes?: string }>) => void;
   onApproveCashierTxn?: (id: string) => void;
   onRejectCashierTxn?: (id: string) => void;
   contracts?: ContractRecord[];
@@ -48,6 +49,7 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
   onApproveInvoice,
   onDeleteExpense,
   onDisburseAdvance,
+  onDisburseAdvanceBatch,
   onApproveCashierTxn,
   onRejectCashierTxn,
   contracts,
@@ -115,7 +117,7 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white">Financial Accounting, Client Invoicing & Cashier Ledger</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Oversee corporate billing, operational expenses, site SLA cost centers, and cashier disbursements for guard salary advances.
+            Oversee corporate billing, operational expenses, site SLA cost centers, and cashier disbursements for security officer salary advances.
           </p>
         </div>
 
@@ -384,7 +386,7 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
         </div>
       )}
       <CreateInvoiceModal show={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} onSubmit={onAddInvoice} />
-      <CashierDisbursementModal show={showCashierModal} onClose={() => setShowCashierModal(false)} onSubmit={onDisburseAdvance} />
+      <CashierDisbursementModal show={showCashierModal} onClose={() => setShowCashierModal(false)} onSubmit={onDisburseAdvance} onSubmitBatch={onDisburseAdvanceBatch} />
     </div>
   );
 };

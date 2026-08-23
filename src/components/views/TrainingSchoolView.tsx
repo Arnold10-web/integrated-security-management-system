@@ -53,13 +53,13 @@ export const TrainingSchoolView: React.FC<TrainingSchoolViewProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-black uppercase tracking-wider border border-emerald-500/30">
-              Operations Department • Guard Training Division
+              Operations Department • Security Officer Training Division
             </span>
             <span className="text-slate-400 text-xs font-mono">Kyankwanzi Training Academy</span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
             <GraduationCap className="w-7 h-7 text-emerald-400" />
-            Security Guard Training Academy & Pass-Out School
+            Security Officer Training Academy & Pass-Out School
           </h1>
           <p className="text-xs text-slate-300 mt-1 max-w-3xl">
             Oversee recruit intake cohorts, physical conditioning drills, live firing marksmanship assessments, weapons handling certification, and force number allocation under Operations.
@@ -96,10 +96,10 @@ export const TrainingSchoolView: React.FC<TrainingSchoolViewProps> = ({
 
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Graduated & Certified Guards</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Graduated & Certified Security Officers</span>
             <Award className="w-4 h-4 text-cyan-600" />
           </div>
-          <div className="text-2xl font-black text-slate-900">{passedOutCount} Guards Passed Out</div>
+          <div className="text-2xl font-black text-slate-900">{passedOutCount} Security Officers Passed Out</div>
           <p className="text-[11px] font-semibold text-cyan-700 flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>Assigned Force Numbers & Deployed</span>
@@ -141,16 +141,16 @@ export const TrainingSchoolView: React.FC<TrainingSchoolViewProps> = ({
         <button onClick={() => setSubTab("trainees")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${subTab === "trainees" ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"}`}>
           <Users className="w-4 h-4 text-cyan-400" />
-          <span>Recruit Guards & Scores ({trainees.length})</span>
+          <span>Recruit Security Officers & Scores ({trainees.length})</span>
         </button>
       </div>
 
       {/* Subtab 1: Intake Cohorts */}
       {subTab === "cohorts" && (
-        <TrainingCohortCardGrid cohorts={cohorts} onViewGuards={(cohortId) => { setSelectedCohortFilter(cohortId); setSubTab("trainees"); }} onDeleteCohort={onDeleteCohort} onUpdateCohort={onUpdateCohort} />
+        <TrainingCohortCardGrid cohorts={cohorts} onViewSecurityOfficers={(cohortId) => { setSelectedCohortFilter(cohortId); setSubTab("trainees"); }} onDeleteCohort={onDeleteCohort} onUpdateCohort={onUpdateCohort} />
       )}
 
-      {/* Subtab 2: Trainee Guards & Performance Scores */}
+      {/* Subtab 2: Trainee Security Officers & Performance Scores */}
       {subTab === "trainees" && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">

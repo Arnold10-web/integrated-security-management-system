@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { ConsolidationResult, consolidateDashboardMetrics } from '../../src/utils/dashboardMetrics';
 
 interface MockDashboardData {
-  guards: Array<{ id: string; status: string; designation?: string; region?: string; }>;
+  securityOfficers: Array<{ id: string; status: string; designation?: string; region?: string; }>;
   sites: Array<{ id: string; slaStatus?: string; region?: string; dayShiftArmed?: number; nightShiftArmed?: number; }>;
   incidents: Array<{ id: string; severity: string; status: string; }>;
   invoices: Array<{ id: string; status: string; amount: number; }>;
@@ -18,7 +18,7 @@ describe('Dashboard Metric Consolidation', () => {
 
   it('should consolidate duplicate revenue metrics into single metric with paid/pending/overdue breakdown', () => {
     const mockData: MockDashboardData = {
-      guards: [],
+      securityOfficers: [],
       sites: [],
       incidents: [],
       invoices: [
@@ -45,9 +45,9 @@ describe('Dashboard Metric Consolidation', () => {
     expect(result.duplicates.removed.revenue).toBe(2); // Remove 2 duplicates (from DashboardKpiCards and EnterpriseAnalyticsPanel)
   });
 
-  it('should consolidate duplicate guard metrics into single metric with active/required/onDuty breakdown', () => {
+  it('should consolidate duplicate security officer metrics into single metric with active/required/onDuty breakdown', () => {
     const mockData: MockDashboardData = {
-      guards: [
+      securityOfficers: [
         { id: '1', status: 'On Duty', designation: 'Guard' },
         { id: '2', status: 'On Duty', designation: 'Guard' },
         { id: '3', status: 'On Duty', designation: 'Guard' },
@@ -64,22 +64,22 @@ describe('Dashboard Metric Consolidation', () => {
 
     const result = consolidateDashboardMetrics(mockData);
 
-    // Verify guard metrics are consolidated
-    expect(result.guards).toBeDefined();
-    expect(result.guards.active).toBe(3); // On Duty
-    expect(result.guards.required).toBe(6); // Total
-    expect(result.guards.onDuty).toBe(3); // Same as active for now
-    expect(result.guards.distribution).toBeDefined();
-    expect(result.guards.distribution['On Duty']).toBe(3);
-    expect(result.guards.distribution['Suspended']).toBe(1);
+    // Verify officer metrics are consolidated
+    expect(result.securityOfficers).toBeDefined();
+    expect(result.securityOfficers.active).toBe(3); // On Duty
+    expect(result.securityOfficers.required).toBe(6); // Total
+    expect(result.securityOfficers.onDuty).toBe(3); // Same as active for now
+    expect(result.securityOfficers.distribution).toBeDefined();
+    expect(result.securityOfficers.distribution['On Duty']).toBe(3);
+    expect(result.securityOfficers.distribution['Suspended']).toBe(1);
 
-    // Verify no duplicate guard metrics exist
-    expect(result.duplicates.removed.guards).toBe(2); // Remove 2 duplicates (from DashboardKpiCards and EnterpriseAnalyticsPanel)
+    // Verify no duplicate security officer metrics exist
+    expect(result.duplicates.removed.securityOfficers).toBe(2); // Remove 2 duplicates (from DashboardKpiCards and EnterpriseAnalyticsPanel)
   });
 
   it('should consolidate duplicate alert metrics into single metric merging security and incidents', () => {
     const mockData: MockDashboardData = {
-      guards: [],
+      securityOfficers: [],
       sites: [],
       incidents: [
         { id: '1', severity: 'Critical', status: 'Open' },
@@ -109,7 +109,7 @@ describe('Dashboard Metric Consolidation', () => {
 
   it('should maintain executive attention metrics separate from consolidated metrics', () => {
     const mockData: MockDashboardData = {
-      guards: [
+      securityOfficers: [
         { id: '1', status: 'Suspended' },
         { id: '2', status: 'On Duty' },
       ],
@@ -133,18 +133,18 @@ describe('Dashboard Metric Consolidation', () => {
     expect(result.executiveAttention).toBeDefined();
     expect(result.executiveAttention.criticalIncidents).toBe(1);
     expect(result.executiveAttention.nonCompliantSites).toBe(1);
-    expect(result.executiveAttention.suspendedGuards).toBe(1);
+    expect(result.executiveAttention.suspendedSecurityOfficers).toBe(1);
     expect(result.executiveAttention.overdueRevenue).toBe(50000);
 
     // Verify executive attention is separate from consolidated metrics
     expect(result.revenue.overdue).toBe(50000);
-    expect(result.guards.suspended).toBe(1);
+    expect(result.securityOfficers.suspended).toBe(1);
     expect(result.alerts.critical).toBe(1);
   });
 
   it('should provide backward compatibility by returning individual metrics for existing components', () => {
     const mockData: MockDashboardData = {
-      guards: [
+      securityOfficers: [
         { id: '1', status: 'On Duty', designation: 'Guard' },
         { id: '2', status: 'On Duty', designation: 'Guard' },
       ],
@@ -168,9 +168,9 @@ describe('Dashboard Metric Consolidation', () => {
     expect(result.individualMetrics.revenueCollection.pct).toBe(66.67); // (10000/15000) * 100
     expect(result.individualMetrics.revenueCollection.amount).toBe(10000);
 
-    expect(result.individualMetrics.guardStrength).toBeDefined(); // For EnterpriseAnalyticsPanel
-    expect(result.individualMetrics.guardStrength.active).toBe(2);
-    expect(result.individualMetrics.guardStrength.total).toBe(2);
+    expect(result.individualMetrics.securityOfficerStrength).toBeDefined(); // For EnterpriseAnalyticsPanel
+    expect(result.individualMetrics.securityOfficerStrength.active).toBe(2);
+    expect(result.individualMetrics.securityOfficerStrength.total).toBe(2);
 
     expect(result.individualMetrics.activeSecurityAlerts).toBeDefined(); // For DashboardKpiCards
     expect(result.individualMetrics.activeSecurityAlerts.total).toBe(1);

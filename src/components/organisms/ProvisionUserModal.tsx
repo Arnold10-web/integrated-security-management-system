@@ -1,33 +1,33 @@
 import React, { useState } from "react";
-import type { User, UserRole, Guard } from "../../types";
+import type { User, UserRole, SecurityOfficer } from "../../types";
 
 interface ProvisionUserModalProps {
-  guard: Guard | null;
+  securityOfficer: SecurityOfficer | null;
   onClose: () => void;
   onAddUser: (user: Omit<User, "id">) => void;
-  onUpdateGuard?: (guardId: string, updates: Partial<Guard>) => void;
+  onUpdateSecurityOfficer?: (forceNumber: string, updates: Partial<SecurityOfficer>) => void;
 }
 
-export const ProvisionUserModal: React.FC<ProvisionUserModalProps> = ({ guard, onClose, onAddUser, onUpdateGuard }) => {
+export const ProvisionUserModal: React.FC<ProvisionUserModalProps> = ({ securityOfficer, onClose, onAddUser, onUpdateSecurityOfficer }) => {
   const [provUserEmail, setProvUserEmail] = useState("");
   const [provUserDept, setProvUserDept] = useState("Operations");
-  const [provUserRole, setProvUserRole] = useState<UserRole>("Guard Officer");
+  const [provUserRole, setProvUserRole] = useState<UserRole>("Security Officer");
 
-  if (!guard) return null;
+  if (!securityOfficer) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onAddUser({
-      name: guard.fullName,
+      name: securityOfficer.fullName,
       email: provUserEmail,
       role: provUserRole,
       department: provUserDept,
       status: "Active",
       lastActive: "Just now",
-      forceNumber: guard.forceNumber,
+      forceNumber: securityOfficer.forceNumber,
     });
-    if (onUpdateGuard) {
-      onUpdateGuard(guard.id, { hasSystemAccount: true });
+    if (onUpdateSecurityOfficer) {
+      onUpdateSecurityOfficer(securityOfficer.id, { hasSystemAccount: true });
     }
     onClose();
   };
@@ -41,7 +41,7 @@ export const ProvisionUserModal: React.FC<ProvisionUserModalProps> = ({ guard, o
               IT USER PROVISIONING
             </span>
             <h3 className="text-base font-black text-slate-900 mt-1">
-              Create System Account for {guard.fullName}
+              Create System Account for {securityOfficer.fullName}
             </h3>
           </div>
           <button onClick={onClose} className="text-slate-400 text-sm font-bold p-1 cursor-pointer">✕</button>
@@ -50,7 +50,7 @@ export const ProvisionUserModal: React.FC<ProvisionUserModalProps> = ({ guard, o
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase block">Staff Force Number</span>
-            <strong className="font-mono text-cyan-700 text-sm">{guard.forceNumber}</strong>
+            <strong className="font-mono text-cyan-700 text-sm">{securityOfficer.forceNumber}</strong>
           </div>
 
           <div>
@@ -76,7 +76,7 @@ export const ProvisionUserModal: React.FC<ProvisionUserModalProps> = ({ guard, o
               <label className="block font-bold text-slate-700 mb-1">System User Role</label>
               <select value={provUserRole} onChange={(e) => setProvUserRole(e.target.value as UserRole)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none">
-                <option value="Guard Officer">Guard</option>
+                <option value="Security Officer">Security Officer</option>
                 <option value="Operations Manager">Operations Manager</option>
                 <option value="Armorer">Armorer</option>
               </select>

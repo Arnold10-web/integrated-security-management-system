@@ -16,7 +16,7 @@ export const RegionalOfficesGrid: React.FC<RegionalOfficesGridProps> = ({ office
   const [editing, setEditing] = useState<RegionalOffice | null>(null);
   const [form, setForm] = useState({
     code: "", name: "", regionName: "", locationCity: "", regionalManagerName: "", phone: "", email: "",
-    activeGuardsCount: 0, clientSitesCount: 0, armouryVaultStatus: "Fully Operational" as RegionalOffice["armouryVaultStatus"], vehiclesAssigned: 0,
+    activeSecurityOfficersCount: 0, clientSitesCount: 0, armouryVaultStatus: "Fully Operational" as RegionalOffice["armouryVaultStatus"], vehiclesAssigned: 0,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -28,18 +28,18 @@ export const RegionalOfficesGrid: React.FC<RegionalOfficesGridProps> = ({ office
     }
     setShowModal(false);
     setEditing(null);
-    setForm({ code: "", name: "", regionName: "", locationCity: "", regionalManagerName: "", phone: "", email: "", activeGuardsCount: 0, clientSitesCount: 0, armouryVaultStatus: "Fully Operational", vehiclesAssigned: 0 });
+    setForm({ code: "", name: "", regionName: "", locationCity: "", regionalManagerName: "", phone: "", email: "", activeSecurityOfficersCount: 0, clientSitesCount: 0, armouryVaultStatus: "Fully Operational", vehiclesAssigned: 0 });
   };
 
   const handleEdit = (r: RegionalOffice) => {
     setEditing(r);
-    setForm({ code: r.code, name: r.name, regionName: r.regionName, locationCity: r.locationCity, regionalManagerName: r.regionalManagerName, phone: r.phone, email: r.email, activeGuardsCount: r.activeGuardsCount, clientSitesCount: r.clientSitesCount, armouryVaultStatus: r.armouryVaultStatus, vehiclesAssigned: r.vehiclesAssigned });
+    setForm({ code: r.code, name: r.name, regionName: r.regionName, locationCity: r.locationCity, regionalManagerName: r.regionalManagerName, phone: r.phone, email: r.email, activeSecurityOfficersCount: r.activeSecurityOfficersCount, clientSitesCount: r.clientSitesCount, armouryVaultStatus: r.armouryVaultStatus, vehiclesAssigned: r.vehiclesAssigned });
     setShowModal(true);
   };
 
   const handleNew = () => {
     setEditing(null);
-    setForm({ code: "", name: "", regionName: "", locationCity: "", regionalManagerName: "", phone: "", email: "", activeGuardsCount: 0, clientSitesCount: 0, armouryVaultStatus: "Fully Operational", vehiclesAssigned: 0 });
+    setForm({ code: "", name: "", regionName: "", locationCity: "", regionalManagerName: "", phone: "", email: "", activeSecurityOfficersCount: 0, clientSitesCount: 0, armouryVaultStatus: "Fully Operational", vehiclesAssigned: 0 });
     setShowModal(true);
   };
 
@@ -106,8 +106,8 @@ export const RegionalOfficesGrid: React.FC<RegionalOfficesGridProps> = ({ office
                 </div>
                 <div className="grid grid-cols-3 gap-2 pt-2 text-center">
                   <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
-                    <div className="text-[10px] text-slate-400 uppercase font-black">Guards</div>
-                    <div className="text-sm font-black text-slate-900">{office.activeGuardsCount}</div>
+                    <div className="text-[10px] text-slate-400 uppercase font-black">Security Officers</div>
+                    <div className="text-sm font-black text-slate-900">{office.activeSecurityOfficersCount}</div>
                   </div>
                   <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="text-[10px] text-slate-400 uppercase font-black">Sites</div>
@@ -174,8 +174,8 @@ export const RegionalOfficesGrid: React.FC<RegionalOfficesGridProps> = ({ office
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Guards</label>
-                  <input type="number" value={form.activeGuardsCount} onChange={(e) => setForm({ ...form, activeGuardsCount: parseInt(e.target.value) || 0 })}
+                  <label className="font-bold text-slate-700 block mb-1">Security Officers</label>
+                  <input type="number" value={form.activeSecurityOfficersCount} onChange={(e) => setForm({ ...form, activeSecurityOfficersCount: parseInt(e.target.value) || 0 })}
                     className="w-full p-2.5 border border-slate-300 rounded-xl outline-none" />
                 </div>
                 <div>

@@ -193,7 +193,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({
                   <label className="block font-bold text-slate-700 mb-1">Role Type</label>
                   <select value={candForm.roleType} onChange={(e) => setCandForm({ ...candForm, roleType: e.target.value as Candidate["roleType"] })} required className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold outline-none">
                     <option value="">Select role...</option>
-                    <option value="Security Guard">Security Guard</option>
+                    <option value="">Security Officer</option>
                     <option value="Driver">Driver</option>
                     <option value="Rider">Rider</option>
                     <option value="Office / Admin">Office / Admin</option>

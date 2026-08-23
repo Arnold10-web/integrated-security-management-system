@@ -1,10 +1,10 @@
 import { z } from "zod/v4";
-import type { Guard, User, Vehicle } from "../types";
+import type { SecurityOfficer, User, Vehicle } from "../types";
 
-export const guardSchema = z.object({
+export const securityOfficerSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   forceNumber: z.string().min(1, "Force number is required"),
-  designation: z.enum(["Guard", "K9 Handler", "Armorer"]),
+  designation: z.enum(["Security Officer", "K9 Handler", "Armorer"]),
   phone: z.string().min(1, "Phone is required"),
   nationalId: z.string().min(1, "National ID is required"),
   assignedSite: z.string().min(1, "Assigned site is required"),
@@ -13,8 +13,8 @@ export const guardSchema = z.object({
   maritalStatus: z.enum(["Single", "Married", "Widowed", "Divorced"]).optional(),
 });
 
-export function validateGuard(data: Omit<Guard, "id">): { valid: boolean; errors: Record<string, string> } {
-  const result = guardSchema.safeParse(data);
+export function validateSecurityOfficer(data: Omit<SecurityOfficer, "id">): { valid: boolean; errors: Record<string, string> } {
+  const result = securityOfficerSchema.safeParse(data);
   if (result.success) return { valid: true, errors: {} };
   const errors: Record<string, string> = {};
   for (const issue of (result as any).error?.issues ?? []) {

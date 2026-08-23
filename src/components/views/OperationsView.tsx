@@ -1,29 +1,29 @@
 import React, { useState } from "react";
 import { Clock, Plus, ShieldAlert, Dog, ShieldCheck, GraduationCap, FileText } from "lucide-react";
-import type { DutyRoster, Guard, ClientSite, UserRole, ArmouryItem, ArmouryLog, K9Dog, K9Log, K9HealthInspection, PatrolInspectionLog, TrainingCohort, RecruitTrainee, ContractRecord } from "../../types";
+import type { DutyRoster, SecurityOfficer, ClientSite, UserRole, ArmouryItem, ArmouryLog, K9Dog, K9Log, K9HealthInspection, PatrolInspectionLog, TrainingCohort, RecruitTrainee, ContractRecord } from "../../types";
 import { ArmouryView } from "./ArmouryView";
 import { K9UnitView } from "./K9UnitView";
 import { PatrolInspectionView } from "./PatrolInspectionView";
 import { TrainingSchoolView } from "./TrainingSchoolView";
-import { ScheduleShiftModal, DutyRosterTable, GuardDeploymentPipeline, ClientContractsView } from "../organisms";
+import { ScheduleShiftModal, DutyRosterTable, SecurityOfficerDeploymentPipeline, ClientContractsView } from "../organisms";
 import { ARMOURY_OPERATOR_ROLES, K9_OPERATOR_ROLES, OPS_MANAGEMENT_ROLES, TRAINING_OFFICER_ROLES, isRoleIn } from "../../services/rbacService";
 
 interface OperationsViewProps {
   roster: DutyRoster[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   activeRole: UserRole;
   onUpdateRosterStatus: (rosterId: string, status: DutyRoster["status"]) => void;
   onAddRosterEntry: (newEntry: Omit<DutyRoster, "id">) => void;
-  onUpdateGuard?: (guardId: string, updates: Partial<Guard>) => void;
-  onMoveLifecycle?: (guardId: string, updates: Partial<Guard>) => void;
+  onUpdateSecurityOfficer?: (forceNumber: string, updates: Partial<SecurityOfficer>) => void;
+  onMoveLifecycle?: (forceNumber: string, updates: Partial<SecurityOfficer>) => void;
 
   // Armoury Props
   armoury: ArmouryItem[];
   armouryLogs: ArmouryLog[];
   onIssueArmouryItem: (
     assetId: string,
-    guardId: string,
+    forceNumber: string,
     locationName: string,
     ammoRoundsOut: number,
     dateOut: string,
@@ -83,7 +83,7 @@ interface OperationsViewProps {
   onAdvanceApproval?: (id: string) => void;
   onVoidContract?: (id: string, reason: string) => void;
 
-  onViewBiodata?: (guard: Guard) => void;
+  onViewBiodata?: (securityOfficer: SecurityOfficer) => void;
 }
 
 const ARMOURY_ROLES: UserRole[] = ARMOURY_OPERATOR_ROLES;
@@ -94,12 +94,12 @@ const CONTRACT_APPROVAL_ROLES: UserRole[] = OPS_MANAGEMENT_ROLES;
 
 export const OperationsView: React.FC<OperationsViewProps> = ({
   roster,
-  guards,
+  securityOfficers,
   sites,
   activeRole,
   onUpdateRosterStatus,
   onAddRosterEntry,
-  onUpdateGuard,
+  onUpdateSecurityOfficer,
   onMoveLifecycle,
   armoury,
   armouryLogs,
@@ -149,9 +149,9 @@ export const OperationsView: React.FC<OperationsViewProps> = ({
   const visibleRoster = isRegionScoped
     ? roster.filter((r) => !r.region || r.region === currentUserRegion)
     : roster;
-  const visiblePipelineGuards = isRegionScoped
-    ? guards.filter((g) => !g.location || g.location.toLowerCase().includes(currentUserRegion!.toLowerCase()))
-    : guards;
+  const visiblePipelineSecurityOfficers = isRegionScoped
+    ? securityOfficers.filter((g) => !g.location || g.location.toLowerCase().includes(currentUserRegion!.toLowerCase()))
+    : securityOfficers;
 
   return (
     <div className="space-y-6">
@@ -298,14 +298,14 @@ export const OperationsView: React.FC<OperationsViewProps> = ({
             </div>
           </div>
 
-          <GuardDeploymentPipeline
-            guards={visiblePipelineGuards}
+          <SecurityOfficerDeploymentPipeline
+            securityOfficers={visiblePipelineSecurityOfficers}
             activeRole={activeRole}
             onMoveLifecycle={onMoveLifecycle}
             onViewBiodata={onViewBiodata}
           />
 
-          <DutyRosterTable roster={visibleRoster} onUpdateStatus={onUpdateRosterStatus} guards={guards} sites={sites} onUpdateGuard={onUpdateGuard} />
+          <DutyRosterTable roster={visibleRoster} onUpdateStatus={onUpdateRosterStatus} securityOfficers={securityOfficers} sites={sites} onUpdateSecurityOfficer={onUpdateSecurityOfficer} />
         </div>
       )}
 
@@ -314,7 +314,7 @@ export const OperationsView: React.FC<OperationsViewProps> = ({
         <ArmouryView
           items={armoury}
           logs={armouryLogs}
-          guards={guards}
+          securityOfficers={securityOfficers}
           activeRole={activeRole}
           onIssueItem={onIssueArmouryItem}
           onReturnItem={onReturnArmouryItem}
@@ -328,7 +328,7 @@ export const OperationsView: React.FC<OperationsViewProps> = ({
           k9s={k9s}
           logs={k9Logs}
           healthInspections={k9HealthInspections}
-          guards={guards}
+          securityOfficers={securityOfficers}
           onPairHandler={onPairK9Handler}
           onAddDog={onAddK9Dog}
           onUpdateK9Dog={onUpdateK9Dog}
@@ -344,7 +344,7 @@ export const OperationsView: React.FC<OperationsViewProps> = ({
       {activeSubTab === "patrol" && (
         <PatrolInspectionView
           inspections={patrolInspections}
-          guards={guards}
+          securityOfficers={securityOfficers}
           sites={sites}
           activeRole={activeRole}
           onAddInspection={onAddPatrolInspection}
@@ -382,7 +382,7 @@ export const OperationsView: React.FC<OperationsViewProps> = ({
         />
       )}
 
-      <ScheduleShiftModal show={showAddModal} guards={guards} sites={sites} onClose={() => setShowAddModal(false)} onSubmit={onAddRosterEntry} />
+      <ScheduleShiftModal show={showAddModal} securityOfficers={securityOfficers} sites={sites} onClose={() => setShowAddModal(false)} onSubmit={onAddRosterEntry} />
     </div>
   );
 };

@@ -29,7 +29,7 @@ export const CashierTransactionsTable: React.FC<CashierTransactionsTableProps> =
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-slate-800">Cashier Disbursement Desk & Guard Advances Ledger</h3>
+        <h3 className="text-sm font-bold text-slate-800">Cashier Disbursement Desk & Security Officer Advances Ledger</h3>
         <span className="text-xs text-slate-500 font-medium">Pending items require Finance Manager sign-off</span>
       </div>
       <div className="overflow-x-auto">
@@ -37,7 +37,7 @@ export const CashierTransactionsTable: React.FC<CashierTransactionsTableProps> =
           <thead>
             <tr className="bg-slate-100 text-[11px] font-extrabold text-slate-600 uppercase border-b border-slate-200">
               <th className="p-3.5">Receipt #</th>
-              <th className="p-3.5">Guard Personnel</th>
+              <th className="p-3.5">Security Officer Personnel</th>
               <th className="p-3.5">Advance Type</th>
               <th className="p-3.5">Requested Date</th>
               <th className="p-3.5">Amount</th>
@@ -50,7 +50,7 @@ export const CashierTransactionsTable: React.FC<CashierTransactionsTableProps> =
               <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
                 <td className="p-3.5 font-bold text-emerald-700">{c.id}</td>
                 <td className="p-3.5">
-                  <div className="font-bold text-slate-900">{c.guardName}</div>
+                  <div className="font-bold text-slate-900">{c.securityOfficerName}</div>
                   <div className="text-[11px] text-slate-500">{c.forceNumber}</div>
                   {c.phone && <div className="text-[11px] text-slate-500">{c.phone}</div>}
                 </td>

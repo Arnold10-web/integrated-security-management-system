@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { UserPlus } from "lucide-react";
-import { AuditLog, User, UserRole, CustomRoleDefinition, Guard, ITServer, ITSupportTicket, ITAsset, RegionalOffice } from "../../types";
+import { AuditLog, User, UserRole, CustomRoleDefinition, SecurityOfficer, ITServer, ITSupportTicket, ITAsset, RegionalOffice } from "../../types";
 import { initialITAssets } from "../../data/mockData";
 import { UserRolesView } from "./UserRolesView";
 import { AuditLogsView } from "./AuditLogsView";
@@ -12,14 +12,14 @@ type SubTab = "users" | "id_cards" | "roles" | "it_assets" | "regions" | "server
 
 interface ITAdminViewProps {
   users: User[]; customRoles: CustomRoleDefinition[]; servers: ITServer[]; tickets: ITSupportTicket[];
-  itAssets?: ITAsset[]; guards?: Guard[]; auditLogs: AuditLog[]; activeRole: UserRole; regions: RegionalOffice[];
+  itAssets?: ITAsset[]; securityOfficers?: SecurityOfficer[]; auditLogs: AuditLog[]; activeRole: UserRole; regions: RegionalOffice[];
   onRoleChange: (role: UserRole) => void; onAddUser: (user: Omit<User, "id">) => void;
   onUpdateUser: (userId: string, updates: Partial<User>) => void; onDeleteUser: (userId: string) => void;
   onToggleSuspendUser: (userId: string) => void; onAddCustomRole: (role: CustomRoleDefinition) => void;
   onDeleteCustomRole?: (id: string) => void;
   onAddITAsset?: (asset: Omit<ITAsset, "id" | "assetCode">) => void;
   onUpdateITAsset?: (assetId: string, updates: Partial<ITAsset>) => void;
-  onDeleteITAsset?: (assetId: string) => void; onUpdateGuard?: (guardId: string, updates: Partial<Guard>) => void;
+  onDeleteITAsset?: (assetId: string) => void; onUpdateSecurityOfficer?: (forceNumber: string, updates: Partial<SecurityOfficer>) => void;
   onTriggerWalkthroughForUser?: (user: User) => void;
   onRevokeActingPrivilege?: (userId: string) => Promise<void>;
   onAddRegion?: (r: Omit<RegionalOffice, "id">) => void;  onUpdateRegion?: (id: string, updates: Partial<RegionalOffice>) => void;
@@ -32,9 +32,9 @@ interface ITAdminViewProps {
 }
 
 export const ITAdminView: React.FC<ITAdminViewProps> = ({
-  users, guards = [], customRoles, servers, tickets, itAssets = initialITAssets, auditLogs, activeRole,
+  users, securityOfficers = [], customRoles, servers, tickets, itAssets = initialITAssets, auditLogs, activeRole,
   regions, onRoleChange, onAddUser, onUpdateUser, onDeleteUser, onToggleSuspendUser, onAddCustomRole,
-  onDeleteCustomRole, onAddITAsset, onUpdateITAsset, onDeleteITAsset, onUpdateGuard, onTriggerWalkthroughForUser,
+  onDeleteCustomRole, onAddITAsset, onUpdateITAsset, onDeleteITAsset, onUpdateSecurityOfficer, onTriggerWalkthroughForUser,
   onRevokeActingPrivilege,
   onAddRegion, onUpdateRegion, onDeleteRegion, onUpdateServer, onDeleteServer,
   onAddTicket, onUpdateTicket, onDeleteTicket,
@@ -49,16 +49,16 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
   const [integritySearch, setIntegritySearch] = useState("");
   const [idCardFilter, setIdCardFilter] = useState<"ALL" | "PENDING" | "ISSUED" | "REVOKED">("ALL");
   const [idCardSearch, setIdCardSearch] = useState("");
-  const [selectedGuardForCard, setSelectedGuardForCard] = useState<Guard | null>(null);
+  const [selectedSecurityOfficerForCard, setSelectedSecurityOfficerForCard] = useState<SecurityOfficer | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [showProvisionUserForGuard, setShowProvisionUserForGuard] = useState<Guard | null>(null);
+  const [showProvisionUserForSecurityOfficer, setShowProvisionUserForSecurityOfficer] = useState<SecurityOfficer | null>(null);
   const [backupArchives, setBackupArchives] = useState([
-    { id: "BK-20260727-01", filename: "enterprise_sec_full_snapshot_20260727_0230.enc.db", size: "48.2 MB", type: "Manual On-Demand", initiatedBy: activeRole === "IT Officer" ? "IT Officer (Current Session)" : "IT Administrator", checksumSHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", timestamp: "2026-07-27 02:15:00", status: "VERIFIED_INTACT", tablesIncluded: "Guard Roster, Armoury Vault, Accounts, Incidents, Audit Telemetry" },
+    { id: "BK-20260727-01", filename: "enterprise_sec_full_snapshot_20260727_0230.enc.db", size: "48.2 MB", type: "Manual On-Demand", initiatedBy: activeRole === "IT Officer" ? "IT Officer (Current Session)" : "IT Administrator", checksumSHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", timestamp: "2026-07-27 02:15:00", status: "VERIFIED_INTACT", tablesIncluded: "Security Officer Roster, Armoury Vault, Accounts, Incidents, Audit Telemetry" },
     { id: "BK-20260726-00", filename: "enterprise_sec_nightly_auto_20260726_0000.enc.db", size: "42.8 MB", type: "Automated Routine", initiatedBy: "SYSTEM_SCHEDULER", checksumSHA256: "8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4", timestamp: "2026-07-26 00:00:00", status: "VERIFIED_INTACT", tablesIncluded: "All Enterprise Schemas & System Ledgers" },
     { id: "BK-20260725-00", filename: "enterprise_sec_nightly_auto_20260725_0000.enc.db", size: "42.1 MB", type: "Automated Routine", initiatedBy: "SYSTEM_SCHEDULER", checksumSHA256: "71c9d2c67e8912e5c942a781e976b91f14371d34c3217d8ef29e92d8329b1011", timestamp: "2026-07-25 00:00:00", status: "VERIFIED_INTACT", tablesIncluded: "All Enterprise Schemas & System Ledgers" },
   ]);
   const [integrityLogs, setIntegrityLogs] = useState([
-    { id: "INT-1001", category: "DATABASE", component: "Guard Personnel & HR Roster Ledger", testPerformed: "Row Checksum & Encryption Vector Verification", hashSignature: "0x8F9A43B172E901C2", recordsAudited: 420, status: "HEALTHY_INTACT", lastChecked: "Just Now", notes: "All 420 guard personnel records and national ID encryption hashes match primary key index." },
+    { id: "INT-1001", category: "DATABASE", component: "Security Officer Personnel & HR Roster Ledger", testPerformed: "Row Checksum & Encryption Vector Verification", hashSignature: "0x8F9A43B172E901C2", recordsAudited: 420, status: "HEALTHY_INTACT", lastChecked: "Just Now", notes: "All 420 security officer personnel records and national ID encryption hashes match primary key index." },
     { id: "INT-1002", category: "DATABASE", component: "Armoury Firearms & Vault Ledger", testPerformed: "Vault Balance Cryptographic Signature Audit", hashSignature: "0x3C1D90E211B452A9", recordsAudited: 185, status: "HEALTHY_INTACT", lastChecked: "Just Now", notes: "Firearm serial numbers, issue vouchers, and vault balance tallies reconciled 100%." },
     { id: "INT-1003", category: "DATABASE", component: "Finance Payroll & Remittance Register", testPerformed: "Payroll Ledger Hash & Double-Entry Integrity", hashSignature: "0x7E2A11F9882C30D4", recordsAudited: 310, status: "HEALTHY_INTACT", lastChecked: "5 minutes ago", notes: "Tax deductions, NSSF remittances, and net salary calculations confirmed mathematically consistent." },
     { id: "INT-1004", category: "SECURITY", component: "RBAC User Accounts & Auth Credentials", testPerformed: "Role Matrix Security & Session Expiry Audit", hashSignature: "0x5A8B77C39011E4F2", recordsAudited: users.length, status: "HEALTHY_INTACT", lastChecked: "12 minutes ago", notes: "Zero unauthorized privilege escalations detected. Active JWT tokens strictly mapped to department roles." },
@@ -105,7 +105,7 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
 
   const handleInitiateManualBackup = () => {
     setIsCreatingBackup(true); setBackupProgress(15); setBackupStepMsg("Initializing system database connection & locking table snapshot...");
-    setTimeout(() => { setBackupProgress(45); setBackupStepMsg("Extracting HR guard rosters, Armoury vault balances & Finance registers..."); }, 500);
+    setTimeout(() => { setBackupProgress(45); setBackupStepMsg("Extracting HR security officer rosters, Armoury vault balances & Finance registers..."); }, 500);
     setTimeout(() => { setBackupProgress(75); setBackupStepMsg("Applying AES-256-GCM cipher encryption & computing SHA-256 integrity hash..."); }, 1100);
     setTimeout(() => {
       setBackupProgress(100); setBackupStepMsg("Backup verified! Encrypted system archive generated successfully.");
@@ -136,7 +136,7 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
 
   const handleGenerateResetToken = () => { const target = users.find((u) => u.id === selectedResetUser) || users[0]; setGeneratedResetToken(`${target.email} | Token: SEC-OTP-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString().slice(-4)} | Expires in 15 Minutes`); setCopiedToken(false); };
 
-  const pendingIdCards = guards.filter((g) => g.idCardStatus === "Pending Records Issuance" || !g.idCardStatus).length;
+  const pendingIdCards = securityOfficers.filter((g) => g.idCardStatus === "Pending Records Issuance" || !g.idCardStatus).length;
 
   return (
     <div className="space-y-6">
@@ -163,7 +163,7 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
         </div>
       )}
       {subTab === "id_cards" && (
-        <IdentityCardPanel guards={guards} idCardFilter={idCardFilter} idCardSearch={idCardSearch} onSetIdCardFilter={setIdCardFilter} onSetIdCardSearch={setIdCardSearch} onSelectGuardForCard={setSelectedGuardForCard} onOpenPrintModal={() => setShowPrintModal(true)} onProvisionUser={(guard) => setShowProvisionUserForGuard(guard)} readOnly />
+        <IdentityCardPanel securityOfficers={securityOfficers} idCardFilter={idCardFilter} idCardSearch={idCardSearch} onSetIdCardFilter={setIdCardFilter} onSetIdCardSearch={setIdCardSearch} onSelectSecurityOfficerForCard={setSelectedSecurityOfficerForCard} onOpenPrintModal={() => setShowPrintModal(true)} onProvisionUser={(securityOfficer) => setShowProvisionUserForSecurityOfficer(securityOfficer)} readOnly />
       )}
       {subTab === "roles" && (
         <UserRolesView activeRole={activeRole} customRoles={customRoles} onRoleChange={onRoleChange} onAddCustomRole={onAddCustomRole} onDeleteCustomRole={onDeleteCustomRole} regions={regions} />
@@ -187,7 +187,7 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
       <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSubmit={(userId, updates) => { onUpdateUser(userId, updates); setEditingUser(null); }} />
       <PermissionOverridesModal user={permissionsUser} onClose={() => setPermissionsUser(null)} onSubmit={(userId, updates) => { onUpdateUser(userId, updates); setPermissionsUser(null); }} />
       <ActingPrivilegeModal user={actingUser} onClose={() => setActingUser(null)} onRevoke={async (userId) => { if (onRevokeActingPrivilege) await onRevokeActingPrivilege(userId); }} />
-      <IdentityCardPrintModal show={showPrintModal} guard={selectedGuardForCard} onClose={() => { setShowPrintModal(false); setSelectedGuardForCard(null); }} onUpdateGuard={onUpdateGuard} readOnly />      <ProvisionUserModal guard={showProvisionUserForGuard} onClose={() => setShowProvisionUserForGuard(null)} onAddUser={onAddUser} onUpdateGuard={onUpdateGuard} />
+      <IdentityCardPrintModal show={showPrintModal} securityOfficer={selectedSecurityOfficerForCard} onClose={() => { setShowPrintModal(false); setSelectedSecurityOfficerForCard(null); }} onUpdateSecurityOfficer={onUpdateSecurityOfficer} readOnly />      <ProvisionUserModal securityOfficer={showProvisionUserForSecurityOfficer} onClose={() => setShowProvisionUserForSecurityOfficer(null)} onAddUser={onAddUser} onUpdateSecurityOfficer={onUpdateSecurityOfficer} />
     </div>
   );
 };

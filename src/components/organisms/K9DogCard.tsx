@@ -1,18 +1,18 @@
 import React from "react";
 import { UserCheck, Scale, Syringe, Calendar, Activity, Stethoscope, Pencil, Trash2 } from "lucide-react";
-import type { K9Dog, Guard } from "../../types";
+import type { K9Dog, SecurityOfficer } from "../../types";
 
 interface K9DogCardProps {
   dog: K9Dog;
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   onPairHandler: (k9Id: string, handlerId: string) => void;
   onOpenHealthModal: (dog: K9Dog) => void;
   onUpdateK9Dog?: (id: string, updates: Partial<K9Dog>) => void;
   onDeleteK9Dog?: (id: string) => void;
 }
 
-export const K9DogCard: React.FC<K9DogCardProps> = ({ dog, guards, onPairHandler, onOpenHealthModal, onUpdateK9Dog, onDeleteK9Dog }) => {
-  const k9Handlers = guards.filter((g) => g.k9Qualified || g.designation === "K9 Handler");
+export const K9DogCard: React.FC<K9DogCardProps> = ({ dog, securityOfficers, onPairHandler, onOpenHealthModal, onUpdateK9Dog, onDeleteK9Dog }) => {
+  const k9Handlers = securityOfficers.filter((g) => g.k9Qualified || g.designation === "K9 Handler");
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all p-6 space-y-4">

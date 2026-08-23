@@ -5,7 +5,7 @@
 
 import { create } from "zustand";
 import type {
-  Guard,
+  SecurityOfficer,
   ClientSite,
   ArmouryItem,
   ArmouryLog,
@@ -54,7 +54,7 @@ import type {
   ContractInquiry,
 } from "../types";
 import {
-  initialGuards,
+  initialSecurityOfficers,
   initialClientSites,
   initialArmouryItems,
   initialArmouryLogs,
@@ -99,12 +99,12 @@ import { nextForceNumber } from "../utils/forceNumber";
 type LeaveBalanceComputed = { entitlement: number; taken: number; balance: number };
 
 function computeMockLeaveBalance(
-  leaveRequests: { guardId: string; status: string; durationDays: number }[],
-  current?: { guardId: string; durationDays: number } | undefined
+  leaveRequests: { forceNumber: string; status: string; durationDays: number }[],
+  current?: { forceNumber: string; durationDays: number } | undefined
 ): LeaveBalanceComputed {
   const entitlement = 21;
   const prior = current
-    ? leaveRequests.filter((l) => l.guardId === current.guardId && l.status === "Approved")
+    ? leaveRequests.filter((l) => l.forceNumber === current.forceNumber && l.status === "Approved")
     : [];
   const taken = prior.reduce((sum, l) => sum + l.durationDays, 0) + (current?.durationDays ?? 0);
   return { entitlement, taken, balance: entitlement - taken };
@@ -157,7 +157,7 @@ interface DomainState {
   useApi: boolean;
   regions: RegionalOffice[];
   regionalOffices: RegionalOffice[];
-  guards: Guard[];
+  securityOfficers: SecurityOfficer[];
   sites: ClientSite[];
   armoury: ArmouryItem[];
   armouryLogs: ArmouryLog[];
@@ -202,14 +202,14 @@ interface DomainState {
   deploymentOrders: DeploymentOrder[];
   transportRequests: TransportRequest[];
 
-  // Guards / HR
-  addGuard: (g: Omit<Guard, "id">) => void;
-  updateGuard: (id: string, updates: Partial<Guard>) => void;
-  deleteGuard: (id: string) => void;
-  archiveGuard: (id: string) => void;
-  issueWarning: (guardId: string, reason: string) => void;
-  moveGuardLifecycle: (id: string, updates: Partial<Guard>) => void;
-  issueGuardId: (id: string, data: { idCardNumber: string; idCardExpiryDate: string }) => void;
+  // Security Officers / HR
+  addSecurityOfficer: (g: Omit<SecurityOfficer, "id">) => void;
+  updateSecurityOfficer: (id: string, updates: Partial<SecurityOfficer>) => void;
+  deleteSecurityOfficer: (id: string) => void;
+  archiveSecurityOfficer: (id: string) => void;
+  issueWarning: (forceNumber: string, reason: string) => void;
+  moveSecurityOfficerLifecycle: (id: string, updates: Partial<SecurityOfficer>) => void;
+  issueSecurityOfficerIdCard: (id: string, data: { idCardNumber: string; idCardExpiryDate: string }) => void;
 
   // Sites
   addSite: (s: Omit<ClientSite, "id">) => void;
@@ -220,7 +220,7 @@ interface DomainState {
   addArmouryItem: (item: Omit<ArmouryItem, "id">) => void;
   issueArmouryItem: (
     assetId: string,
-    guardId: string,
+    forceNumber: string,
     locationName: string,
     ammoRoundsOut: number,
     dateOut: string,
@@ -288,6 +288,7 @@ interface DomainState {
   gmApproveExpense: (id: string) => void;
   rejectExpense: (id: string) => void;
   disburseAdvance: (t: Omit<CashierTransaction, "id">) => void;
+  disburseAdvanceBatch: (type: CashierTransaction["type"], items: Array<{ securityOfficerName: string; forceNumber?: string; amount: number; phone?: string; signatureUrl?: string; notes?: string }>) => void;
   approveCashierTxn: (id: string) => void;
   rejectCashierTxn: (id: string) => void;
 
@@ -361,6 +362,7 @@ interface DomainState {
 
   // Disciplinary
   addDisciplinaryAction: (d: Omit<DisciplinaryAction, "id" | "createdAt">) => void;
+  recordChargeSheetResponse: (id: string, data: { hearingDate?: string; employeeResponse: string }) => void;
   regionalApproveDisciplinary: (id: string) => void;
   opsApproveDisciplinary: (id: string) => void;
   hrApproveDisciplinary: (id: string) => void;
@@ -369,8 +371,8 @@ interface DomainState {
   // Deployments
   addDeployment: (d: Omit<SiteDeployment, "id" | "deployedAt">) => void;
   endDeployment: (id: string) => void;
-  addDeploymentOrder: (o: Omit<DeploymentOrder, "id" | "orderCode" | "status" | "assignedGuardIds">) => void;
-  assignDeploymentOrder: (orderId: string, guardIds: string[]) => void;
+  addDeploymentOrder: (o: Omit<DeploymentOrder, "id" | "orderCode" | "status" | "assignedSecurityOfficerForceNumbers">) => void;
+  assignDeploymentOrder: (orderId: string, securityOfficerForceNumbers: string[]) => void;
   cancelDeploymentOrder: (orderId: string) => void;
 
   // Transport Requests
@@ -422,7 +424,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   useApi: false,
   regions: initialRegionalOffices,
   regionalOffices: initialRegionalOffices,
-  guards: initialGuards,
+  securityOfficers: initialSecurityOfficers,
   sites: initialClientSites,
   armoury: initialArmouryItems,
   armouryLogs: initialArmouryLogs,
@@ -469,9 +471,8 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   transportRequests: [],
   performanceReviews: initialStaffAppraisals.map((a) => ({
     id: a.id,
-    guardId: a.guardId,
-    guardName: a.guardName,
     forceNumber: a.forceNumber,
+    securityOfficerName: a.securityOfficerName,
     reviewPeriod: a.reviewPeriod,
     reviewType: a.reviewType || 'Annual Evaluation',
     evaluatorName: a.evaluatorName,
@@ -490,22 +491,22 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     status: a.status,
   })),
 
-  addGuard: (newGuard) => {
-    const guard: Guard = { ...newGuard, id: `grd-${Date.now()}` };
-    set((s) => ({ guards: [...s.guards, guard] }));
-    syncApi("post", "/guards", newGuard);
+  addSecurityOfficer: (newSecurityOfficer) => {
+    const securityOfficer: SecurityOfficer = { ...newSecurityOfficer, id: `grd-${Date.now()}` };
+    set((s) => ({ securityOfficers: [...s.securityOfficers, securityOfficer] }));
+    syncApi("post", "/security-officers", newSecurityOfficer);
     audit(
-      "Guard Enrollment",
-      `Enrolled guard officer ${guard.fullName} (${guard.forceNumber}) to ${guard.assignedSite}.`,
-      "Guard Personnel"
+      "Security Officer Enrollment",
+      `Enrolled security officer ${securityOfficer.fullName} (${securityOfficer.forceNumber}) to ${securityOfficer.assignedSite}.`,
+      "Security Officer Personnel"
     );
-    notif("success", "Guard Enrolled", `${guard.fullName} (${guard.forceNumber}) assigned to ${guard.assignedSite}`, "HR");
+    notif("success", "Security Officer Enrolled", `${securityOfficer.fullName} (${securityOfficer.forceNumber}) assigned to ${securityOfficer.assignedSite}`, "HR");
   },
 
-  updateGuard: (guardId, updates) => {
+  updateSecurityOfficer: (forceNumber, updates) => {
     set((s) => ({
-      guards: s.guards.map((g) => {
-        if (g.id !== guardId) return g;
+      securityOfficers: s.securityOfficers.map((g) => {
+        if (g.id !== forceNumber) return g;
         // §5: a promotion changing the printed designation triggers a reissue
         // entry in the Records Officer queue.
         const reissue =
@@ -515,59 +516,59 @@ export const useDomainStore = create<DomainState>((set, get) => ({
         return { ...g, ...updates, ...(reissue ? { idCardStatus: "Reissue Required" as const } : {}) };
       }),
     }));
-    syncApi("put", `/guards/${guardId}`, updates);
-    audit("Staff Record Updated", `Updated guard ID ${guardId} biodata/ID card status`, "HR & IT Operations");
-    notif("info", "Guard Updated", `Record updated for guard ID ${guardId}`, "HR");
+    syncApi("put", `/security-officers/${forceNumber}`, updates);
+    audit("Staff Record Updated", `Updated security officer ID ${forceNumber} biodata/ID card status`, "HR & IT Operations");
+    notif("info", "Security Officer Updated", `Record updated for security officer ID ${forceNumber}`, "HR");
   },
 
-  deleteGuard: (guardId) => {
-    set((s) => ({ guards: s.guards.filter((g) => g.id !== guardId) }));
-    syncApi("delete", `/guards/${guardId}`);
-    audit("Guard Deleted", `Deleted guard record ID ${guardId}`, "HR");
-    notif("warning", "Guard Deleted", `Guard record ${guardId} removed`, "HR");
+  deleteSecurityOfficer: (forceNumber) => {
+    set((s) => ({ securityOfficers: s.securityOfficers.filter((g) => g.id !== forceNumber) }));
+    syncApi("delete", `/security-officers/${forceNumber}`);
+    audit("Security Officer Deleted", `Deleted security officer record ID ${forceNumber}`, "HR");
+    notif("warning", "Security Officer Deleted", `Security Officer record ${forceNumber} removed`, "HR");
   },
 
-  archiveGuard: (guardId) => {
+  archiveSecurityOfficer: (forceNumber) => {
     set((s) => ({
-      guards: s.guards.map((g) =>
-        g.id === guardId ? { ...g, status: "Archived", lifecycleStage: "DEPLOYED" } : g
+      securityOfficers: s.securityOfficers.map((g) =>
+        g.id === forceNumber ? { ...g, status: "Archived", lifecycleStage: "DEPLOYED" } : g
       ),
     }));
-    syncApi("put", `/guards/${guardId}/archive`, { status: "Archived" });
-    audit("Guard Archived", `Archived guard record ID ${guardId}`, "HR");
-    notif("info", "Guard Archived", `Guard record ${guardId} moved to archive`, "HR");
+    syncApi("put", `/security-officers/${forceNumber}/archive`, { status: "Archived" });
+    audit("Security Officer Archived", `Archived security officer record ID ${forceNumber}`, "HR");
+    notif("info", "Security Officer Archived", `Security Officer record ${forceNumber} moved to archive`, "HR");
   },
 
-  issueWarning: (guardId, reason) => {
+  issueWarning: (forceNumber, reason) => {
     set((s) => ({
-      guards: s.guards.map((g) =>
-        g.id === guardId ? { ...g, warningLettersCount: g.warningLettersCount + 1 } : g
+      securityOfficers: s.securityOfficers.map((g) =>
+        g.id === forceNumber ? { ...g, warningLettersCount: g.warningLettersCount + 1 } : g
       ),
     }));
-    audit("Disciplinary Action", `Issued warning letter to Guard ID ${guardId} for reason: ${reason}`, "HR & Disciplinary");
-    notif("warning", "Warning Issued", `Guard ID ${guardId}: ${reason}`, "HR");
+    audit("Disciplinary Action", `Issued warning letter to Security Officer ID ${forceNumber} for reason: ${reason}`, "HR & Disciplinary");
+    notif("warning", "Warning Issued", `Security Officer ID ${forceNumber}: ${reason}`, "HR");
   },
 
-  moveGuardLifecycle: (guardId, updates) => {
+  moveSecurityOfficerLifecycle: (forceNumber, updates) => {
     set((s) => ({
-      guards: s.guards.map((g) => (g.id === guardId ? { ...g, ...updates } : g)),
+      securityOfficers: s.securityOfficers.map((g) => (g.id === forceNumber ? { ...g, ...updates } : g)),
     }));
-    syncApi("put", `/guards/${guardId}/lifecycle`, updates);
+    syncApi("put", `/security-officers/${forceNumber}/lifecycle`, updates);
     const detail = updates.terminationCategory
-      ? `Guard ${guardId} ${updates.terminationCategory.toLowerCase()} — reason: ${updates.terminationReason}`
-      : `Guard ${guardId} lifecycle → ${updates.lifecycleStage ?? updates.status ?? "updated"}`;
-    audit("Guard Lifecycle Update", detail, "HR");
-    notif("info", "Guard Lifecycle Updated", detail, "HR");
+      ? `Security Officer ${forceNumber} ${updates.terminationCategory.toLowerCase()} — reason: ${updates.terminationReason}`
+      : `Security Officer ${forceNumber} lifecycle → ${updates.lifecycleStage ?? updates.status ?? "updated"}`;
+    audit("Security Officer Lifecycle Update", detail, "HR");
+    notif("info", "Security Officer Lifecycle Updated", detail, "HR");
   },
 
-  issueGuardId: (guardId, data) => {
+  issueSecurityOfficerIdCard: (forceNumber, data) => {
     set((s) => ({
-      guards: s.guards.map((g) =>
-        g.id === guardId ? { ...g, idCardStatus: "Issued & Active", idCardNumber: data.idCardNumber, idCardExpiryDate: data.idCardExpiryDate, idCardIssuedDate: new Date().toISOString().split("T")[0] } : g
+      securityOfficers: s.securityOfficers.map((g) =>
+        g.id === forceNumber ? { ...g, idCardStatus: "Issued & Active", idCardNumber: data.idCardNumber, idCardExpiryDate: data.idCardExpiryDate, idCardIssuedDate: new Date().toISOString().split("T")[0] } : g
       ),
     }));
-    syncApi("put", `/guards/${guardId}/issue-id`, data);
-    audit("ID Card Issued", `Issued ID ${data.idCardNumber} to guard ${guardId}`, "Records");
+    syncApi("put", `/security-officers/${forceNumber}/issue-id`, data);
+    audit("ID Card Issued", `Issued ID ${data.idCardNumber} to security officer ${forceNumber}`, "Records");
     notif("success", "ID Issued", `${data.idCardNumber} issued`, "Records");
   },
 
@@ -605,7 +606,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
 
   issueArmouryItem: (
     assetId,
-    guardId,
+    forceNumber,
     locationName,
     ammoRoundsOut,
     dateOut,
@@ -614,10 +615,10 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     armourerInCharge,
     notes
   ) => {
-    const { armoury, guards, armouryLogs } = get();
+    const { armoury, securityOfficers, armouryLogs } = get();
     const item = armoury.find((i) => i.id === assetId);
-    const guard = guards.find((g) => g.id === guardId);
-    if (!item || !guard) return;
+    const securityOfficer = securityOfficers.find((g) => g.id === forceNumber);
+    if (!item || !securityOfficer) return;
 
     set((s) => ({
       armoury: s.armoury.map((i) =>
@@ -626,8 +627,8 @@ export const useDomainStore = create<DomainState>((set, get) => ({
               ...i,
               availableQuantity: Math.max(0, i.availableQuantity - 1),
               location: "Issued Out",
-              assignedToGuardId: guard.id,
-              assignedToGuardName: guard.fullName,
+              assignedToForceNumber: securityOfficer.id,
+              assignedToSecurityOfficerName: securityOfficer.fullName,
             }
           : i
       ),
@@ -637,9 +638,9 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     const newLog: ArmouryLog = {
       id: `ARM-LOG-${Date.now()}`,
       serialNumberLog,
-      guardId: guard.id,
-      guardName: guard.fullName,
-      locationName: locationName || guard.assignedSite || "Assigned Duty Post",
+      forceNumber: securityOfficer.id,
+      securityOfficerName: securityOfficer.fullName,
+      locationName: locationName || securityOfficer.assignedSite || "Assigned Duty Post",
       firearmSerialNumber: item.serialNumber,
       assetName: item.name,
       assetTag: item.assetTag,
@@ -654,7 +655,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     set((s) => ({ armouryLogs: [newLog, ...s.armouryLogs] }));
     syncApi("post", "/armoury-logs", {
       assetId,
-      guardId,
+      forceNumber,
       locationName,
       ammoRoundsOut,
       dateOut,
@@ -665,10 +666,10 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     });
     audit(
       "Armoury Issue",
-      `Issued firearm ${item.serialNumber} to ${guard.fullName} at ${locationName} with ${ammoRoundsOut} rounds.`,
+      `Issued firearm ${item.serialNumber} to ${securityOfficer.fullName} at ${locationName} with ${ammoRoundsOut} rounds.`,
       "Armoury Management"
     );
-    notif("warning", "Weapon Issued", `${item.serialNumber} → ${guard.fullName} at ${locationName}`, "Armoury");
+    notif("warning", "Weapon Issued", `${item.serialNumber} → ${securityOfficer.fullName} at ${locationName}`, "Armoury");
   },
 
   returnArmouryItem: (logId, ammoRoundsIn, dateIn, timeIn, signInConfirmed, _substituteReceiver, notes) => {
@@ -695,8 +696,8 @@ export const useDomainStore = create<DomainState>((set, get) => ({
               ...i,
               availableQuantity: i.availableQuantity + 1,
               location: "Main Vault",
-              assignedToGuardId: undefined,
-              assignedToGuardName: undefined,
+              assignedToForceNumber: undefined,
+              assignedToSecurityOfficerName: undefined,
             }
           : i
       ),
@@ -711,10 +712,10 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     });
     audit(
       "Armoury Return",
-      `Firearm ${log.firearmSerialNumber} returned by ${log.guardName} with ${ammoRoundsIn} ammo rounds.`,
+      `Firearm ${log.firearmSerialNumber} returned by ${log.securityOfficerName} with ${ammoRoundsIn} ammo rounds.`,
       "Armoury Management"
     );
-    notif("success", "Weapon Returned", `${log.firearmSerialNumber} returned by ${log.guardName}`, "Armoury");
+    notif("success", "Weapon Returned", `${log.firearmSerialNumber} returned by ${log.securityOfficerName}`, "Armoury");
   },
 
   addK9Dog: (newDog) => {
@@ -888,7 +889,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     const codeNum = get().drivers.length + 1;
     const known = [
       ...get().drivers.map((d) => d.forceNumber || d.driverCode),
-      ...get().guards.map((g) => g.forceNumber),
+      ...get().securityOfficers.map((g) => g.forceNumber),
     ];
     const driver: DriverRecord = {
       ...newDriver,
@@ -1028,7 +1029,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       dutyRoster: s.dutyRoster.map((r) => (r.id === rosterId ? { ...r, status: newStatus } : r)),
     }));
     syncApi("put", `/roster/${rosterId}`, { status: newStatus });
-    audit("Roster Check-in", `Updated guard roster ID ${rosterId} status to ${newStatus}`, "Operations Roster");
+    audit("Roster Check-in", `Updated security officer roster ID ${rosterId} status to ${newStatus}`, "Operations Roster");
     notif("info", "Roster Updated", `Roster ${rosterId} → ${newStatus}`, "Operations");
   },
 
@@ -1038,10 +1039,10 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     syncApi("post", "/roster", newEntry);
     audit(
       "Duty Roster Assignment",
-      `Assigned ${entry.guardName} to ${entry.siteName} for ${entry.shiftType} shift.`,
+      `Assigned ${entry.securityOfficerName} to ${entry.siteName} for ${entry.shiftType} shift.`,
       "Operations Roster"
     );
-    notif("info", "Roster Entry", `${entry.guardName} → ${entry.siteName} (${entry.shiftType})`, "Operations");
+    notif("info", "Roster Entry", `${entry.securityOfficerName} → ${entry.siteName} (${entry.shiftType})`, "Operations");
   },
 
   addInvoice: (newInv) => {
@@ -1127,10 +1128,35 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     syncApi("post", "/cashier-transactions", newTxn);
     audit(
       "Cashier Disbursement Request",
-      `Recorded disbursement request for ${txn.guardName} (UGX ${txn.amount}) awaiting Finance Manager approval.`,
+      `Recorded disbursement request for ${txn.securityOfficerName} (UGX ${txn.amount}) awaiting Finance Manager approval.`,
       "Cashier Desk"
     );
-    notif("info", "Disbursement Requested", `UGX ${txn.amount} to ${txn.guardName} pending FM approval`, "Finance");
+    notif("info", "Disbursement Requested", `UGX ${txn.amount} to ${txn.securityOfficerName} pending FM approval`, "Finance");
+  },
+
+  disburseAdvanceBatch: (type, items) => {
+    const stamp = Date.now();
+    const txns: CashierTransaction[] = items.map((it, i) => ({
+      id: `txn-${stamp}-${i}`,
+      securityOfficerName: it.securityOfficerName,
+      forceNumber: it.forceNumber || "SG-2024-001",
+      type,
+      amount: it.amount,
+      date: new Date().toISOString().substring(0, 10),
+      status: "Pending Approval",
+      processedBy: actor()?.name || "Finance Desk",
+      phone: it.phone || undefined,
+      signatureUrl: it.signatureUrl || undefined,
+      notes: it.notes || undefined,
+    }));
+    set((s) => ({ cashierTxns: [...txns, ...s.cashierTxns] }));
+    syncApi("post", "/cashier-transactions/batch", { type, items });
+    audit(
+      "Disbursement Register Posted",
+      `${txns.length} ${type} entr${txns.length === 1 ? "y" : "ies"} batch-posted, pending Finance Manager approval.`,
+      "Cashier Desk"
+    );
+    notif("info", "Register Posted", `${txns.length} ${type} transaction(s) pending FM approval`, "Finance");
   },
 
   approveCashierTxn: (txnId) => {
@@ -1390,8 +1416,26 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     };
     set((s) => ({ disciplinaryActions: [action, ...s.disciplinaryActions] }));
     syncApi("post", "/disciplinary", d);
-    audit("Disciplinary Action Initiated", `${d.actionType} for ${d.guardName} (${d.forceNumber}): ${d.reason}`, "HR");
-    notif("warning", "Disciplinary Initiated", `${d.actionType} — ${d.guardName}`, "HR");
+    audit("Disciplinary Action Initiated", `${d.actionType} for ${d.securityOfficerName} (${d.forceNumber}): ${d.reason}`, "HR");
+    notif("warning", "Disciplinary Initiated", `${d.actionType} — ${d.securityOfficerName}`, "HR");
+  },
+
+  recordChargeSheetResponse: (id, data) => {
+    set((s) => ({
+      disciplinaryActions: s.disciplinaryActions.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              hearingDate: data.hearingDate || x.hearingDate,
+              employeeResponse: data.employeeResponse,
+              responseRecordedBy: actor()?.name,
+              responseRecordedAt: new Date().toISOString().split("T")[0],
+            }
+          : x
+      ),
+    }));
+    syncApi("put", `/disciplinary/${id}/response`, data);
+    audit("Charge Sheet Response Recorded", `Employee response recorded on charge sheet ${id}`, "HR");
   },
 
   regionalApproveDisciplinary: (id) => {
@@ -1412,7 +1456,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     set((s) => ({ disciplinaryActions: s.disciplinaryActions.map((x) => (x.id === id ? { ...x, status: "Finalized", hrApprovedBy: actor()?.name, approvedAt: new Date().toISOString() } : x)) }));
     syncApi("put", `/disciplinary/${id}/hr-approve`, {});
     audit("Disciplinary Finalized", `HR finalized disciplinary ${id}`, "HR");
-    notif("success", "Disciplinary Finalized", "Guard record updated", "HR");
+    notif("success", "Disciplinary Finalized", "Security Officer record updated", "HR");
   },
 
   rejectDisciplinaryAction: (id, notes) => {
@@ -1433,12 +1477,12 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     };
     set((s) => ({
       deployments: [deployment, ...s.deployments],
-      guards: s.guards.map((g) => (g.id === d.guardId ? { ...g, lifecycleStage: "DEPLOYED", assignedSite: d.siteName } : g)),
+      securityOfficers: s.securityOfficers.map((g) => (g.id === d.forceNumber ? { ...g, lifecycleStage: "DEPLOYED", assignedSite: d.siteName } : g)),
       sites: s.sites.map((site) => (site.id === d.siteId ? { ...site, deploymentStatus: "Deployed" } : site)),
     }));
     syncApi("post", "/deployments", d);
-    audit("Guard Deployed", `${d.guardName} deployed to ${d.siteName} (${d.shiftType})`, "Operations");
-    notif("success", "Guard Deployed", `${d.guardName} → ${d.siteName}`, "Operations");
+    audit("Security Officer Deployed", `${d.securityOfficerName} deployed to ${d.siteName} (${d.shiftType})`, "Operations");
+    notif("success", "Security Officer Deployed", `${d.securityOfficerName} → ${d.siteName}`, "Operations");
   },
 
   endDeployment: (id) => {
@@ -1454,33 +1498,33 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       id: `ord-${Date.now()}`,
       orderCode: `ORD-2026-${String(get().deploymentOrders.length + 1).padStart(3, "0")}`,
       status: "Open",
-      assignedGuardIds: [],
+      assignedSecurityOfficerForceNumbers: [],
     };
     set((s) => ({ deploymentOrders: [order, ...s.deploymentOrders] }));
     syncApi("post", "/deployment-orders", o);
     audit(
       "Deployment Order Issued",
-      `Issued order ${order.orderCode} for ${order.requiredHeadcount} guard(s) at ${order.siteName} (${order.shiftType}) for RM fill`,
+      `Issued order ${order.orderCode} for ${order.requiredHeadcount} securityOfficer(s) at ${order.siteName} (${order.shiftType}) for RM fill`,
       "Operations"
     );
     notif("warning", "Deployment Order Issued", `${order.orderCode} — ${order.siteName}`, "Operations");
   },
 
-  assignDeploymentOrder: (orderId, guardIds) => {
+  assignDeploymentOrder: (orderId, securityOfficerForceNumbers) => {
     const order = get().deploymentOrders.find((o) => o.id === orderId);
     if (!order || order.status !== "Open") return;
-    const guards = get().guards.filter((g) => guardIds.includes(g.id)).slice(0, order.requiredHeadcount);
-    if (guards.length === 0) return;
+    const securityOfficers = get().securityOfficers.filter((g) => securityOfficerForceNumbers.includes(g.id)).slice(0, order.requiredHeadcount);
+    if (securityOfficers.length === 0) return;
 
-    const assignedGuardIds = guards.map((g) => g.id);
-    const deployments = guards.map((g) => ({
+    const assignedSecurityOfficerForceNumbers = securityOfficers.map((g) => g.id);
+    const deployments = securityOfficers.map((g) => ({
       id: `dep-${Date.now()}-${g.id.slice(-4)}`,
       deploymentCode: `DEP-${Date.now()}-${g.id.slice(-4)}`,
       siteId: order.siteId,
       siteName: order.siteName,
       clientName: order.clientName,
-      guardId: g.id,
-      guardName: g.fullName,
+      forceNumber: g.id,
+      securityOfficerName: g.fullName,
       shiftType: order.shiftType,
       deployedBy: `${actor()?.name ?? "Regional Manager"} (via ${order.orderCode})`,
       deployedAt: new Date().toISOString().split("T")[0],
@@ -1490,22 +1534,22 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     set((s) => ({
       deploymentOrders: s.deploymentOrders.map((x) =>
         x.id === orderId
-          ? { ...x, assignedGuardIds, status: assignedGuardIds.length >= order.requiredHeadcount ? "Filled" : "Assigned" }
+          ? { ...x, assignedSecurityOfficerForceNumbers, status: assignedSecurityOfficerForceNumbers.length >= order.requiredHeadcount ? "Filled" : "Assigned" }
           : x
       ),
       deployments: [...deployments, ...s.deployments],
-      guards: s.guards.map((g) =>
-        assignedGuardIds.includes(g.id) ? { ...g, lifecycleStage: "DEPLOYED", assignedSite: order.siteName } : g
+      securityOfficers: s.securityOfficers.map((g) =>
+        assignedSecurityOfficerForceNumbers.includes(g.id) ? { ...g, lifecycleStage: "DEPLOYED", assignedSite: order.siteName } : g
       ),
       sites: s.sites.map((site) => (site.id === order.siteId ? { ...site, deploymentStatus: "Deployed" } : site)),
     }));
-    syncApi("put", `/deployment-orders/${orderId}/assign`, { guardIds: assignedGuardIds });
+    syncApi("put", `/deployment-orders/${orderId}/assign`, { securityOfficerForceNumbers: assignedSecurityOfficerForceNumbers });
     audit(
       "Deployment Order Filled",
-      `RM assigned ${guards.length} guard(s) to ${order.siteName} under ${order.orderCode}`,
+      `RM assigned ${securityOfficers.length} securityOfficer(s) to ${order.siteName} under ${order.orderCode}`,
       "Operations"
     );
-    notif("success", "Order Filled", `${order.orderCode} — ${guards.length} guard(s) assigned`, "Operations");
+    notif("success", "Order Filled", `${order.orderCode} — ${securityOfficers.length} securityOfficer(s) assigned`, "Operations");
   },
 
   cancelDeploymentOrder: (orderId) => {
@@ -1791,7 +1835,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     set((s) => ({ recruitTrainees: [trainee, ...s.recruitTrainees] }));
     syncApi("post", "/trainees", newTrainee);
     audit(
-      "Enroll Recruit Guard",
+      "Enroll Recruit Security Officer",
       `Enrolled new recruit '${trainee.fullName}' (NIN: ${trainee.nationalIdNumber}) into ${trainee.cohortName}.`,
       "Training Academy"
     );
@@ -1833,13 +1877,13 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       trainingCohorts: s.trainingCohorts.map((c) =>
         c.id === trainee.cohortId ? { ...c, passedOutCount: c.passedOutCount + 1 } : c
       ),
-      guards: [
+      securityOfficers: [
         {
-          id: `guard-${Date.now()}`,
+          id: `officer-${Date.now()}`,
           forceNumber: forceNumber,
           fullName: trainee.fullName,
           nationalId: trainee.nationalIdNumber,
-          designation: "Guard" as const,
+          designation: "Security Officer" as const,
           assignedSite: "Standby Operations Reserve",
           location: trainee.assignedRegion || "Kampala Central",
           phone: "+256 700 000000",
@@ -1853,32 +1897,32 @@ export const useDomainStore = create<DomainState>((set, get) => ({
           k9Qualified: false,
           certifications: ["Pass-Out Drill Certification", "Tactical & Firearms Proficiency"],
         },
-        ...s.guards,
+        ...s.securityOfficers,
       ],
     }));
 
     syncApi("put", `/trainees/${traineeId}/graduate`, { forceNumber });
     audit(
-      "Pass-Out Guard Certification",
-      `Graduated guard '${trainee.fullName}', assigned Force Number '${forceNumber}', and transferred to active Guard HR Personnel Roster.`,
+      "Pass-Out Security Officer Certification",
+      `Graduated security officer '${trainee.fullName}', assigned Force Number '${forceNumber}', and transferred to active Security Officer HR Personnel Roster.`,
       "Training Academy"
     );
-    notif("success", "Guard Graduated", `${trainee.fullName} → Force No. ${forceNumber}`, "Training");
+    notif("success", "Security Officer Graduated", `${trainee.fullName} → Force No. ${forceNumber}`, "Training");
   },
 
   addLeaveRequest: (r) => {
     const req: LeaveRequest = { ...r, id: `lr-${Date.now()}`, status: "Pending HR Approval", requestedByRole: actor()?.role };
     set((s) => ({ leaveRequests: [req, ...s.leaveRequests] }));
-    // Staff self-service requests must not send a guardId — the server treats
+    // Staff self-service requests must not send a forceNumber — the server treats
     // its absence (or selfService flag) as the current user's own leave.
     const body =
       req.category === "staff"
-        ? (({ guardId: _guardId, ...rest }) => rest)(r)
+        ? (({ forceNumber: _forceNumber, ...rest }) => rest)(r)
         : r;
     syncApi("post", "/leave-requests", body);
-    audit("Leave Request Submitted", `${req.guardName} requested ${req.leaveType} from ${req.startDate} to ${req.endDate}`, "HR");
-    notif("info", "Leave Requested", `${req.guardName} — ${req.leaveType} (${req.startDate} to ${req.endDate})`, "HR");
-    notif("info", "Pending HR Action", `${req.guardName} — pending approval for ${req.leaveType}`, "HR");
+    audit("Leave Request Submitted", `${req.securityOfficerName} requested ${req.leaveType} from ${req.startDate} to ${req.endDate}`, "HR");
+    notif("info", "Leave Requested", `${req.securityOfficerName} — ${req.leaveType} (${req.startDate} to ${req.endDate})`, "HR");
+    notif("info", "Pending HR Action", `${req.securityOfficerName} — pending approval for ${req.leaveType}`, "HR");
   },
 
   updateLeaveRequest: (id, updates) => {
@@ -1937,7 +1981,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     const requesterRole = lr?.requestedByRole;
     // §5: HR denial authority only applies to genuinely subordinate staff;
     // leave from the GM or peer department managers cannot be denied by HR.
-    const HR_SUBORDINATE_ROLES = ["HR Assistant", "Records Officer", "Sales and Marketing Supervisor", "Guard Officer", "Armorer", "K9 Supervisor", "K9 Handler", "Accountant", "Assistant Accountant", "Cashier"];
+    const HR_SUBORDINATE_ROLES = ["HR Assistant", "Records Officer", "Sales and Marketing Supervisor", "", "Armorer", "K9 Supervisor", "K9 Handler", "Accountant", "Assistant Accountant", "Cashier"];
     if (requesterRole && !HR_SUBORDINATE_ROLES.includes(requesterRole)) {
       notif("error", "Cannot Reject", "Leave requests from the General Manager or peer department managers cannot be denied by HR — escalate to the General Manager.", "HR");
       return;
@@ -2086,7 +2130,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     if (hiringDriverOrRider && cand && !get().drivers.some((d) => d.sourceRef === id)) {
       const known = [
         ...get().drivers.map((d) => d.forceNumber || d.driverCode),
-        ...get().guards.map((g) => g.forceNumber),
+        ...get().securityOfficers.map((g) => g.forceNumber),
       ];
       const pending: DriverRecord = {
         id: `DRV-CAND-${Date.now()}`,
@@ -2117,8 +2161,8 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     const review: PerformanceReviewRecord = { ...r, id: `pr-${Date.now()}` };
     set((s) => ({ performanceReviews: [review, ...s.performanceReviews] }));
     syncApi("post", "/performance-reviews", r);
-    audit("Performance Review Created", `Review for ${r.guardName} (${r.reviewPeriod})`, "HR");
-    notif("success", "Performance Review Created", `${r.guardName} — ${r.reviewPeriod} (${r.overallRating})`, "HR");
+    audit("Performance Review Created", `Review for ${r.securityOfficerName} (${r.reviewPeriod})`, "HR");
+    notif("success", "Performance Review Created", `${r.securityOfficerName} — ${r.reviewPeriod} (${r.overallRating})`, "HR");
   },
 
   updatePerformanceReview: (id, updates) => {
@@ -2153,7 +2197,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
 
   hydrateFromApi: async () => {
     try {
-      const [guards, sites, incidents, vehicles, invoices, expenses, leads, regions,
+      const [securityOfficers, sites, incidents, vehicles, invoices, expenses, leads, regions,
         regionalOffices, leaveRequests, workflows, approvals, documents, jobPostings, candidates,
         performanceReviews, k9s, k9Logs, k9HealthInspections, armoury, armouryLogs, cashierTxns, contracts,
         campaigns, complaints, disciplinaryActions, deployments, deploymentOrders,
@@ -2162,7 +2206,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
         trips, fuelLogs, maintenanceLogs, drivers, inspections, breakdowns,
         dutyRoster, patrolInspections, adminRequisitions, trainingCohorts, recruitTrainees,
         itServers, itTickets, itAssets, collections] = await Promise.all([
-        domainApi.guards.list().catch(() => []),
+        domainApi.securityOfficers.list().catch(() => []),
         domainApi.sites.list().catch(() => []),
         domainApi.incidents.list().catch(() => []),
         domainApi.vehicles.list().catch(() => []),
@@ -2211,7 +2255,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       ]);
       set({
         useApi: true,
-        guards: guards.length > 0 ? guards : get().guards,
+        securityOfficers: securityOfficers.length > 0 ? securityOfficers : get().securityOfficers,
         sites: sites.length > 0 ? sites : get().sites,
         incidents: incidents.length > 0 ? incidents : get().incidents,
         vehicles: vehicles.length > 0 ? vehicles : get().vehicles,

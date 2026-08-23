@@ -3,7 +3,7 @@
  *
  * The Operations Manager / Regional Manager / Fleet Manager get a tabbed
  * workspace. Full CRUD is deliberately restricted: only Deployment Orders and
- * Guard Lifecycle transitions are owned here. Armoury, K9 and Patrol are
+ * Security Officer Lifecycle transitions are owned here. Armoury, K9 and Patrol are
  * read-only with "log activity" actions (issue/return, deployment, vet check,
  * patrol radio check). Armorer, K9 Supervisor/Handler and Training Officer get
  * their dedicated management views via OperationsPage role-branching.
@@ -42,7 +42,7 @@ import { getEffectiveRole } from "../../services/rbacService";
 import {
   CommandStrip,
   ShiftsAttendancePanel,
-  GuardLifecycleBoard,
+  SecurityOfficerLifecycleBoard,
   TrainingAcademyOversight,
   InvestigationsCollaboration,
   ArmouryStatusPanel,
@@ -57,7 +57,7 @@ import { ReportsView } from "./ReportsView";
 import type {
   AdminRequisition,
   DeploymentOrder,
-  Guard,
+  SecurityOfficer,
   K9Log,
   K9HealthInspection,
   PatrolInspectionLog,
@@ -69,7 +69,7 @@ const FLEET_MANAGER: UserRole = "Fleet Manager";
 const OPERATIONS_MANAGER: UserRole = "Operations Manager";
 const REGIONAL_MANAGER: UserRole = "Regional Manager";
 
-const LIFECYCLE_FLOW: Guard["lifecycleStage"][] = [
+const LIFECYCLE_FLOW: SecurityOfficer["lifecycleStage"][] = [
   "ENROLLED",
   "HANDED_TO_OPERATIONS",
   "IN_TRAINING",
@@ -259,8 +259,8 @@ export const OperationsWorkspaceView: React.FC = () => {
                         </div>
                         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                           <div>
-                            <p className="text-lg font-black text-slate-900">{office.activeGuardsCount}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">Guards</p>
+                            <p className="text-lg font-black text-slate-900">{office.activeSecurityOfficersCount}</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">Security Officers</p>
                           </div>
                           <div>
                             <p className="text-lg font-black text-slate-900">{office.clientSitesCount}</p>
@@ -372,7 +372,7 @@ export const OperationsWorkspaceView: React.FC = () => {
                   </div>
                   <h3 className="text-sm font-black text-slate-900 mt-2">{inc.title}</h3>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    <strong>{inc.siteName}</strong> · Reported by {inc.reportedByGuard} on {inc.incidentDate}
+                    <strong>{inc.siteName}</strong> · Reported by {inc.reportedBySecurityOfficer} on {inc.incidentDate}
                   </p>
                   <p className="text-xs text-slate-600 mt-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">{inc.description}</p>
                 </div>
@@ -401,7 +401,7 @@ export const OperationsWorkspaceView: React.FC = () => {
       {/* ─── Reports ─── */}
       {tab === "reports" && (
         <ReportsView
-          guards={domain.guards}
+          securityOfficers={domain.securityOfficers}
           sites={domain.sites}
           incidents={domain.incidents}
           vehicles={domain.vehicles}
@@ -551,7 +551,7 @@ const DeploymentsTab: React.FC<{ region?: string }> = ({ region }) => {
             <p className="text-xs text-slate-400 font-medium text-center py-8">No deployment orders yet.</p>
           ) : (
             orders.map((o) => {
-              const fillPct = o.requiredHeadcount ? Math.round((o.assignedGuardIds.length / o.requiredHeadcount) * 100) : 0;
+              const fillPct = o.requiredHeadcount ? Math.round((o.assignedSecurityOfficerForceNumbers.length / o.requiredHeadcount) * 100) : 0;
               return (
                 <div key={o.id} className="p-3 rounded-2xl border border-slate-200 bg-slate-50/60">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -562,7 +562,7 @@ const DeploymentsTab: React.FC<{ region?: string }> = ({ region }) => {
                           {o.orderCode} — {o.siteName}
                         </p>
                         <p className="text-[11px] text-slate-500 font-medium">
-                          {o.clientName} • {o.requiredHeadcount} required · {o.assignedGuardIds.length} assigned · {o.shiftType} ·{" "}
+                          {o.clientName} • {o.requiredHeadcount} required · {o.assignedSecurityOfficerForceNumbers.length} assigned · {o.shiftType} ·{" "}
                           {o.region ?? "HQ"} • {o.targetStartDate} → {o.targetEndDate}
                         </p>
                       </div>
@@ -579,7 +579,7 @@ const DeploymentsTab: React.FC<{ region?: string }> = ({ region }) => {
                         onClick={() => setAssigning(o.id)}
                         className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
                       >
-                        Assign Guards
+                        Assign Security Officers
                       </button>
                     )}
                     {o.status === "Open" && (
@@ -600,11 +600,11 @@ const DeploymentsTab: React.FC<{ region?: string }> = ({ region }) => {
 
       {showCreate && <CreateOrderModal onClose={() => setShowCreate(false)} onSubmit={(data) => domain.addDeploymentOrder(data)} />}
       {assigning && (
-        <AssignGuardsModal
+        <AssignSecurityOfficersModal
           order={orders.find((o) => o.id === assigning)!}
           onClose={() => setAssigning(null)}
-          onAssign={(guardIds) => {
-            domain.assignDeploymentOrder(assigning, guardIds);
+          onAssign={(securityOfficerForceNumbers) => {
+            domain.assignDeploymentOrder(assigning, securityOfficerForceNumbers);
             setAssigning(null);
           }}
         />
@@ -613,7 +613,7 @@ const DeploymentsTab: React.FC<{ region?: string }> = ({ region }) => {
   );
 };
 
-const CreateOrderModal: React.FC<{ onClose: () => void; onSubmit: (data: Omit<DeploymentOrder, "id" | "orderCode" | "status" | "assignedGuardIds">) => void }> = ({ onClose, onSubmit }) => {
+const CreateOrderModal: React.FC<{ onClose: () => void; onSubmit: (data: Omit<DeploymentOrder, "id" | "orderCode" | "status" | "assignedSecurityOfficerForceNumbers">) => void }> = ({ onClose, onSubmit }) => {
   const domain = useDomainStore();
   const [siteId, setSiteId] = useState("");
   const [clientName, setClientName] = useState("");
@@ -714,15 +714,15 @@ const CreateOrderModal: React.FC<{ onClose: () => void; onSubmit: (data: Omit<De
   );
 };
 
-const AssignGuardsModal: React.FC<{ order: DeploymentOrder; onClose: () => void; onAssign: (guardIds: string[]) => void }> = ({ order, onClose, onAssign }) => {
+const AssignSecurityOfficersModal: React.FC<{ order: DeploymentOrder; onClose: () => void; onAssign: (securityOfficerForceNumbers: string[]) => void }> = ({ order, onClose, onAssign }) => {
   const domain = useDomainStore();
   const [selected, setSelected] = useState<string[]>([]);
-  const available = domain.guards.filter((g) => g.lifecycleStage === "DEPLOYED" || !g.lifecycleStage);
+  const available = domain.securityOfficers.filter((g) => g.lifecycleStage === "DEPLOYED" || !g.lifecycleStage);
   const toggle = (id: string) => {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   };
   return (
-    <ModalOverlay title={`Assign Guards — ${order.orderCode}`} icon={<Users className="w-4 h-4" />} onClose={onClose}>
+    <ModalOverlay title={`Assign Security Officers — ${order.orderCode}`} icon={<Users className="w-4 h-4" />} onClose={onClose}>
       <p className="text-[11px] text-slate-500 font-semibold mb-3">
         {order.siteName} · {order.requiredHeadcount} required · {selected.length} selected
       </p>
@@ -746,7 +746,7 @@ const AssignGuardsModal: React.FC<{ order: DeploymentOrder; onClose: () => void;
           Cancel
         </button>
         <button type="button" onClick={() => onAssign(selected)} disabled={selected.length === 0} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold cursor-pointer">
-          Assign {selected.length} Guard{selected.length === 1 ? "" : "s"}
+          Assign {selected.length} Security Officer{selected.length === 1 ? "" : "s"}
         </button>
       </div>
     </ModalOverlay>
@@ -758,27 +758,27 @@ const AssignGuardsModal: React.FC<{ order: DeploymentOrder; onClose: () => void;
 const PersonnelTab: React.FC<{ region?: string }> = ({ region }) => {
   const domain = useDomainStore();
   const [query, setQuery] = useState("");
-  const guards = domain.guards.filter((g) => !region || g.region === region || g.location === region);
-  const filtered = guards.filter((g) => {
+  const securityOfficers = domain.securityOfficers.filter((g) => !region || g.region === region || g.location === region);
+  const filtered = securityOfficers.filter((g) => {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     return (g.fullName ?? "").toLowerCase().includes(q) || (g.forceNumber ?? g.forceNumber).toLowerCase().includes(q);
   });
 
-  const advance = (g: Guard) => {
+  const advance = (g: SecurityOfficer) => {
     const idx = LIFECYCLE_FLOW.indexOf(g.lifecycleStage ?? "ENROLLED");
     const next = LIFECYCLE_FLOW[Math.min(idx + 1, LIFECYCLE_FLOW.length - 1)];
-    domain.moveGuardLifecycle(g.id, { lifecycleStage: next });
+    domain.moveSecurityOfficerLifecycle(g.id, { lifecycleStage: next });
   };
-  const regress = (g: Guard) => {
+  const regress = (g: SecurityOfficer) => {
     const idx = LIFECYCLE_FLOW.indexOf(g.lifecycleStage ?? "ENROLLED");
     const prev = LIFECYCLE_FLOW[Math.max(idx - 1, 0)];
-    domain.moveGuardLifecycle(g.id, { lifecycleStage: prev });
+    domain.moveSecurityOfficerLifecycle(g.id, { lifecycleStage: prev });
   };
 
   return (
     <div className="space-y-6">
-      <GuardLifecycleBoard region={region} />
+      <SecurityOfficerLifecycleBoard region={region} />
       <section className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
@@ -863,7 +863,7 @@ const ArmouryTab: React.FC = () => {
         <IssueArmouryModal
           onClose={() => setMode(null)}
           onSubmit={(d) => {
-            domain.issueArmouryItem(d.assetId, d.guardId, d.locationName, d.ammoRoundsOut, d.dateOut, d.timeOut, true, d.armourerInCharge, d.notes);
+            domain.issueArmouryItem(d.assetId, d.forceNumber, d.locationName, d.ammoRoundsOut, d.dateOut, d.timeOut, true, d.armourerInCharge, d.notes);
             setMode(null);
           }}
         />
@@ -881,11 +881,11 @@ const ArmouryTab: React.FC = () => {
   );
 };
 
-const IssueArmouryModal: React.FC<{ onClose: () => void; onSubmit: (d: { assetId: string; guardId: string; locationName: string; ammoRoundsOut: number; dateOut: string; timeOut: string; armourerInCharge: string; notes: string }) => void }> = ({ onClose, onSubmit }) => {
+const IssueArmouryModal: React.FC<{ onClose: () => void; onSubmit: (d: { assetId: string; forceNumber: string; locationName: string; ammoRoundsOut: number; dateOut: string; timeOut: string; armourerInCharge: string; notes: string }) => void }> = ({ onClose, onSubmit }) => {
   const domain = useDomainStore();
   const available = domain.armoury.filter((a) => a.availableQuantity > 0);
   const [assetId, setAssetId] = useState("");
-  const [guardId, setGuardId] = useState("");
+  const [forceNumber, setForceNumber] = useState("");
   const [locationName, setLocationName] = useState("");
   const [ammoRoundsOut, setAmmoRoundsOut] = useState(0);
   const [dateOut, setDateOut] = useState(new Date().toISOString().split("T")[0]);
@@ -893,7 +893,7 @@ const IssueArmouryModal: React.FC<{ onClose: () => void; onSubmit: (d: { assetId
   const [notes, setNotes] = useState("");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ assetId, guardId, locationName, ammoRoundsOut, dateOut, timeOut, armourerInCharge: "Operations Log", notes });
+    onSubmit({ assetId, forceNumber, locationName, ammoRoundsOut, dateOut, timeOut, armourerInCharge: "Operations Log", notes });
   };
   return (
     <ModalOverlay title="Log Armoury Issue" icon={<Shield className="w-4 h-4" />} onClose={onClose}>
@@ -910,10 +910,10 @@ const IssueArmouryModal: React.FC<{ onClose: () => void; onSubmit: (d: { assetId
           </select>
         </div>
         <div>
-          <label className="text-[11px] font-black text-slate-600 uppercase">Guard (force number) *</label>
-          <select required value={guardId} onChange={(e) => setGuardId(e.target.value)} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2 bg-white">
-            <option value="">Select guard…</option>
-            {domain.guards.map((g) => (
+          <label className="text-[11px] font-black text-slate-600 uppercase">Security Officer (force number) *</label>
+          <select required value={forceNumber} onChange={(e) => setForceNumber(e.target.value)} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2 bg-white">
+            <option value="">Select security officer…</option>
+            {domain.securityOfficers.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.forceNumber || g.forceNumber} — {g.fullName}
               </option>
@@ -969,7 +969,7 @@ const ReturnArmouryModal: React.FC<{ onClose: () => void; onSubmit: (d: { logId:
             <option value="">Select issue log…</option>
             {checkedOut.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.assetName} ({l.firearmSerialNumber}) — {l.guardName}
+                {l.assetName} ({l.firearmSerialNumber}) — {l.securityOfficerName}
               </option>
             ))}
           </select>
@@ -1227,7 +1227,7 @@ const PatrolTab: React.FC = () => {
                       {p.inspectionCode} — {p.siteName}
                     </p>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      {p.supervisorName} • {p.guardOnDuty} • {p.inspectionTime}
+                      {p.supervisorName} • {p.securityOfficerOnDuty} • {p.inspectionTime}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1260,7 +1260,7 @@ const LogPatrolModal: React.FC<{ onClose: () => void; onSubmit: (p: Omit<PatrolI
   const domain = useDomainStore();
   const [siteName, setSiteName] = useState("");
   const [supervisorName, setSupervisorName] = useState("");
-  const [guardOnDuty, setGuardOnDuty] = useState("");
+  const [securityOfficerOnDuty, setSecurityOfficerOnDuty] = useState("");
   const [inspectionTime, setInspectionTime] = useState("");
   const [radioCheckStatus, setRadioCheckStatus] = useState<PatrolInspectionLog["radioCheckStatus"]>("Responsive & Clear");
   const [uniformTurnout, setUniformTurnout] = useState<PatrolInspectionLog["uniformTurnout"]>("Compliant");
@@ -1269,7 +1269,7 @@ const LogPatrolModal: React.FC<{ onClose: () => void; onSubmit: (p: Omit<PatrolI
   const [remarks, setRemarks] = useState("");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ inspectionCode: `PIC-${Date.now().toString().slice(-6)}`, siteName, supervisorName, guardOnDuty, inspectionTime, radioCheckStatus, uniformTurnout, weaponEquipmentCheck, overallRating, remarks });
+    onSubmit({ inspectionCode: `PIC-${Date.now().toString().slice(-6)}`, siteName, supervisorName, securityOfficerOnDuty, inspectionTime, radioCheckStatus, uniformTurnout, weaponEquipmentCheck, overallRating, remarks });
   };
   return (
     <ModalOverlay title="Log Patrol & Radio Check" icon={<ShieldCheck className="w-4 h-4" />} onClose={onClose}>
@@ -1289,8 +1289,8 @@ const LogPatrolModal: React.FC<{ onClose: () => void; onSubmit: (p: Omit<PatrolI
             <input required value={supervisorName} onChange={(e) => setSupervisorName(e.target.value)} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
           </div>
           <div>
-            <label className="text-[11px] font-black text-slate-600 uppercase">Guard On Duty *</label>
-            <input required value={guardOnDuty} onChange={(e) => setGuardOnDuty(e.target.value)} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
+            <label className="text-[11px] font-black text-slate-600 uppercase">Security Officer On Duty *</label>
+            <input required value={securityOfficerOnDuty} onChange={(e) => setSecurityOfficerOnDuty(e.target.value)} className="mt-1 w-full text-xs rounded-xl border border-slate-300 px-3 py-2" />
           </div>
         </div>
         <div>

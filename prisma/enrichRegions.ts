@@ -2,7 +2,7 @@
  * Additive regional data enrichment for the Operations regional dashboard.
  *
  * This script is intentionally NON-destructive: it only upserts records
- * (guards by forceNumber, sites by siteName, and unique-coded records for
+ * (security officers by forceNumber, sites by siteName, and unique-coded records for
  * incidents/patrols/deployments/orders/complaints/contracts/k9s/armoury),
  * and it inserts roster/leave entries only when an equivalent row is missing.
  * Re-running it is safe and idempotent.
@@ -27,7 +27,7 @@ interface SiteSeed {
   night: number;
   armed: number;
   k9: boolean;
-  sla: "Compliant" | "Understaffed" | "Attention Needed";
+  sla: "Compliant" | "Understaffed" | "Attention Needed"; // display form
   deployment: "Not Deployed" | "Deployed" | "Partially Deployed";
   contactPerson: string;
   contactPhone: string;
@@ -191,9 +191,9 @@ const REGION_SEEDS: RegionSeed[] = [
 ];
 
 const INCIDENT_CATEGORIES = ["Security Breach", "Theft Attempt", "Weapon Discharge", "Unauthorized Entry", "Medical Emergency", "K9 Alert"];
-const GUARD_STATUSES = ["On Duty", "On Duty", "On Duty", "Off Duty", "On Duty", "On Duty", "On Leave", "Off Duty", "On Duty", "Suspended", "On Duty", "Off Duty"];
+const SECURITY_OFFICER_STATUSES = ["On Duty", "On Duty", "On Duty", "Off Duty", "On Duty", "On Duty", "On Leave", "Off Duty", "On Duty", "Suspended", "On Duty", "Off Duty"];
 const LIFE_CYCLES = ["DEPLOYED", "DEPLOYED", "DEPLOYED", "DEPLOYED", "DEPLOYED", "DEPLOYED", "DEPLOYED", "DEPLOYED", "IN_TRAINING", "PASSED_OUT", "ENROLLED", "HANDED_TO_OPERATIONS"];
-const ROSTER_STATUSES = ["Present", "Present", "Present", "Absent", "Present", "On Overtime", "Present", "Scheduled", "Present", "Present", "Absent", "Present"];
+const ROSTER_STATUSES = ["Present", "Present", "Present", "Absent", "Present", "Present", "Present", "Scheduled", "Present", "Present", "Absent", "Present"];
 
 function daysAgo(n: number): string {
   const d = new Date();
@@ -216,7 +216,7 @@ async function main() {
     regionIds.set(seed.name, r.id);
   }
 
-  let created = { guards: 0, sites: 0, incidents: 0, rosters: 0, patrols: 0, deployments: 0, orders: 0, complaints: 0, contracts: 0, leave: 0, disciplinary: 0, k9: 0, armoury: 0 };
+  let created = { securityOfficers: 0, sites: 0, incidents: 0, rosters: 0, patrols: 0, deployments: 0, orders: 0, complaints: 0, contracts: 0, leave: 0, disciplinary: 0, k9: 0, armoury: 0 };
 
   let block = 100;
   for (const seed of REGION_SEEDS) {
@@ -257,13 +257,13 @@ async function main() {
         clientName: s.clientName,
         location: s.location,
         zone: s.zone,
-        dayShiftGuards: s.day,
-        nightShiftGuards: s.night,
+        dayShiftSecurityOfficers: s.day,
+        nightShiftSecurityOfficers: s.night,
         dayShiftArmed,
         nightShiftArmed,
-        armedGuardsRequired: s.armed,
+        armedSecurityOfficersRequired: s.armed,
         k9Required: s.k9,
-        slaStatus: s.sla,
+        slaStatus: s.sla === "Attention Needed" ? "Attention_Needed" : s.sla,
         deploymentStatus: s.deployment,
         contactPerson: s.contactPerson,
         contactPhone: s.contactPhone,
@@ -287,23 +287,24 @@ async function main() {
       created.sites += 1;
     }
 
-    // Guards
+    // Security Officers
     const siteNames = seed.sites.map((s) => s.siteName);
-    const guardRows: { id: string; forceNumber: string; fullName: string; siteName: string; siteId: string }[] = [];
+    const officerRows: { id: string; forceNumber: string; fullName: string; siteName: string; siteId: string }[] = [];
     for (let i = 0; i < seed.names.length; i += 1) {
       const forceNumber = `PSG026/-e`;
       const fullName = seed.names[i];
       const siteName = siteNames[i % siteNames.length];
       const siteZone = seed.sites[i % siteNames.length].zone;
-      const designation = i < 2 ? "K9 Handler" : i === 2 ? "Site In-Charge" : i === 3 ? "Inspector" : "Guard";
+      const designation = i < 2 ? "K9 Handler" : i === 2 ? "Site In-Charge" : i === 3 ? "Inspector" : "Security Officer";
+      const designationEnum = designation === "K9 Handler" ? "K9_Handler" : designation === "Site In-Charge" ? "Site_In_Charge" : designation === "Inspector" ? "Inspector" : "Security_Officer";
       const isFemale = i % 3 === 1;
-      const guard = await prisma.guard.upsert({
+      const officer = await prisma.securityOfficer.upsert({
         where: { forceNumber },
-        update: { region: seed.name, designation, zone: siteZone },
+        update: { region: seed.name, designation: designationEnum, zone: siteZone },
         create: {
         forceNumber,
           fullName,
-          designation,
+          designation: designationEnum,
           zone: siteZone,
           phone: `+256 700 ${String(500000 + block + i).padStart(6, "0")}`,
           nationalId: `CM${String(91000000 + block + i)}${String(block).slice(-2)}${i}X`,
@@ -312,12 +313,12 @@ async function main() {
           bankAccount: `${block}${i}${String(9000000 + block + i).slice(0, 4)}`,
           bankName: ["Stanbic Bank Uganda", "Centenary Bank", "Equity Bank Uganda", "PostBank Uganda"][i % 4],
           finishedProbation: i >= 2,
-          status: GUARD_STATUSES[i % GUARD_STATUSES.length],
+          status: SECURITY_OFFICER_STATUSES[i % SECURITY_OFFICER_STATUSES.length],
           lifecycleStage: LIFE_CYCLES[i % LIFE_CYCLES.length] as "DEPLOYED",
           medicalCleared: true,
           armedQualified: i % 2 === 0,
           k9Qualified: designation === "K9 Handler",
-          joinDate: `20${20 + (i % 5)}-0${(i % 9) + 1}-1${i % 10}`,
+          joinDate: new Date(`20${20 + (i % 5)}-0${(i % 9) + 1}-1${i % 10}`),
           warningLettersCount: i === 9 ? 1 : 0,
           certifications: designation === "K9 Handler"
             ? ["Basic Security Training", "K9 Handler Certification"]
@@ -330,13 +331,13 @@ async function main() {
           region: seed.name,
         },
       });
-      guardRows.push({ id: guard.id, forceNumber, fullName, siteName, siteId: siteMap.get(siteName)! });
-      created.guards += 1;
+      officerRows.push({ id: officer.id, forceNumber, fullName, siteName, siteId: siteMap.get(siteName)! });
+      created.securityOfficers += 1;
     }
 
     // K9 dogs for the two handlers
     for (let i = 0; i < 2; i += 1) {
-      const handler = guardRows[i];
+      const handler = officerRows[i];
       const code = `K9-${seed.code}-${i + 1}`;
       await prisma.k9Dog.upsert({
         where: { code },
@@ -359,20 +360,20 @@ async function main() {
       created.k9 += 1;
     }
 
-    // Armoury items assigned to guards
+    // Armoury items assigned to security officers
     const armourySpecs: { name: string; category: string; specs: string }[] = [
       { name: "Pistol (Makarov)", category: "Firearm", specs: "9mm / PKM" },
       { name: "Pump-Action Shotgun", category: "Firearm", specs: "12 Gauge" },
       { name: "Radio Set (Motorola)", category: "Communications", specs: "UHF / VHF" },
     ];
     for (let i = 0; i < armourySpecs.length; i += 1) {
-      const target = guardRows[(i * 3) % guardRows.length];
+      const target = officerRows[(i * 3) % officerRows.length];
       const assetTag = `ARM-${seed.code}-${i + 1}`;
       const existingArm = await prisma.armouryItem.findFirst({ where: { assetTag } });
       if (existingArm) {
         await prisma.armouryItem.update({
           where: { id: existingArm.id },
-          data: { assignedToGuardId: target.id, assignedToGuardName: target.fullName, location: "Issued Out" },
+          data: { assignedToForceNumber: target.forceNumber, assignedToSecurityOfficerName: target.fullName, location: "Issued Out" },
         });
       } else {
         await prisma.armouryItem.create({
@@ -385,8 +386,8 @@ async function main() {
             totalQuantity: 1,
             availableQuantity: 0,
             condition: "Good",
-            assignedToGuardId: target.id,
-            assignedToGuardName: target.fullName,
+            assignedToForceNumber: target.forceNumber,
+            assignedToSecurityOfficerName: target.fullName,
             location: "Issued Out",
           },
         });
@@ -396,9 +397,9 @@ async function main() {
 
     // Incidents
     const incidentSeed: { title: string; site: string; severity: string; status: string; daysAgoN: number; category: string; desc: string }[] = [
-      { title: "Perimeter breach attempt at night", site: siteNames[0], severity: "Critical", status: "Escalated", daysAgoN: 2, category: "Unauthorized Entry", desc: "Suspects scaled perimeter wall; responding guard raised alarm. Case under investigation." },
-      { title: "Theft of client property suspected", site: siteNames[1], severity: "High", status: "Under Investigation", daysAgoN: 8, category: "Theft Attempt", desc: "CCTV review underway; stock count variance flagged by client." },
-      { title: "Minor medical emergency on duty", site: siteNames[2], severity: "Medium", status: "Resolved", daysAgoN: 25, category: "Medical Emergency", desc: "Guard reported dizzy spell; first aid administered and discharged." },
+      { title: "Perimeter breach attempt at night", site: siteNames[0], severity: "Critical", status: "Escalated", daysAgoN: 2, category: "Unauthorized Entry", desc: "Suspects scaled perimeter wall; responding security officer raised alarm. Case under investigation." },
+      { title: "Theft of client property suspected", site: siteNames[1], severity: "High", status: "UnderInvestigation", daysAgoN: 8, category: "Theft Attempt", desc: "CCTV review underway; stock count variance flagged by client." },
+      { title: "Minor medical emergency on duty", site: siteNames[2], severity: "Medium", status: "Resolved", daysAgoN: 25, category: "Medical Emergency", desc: "Officer reported dizzy spell; first aid administered and discharged." },
       { title: "Vehicle attempted to bypass checkpoint", site: siteNames[3 % siteNames.length], severity: "Medium", status: "Resolved", daysAgoN: 60, category: "Unauthorized Entry", desc: "Vehicle stopped at gate; driver lacked entry clearance." },
       { title: "Suspicious package reported", site: siteNames[0], severity: "Low", status: "Resolved", daysAgoN: 120, category: "Security Breach", desc: "Package cleared after inspection; no hazard found." },
     ];
@@ -412,8 +413,8 @@ async function main() {
           incidentCode: code,
           title: inc.title,
           siteName: inc.site,
-          reportedByGuard: guardRows[(i * 2) % guardRows.length].fullName,
-          incidentDate: daysAgo(inc.daysAgoN),
+          reportedBySecurityOfficer: officerRows[(i * 2) % officerRows.length].fullName,
+          incidentDate: new Date(daysAgo(inc.daysAgoN)),
           category: inc.category,
           severity: inc.severity,
           description: inc.desc,
@@ -425,15 +426,15 @@ async function main() {
     }
 
     // Roster entries (recent week)
-    for (let i = 0; i < guardRows.length; i += 1) {
-      const g = guardRows[i];
+    for (let i = 0; i < officerRows.length; i += 1) {
+      const g = officerRows[i];
       const shiftDate = daysAgo(i % 5);
-      const existing = await prisma.dutyRoster.findFirst({ where: { guardId: g.id, shiftDate, siteId: g.siteId } });
+      const existing = await prisma.dutyRoster.findFirst({ where: { forceNumber: g.forceNumber, shiftDate, siteId: g.siteId } });
       if (existing) continue;
       await prisma.dutyRoster.create({
         data: {
-          guardId: g.id,
-          guardName: g.fullName,
+          forceNumber: g.forceNumber,
+          securityOfficerName: g.fullName,
           siteId: g.siteId,
           siteName: g.siteName,
           region: seed.name,
@@ -459,7 +460,7 @@ async function main() {
           inspectionCode: code,
           siteName: site,
           supervisorName: patrolSupervisors[i % patrolSupervisors.length],
-          guardOnDuty: guardRows[(i * 3) % guardRows.length].fullName,
+          securityOfficerOnDuty: officerRows[(i * 3) % officerRows.length].fullName,
           inspectionTime: `${daysAgo(i % 6)}T${String(19 - i % 6).padStart(2, "0")}:30`,
           radioCheckStatus: i % 4 === 3 ? "Delayed Response" : "Responsive & Clear",
           uniformTurnout: i % 5 === 4 ? "Minor Flaw" : "Compliant",
@@ -473,7 +474,7 @@ async function main() {
 
     // Deployments
     for (let i = 0; i < 3; i += 1) {
-      const g = guardRows[(i * 4) % guardRows.length];
+      const g = officerRows[(i * 4) % officerRows.length];
       const siteName = siteNames[i % siteNames.length];
       const site = seed.sites.find((s) => s.siteName === siteName)!;
       const code = `DEP-${seed.code}-${pad(i + 1)}`;
@@ -485,8 +486,8 @@ async function main() {
           siteId: siteMap.get(siteName)!,
           siteName,
           clientName: site.clientName,
-          guardId: g.id,
-          guardName: g.fullName,
+          forceNumber: g.forceNumber,
+          securityOfficerName: g.fullName,
           shiftType: i % 2 === 0 ? "Day Shift (06:00-18:00)" : "Night Shift (18:00-06:00)",
           deployedBy: seed.rm,
           deployedAt: daysAgo(i * 7 + 3),
@@ -516,7 +517,7 @@ async function main() {
           targetEndDate: daysAgo(-28),
           requestedBy: `${seed.name} Regional Office`,
           status: "Open",
-          assignedGuardIds: [],
+          assignedSecurityOfficerForceNumbers: [],
         },
       });
       created.orders += 1;
@@ -524,7 +525,7 @@ async function main() {
 
     // Complaints
     const complaintSeed: { site: string; category: string; desc: string; status: string }[] = [
-      { site: siteNames[1], category: "Service Quality", desc: "Client reported a guard arriving late for the night shift handover.", status: "Investigating" },
+      { site: siteNames[1], category: "Service Quality", desc: "Client reported a security officer arriving late for the night shift handover.", status: "Investigating" },
       { site: siteNames[3 % siteNames.length], category: "Conduct & Integrity", desc: "Complaint about unfamiliar staff at the gate; referred for verification.", status: "Open" },
       { site: siteNames[2], category: "Service Quality", desc: "Request for extra weekend coverage during the peak season.", status: "Resolved" },
     ];
@@ -553,7 +554,7 @@ async function main() {
     // Client contracts
     const contractSeed: { title: string; party: string; site: string; valueM: number; status: string; endIn: number; payment: string }[] = [
       { title: `${seed.name} Regional Guarding SLA`, party: seed.sites[0].clientName, site: seed.sites[0].siteName, valueM: 120 + (block % 5) * 10, status: "Active", endIn: 180, payment: "Monthly in advance" },
-      { title: `${seed.name} Perimeter Security Contract`, party: seed.sites[1].clientName, site: seed.sites[1].siteName, valueM: 60 + (block % 4) * 10, status: "Expiring Soon", endIn: 20, payment: "Monthly, due by 10th" },
+      { title: `${seed.name} Perimeter Security Contract`, party: seed.sites[1].clientName, site: seed.sites[1].siteName, valueM: 60 + (block % 4) * 10, status: "Expiring_Soon", endIn: 20, payment: "Monthly, due by 10th" },
     ];
     for (let i = 0; i < contractSeed.length; i += 1) {
       const c = contractSeed[i];
@@ -571,8 +572,8 @@ async function main() {
           contractType: "Client Contract",
           partyName: c.party,
           category: "Corporate Client Service Agreement",
-          startDate: startD.toISOString().split("T")[0],
-          endDate: endD.toISOString().split("T")[0],
+          startDate: startD,
+          endDate: endD,
           valueUgx: c.valueM * 1_000_000,
           status: c.status,
           documentRef: `DOC-SLA-${seed.code}-${i + 1}.pdf`,
@@ -581,7 +582,7 @@ async function main() {
           autoRenew: i === 0,
           paymentTerms: c.payment,
           billingCycle: "Monthly",
-          slaTerms: `${seed.sites[i].day + seed.sites[i].night} guards, monthly supervision checks, 24/7 response`,
+          slaTerms: `${seed.sites[i].day + seed.sites[i].night} officers, monthly supervision checks, 24/7 response`,
           notes: `Managed by ${seed.rm} (${seed.name} Regional Manager).`,
           preparedBy: "Ivan Ssebana",
           approvedBy: "Sarah Akello",
@@ -595,16 +596,15 @@ async function main() {
 
     // Leave requests
     for (let i = 0; i < 2; i += 1) {
-      const g = guardRows[(i * 5 + 2) % guardRows.length];
+      const g = officerRows[(i * 5 + 2) % officerRows.length];
       const leave = i === 0
         ? { leaveType: "Annual Leave", startDate: daysAgo(-5), endDate: daysAgo(-12), durationDays: 7, reason: "Family visit", status: "Pending HR Review" as const }
         : { leaveType: "Compassionate Leave", startDate: daysAgo(-1), endDate: daysAgo(-4), durationDays: 3, reason: "Family emergency", status: "Approved" as const };
-      const existing = await prisma.leaveRequest.findFirst({ where: { guardId: g.id, startDate: leave.startDate } });
+      const existing = await prisma.leaveRequest.findFirst({ where: { forceNumber: g.forceNumber, startDate: leave.startDate } });
       if (existing) continue;
       await prisma.leaveRequest.create({
         data: {
-          guardId: g.id,
-          guardName: g.fullName,
+          securityOfficerName: g.fullName,
           forceNumber: g.forceNumber,
           leaveType: leave.leaveType,
           startDate: leave.startDate,
@@ -620,15 +620,14 @@ async function main() {
     }
 
     // Disciplinary action (one per region, mostly low/medium)
-    const disc = guardRows[guardRows.length - 1];
+    const disc = officerRows[officerRows.length - 1];
     const actionCode = `DISC-${seed.code}-001`;
     await prisma.disciplinaryAction.upsert({
       where: { actionCode },
       update: { status: "Initiated" },
       create: {
         actionCode,
-        guardId: disc.id,
-        guardName: disc.fullName,
+        securityOfficerName: disc.fullName,
         forceNumber: disc.forceNumber,
         actionType: "Warning Letter",
         reason: "Failure to register attendance on duty roster",
@@ -643,12 +642,12 @@ async function main() {
     });
     created.disciplinary += 1;
 
-    // Update regional office guard/site counts
-    const gCount = await prisma.guard.count({ where: { region: seed.name } });
+    // Update regional office officer/site counts
+    const gCount = await prisma.securityOfficer.count({ where: { region: seed.name } });
     const sCount = await prisma.clientSite.count({ where: { region: seed.name } });
     await prisma.regionalOffice.update({
       where: { code: `REG-${seed.code}` },
-      data: { activeGuardsCount: gCount, clientSitesCount: sCount },
+      data: { activeSecurityOfficersCount: gCount, clientSitesCount: sCount },
     });
 
     block += 100;

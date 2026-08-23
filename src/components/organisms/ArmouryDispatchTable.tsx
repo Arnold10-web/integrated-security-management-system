@@ -20,7 +20,7 @@ export const ArmouryDispatchTable: React.FC<ArmouryDispatchTableProps> = ({
   const filteredLogs = logs.filter((log) => {
     const term = logSearchTerm.toLowerCase();
     return (
-      log.guardName.toLowerCase().includes(term) ||
+      log.securityOfficerName.toLowerCase().includes(term) ||
       log.firearmSerialNumber.toLowerCase().includes(term) ||
       log.locationName.toLowerCase().includes(term) ||
       log.serialNumberLog.toLowerCase().includes(term) ||
@@ -37,7 +37,7 @@ export const ArmouryDispatchTable: React.FC<ArmouryDispatchTableProps> = ({
             <h3 className="text-base font-black tracking-tight">Armoury Dispatch & Return Logbook</h3>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Strict audit log with all 15 required Armorer fields including Serial Number, Guard Name, Location, Firearm Serial, Ammunition Rounds, Signatures & Substitutes.
+            Strict audit log with all 15 required Armorer fields including Serial Number, SecurityOfficer Name, Location, Firearm Serial, Ammunition Rounds, Signatures & Substitutes.
           </p>
         </div>
 
@@ -58,7 +58,7 @@ export const ArmouryDispatchTable: React.FC<ArmouryDispatchTableProps> = ({
           <thead>
             <tr className="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-600 border-y border-slate-200">
               <th className="py-3 px-3">SL No</th>
-              <th className="py-3 px-3">Name of Guard</th>
+              <th className="py-3 px-3">Name of Security Officer</th>
               <th className="py-3 px-3">Name of Location</th>
               <th className="py-3 px-3">Firearm Serial No</th>
               <th className="py-3 px-3">Rounds Out</th>
@@ -81,7 +81,7 @@ export const ArmouryDispatchTable: React.FC<ArmouryDispatchTableProps> = ({
                   {log.serialNumberLog}
                 </td>
                 <td className="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
-                  {log.guardName}
+                  {log.securityOfficerName}
                 </td>
                 <td className="py-3 px-3 text-slate-600 max-w-[160px] truncate" title={log.locationName}>
                   {log.locationName}

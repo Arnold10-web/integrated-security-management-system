@@ -115,6 +115,15 @@ export const StaffBiodataModal: React.FC<StaffBiodataModalProps> = ({ staff, onC
                 <SelectField label="Marital Status" value={String(f("maritalStatus") ?? "Single")} onChange={(v) => setForm({ ...form, maritalStatus: v })}
                   options={["Single", "Married", "Widowed", "Divorced"]} />
                 <InputField label="Education Level" value={String(f("educationLevel") ?? "")} onChange={(v) => setForm({ ...form, educationLevel: v })} />
+                <div className="col-span-2 pt-1">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Bank Detail Form (payroll)</p>
+                </div>
+                <InputField label="TIN" value={String(f("tin") ?? "")} onChange={(v) => setForm({ ...form, tin: v })} />
+                <InputField label="NSSF No." value={String(f("nssfNo") ?? "")} onChange={(v) => setForm({ ...form, nssfNo: v })} />
+                <InputField label="Account Name" value={String(f("bankAccountName") ?? "")} onChange={(v) => setForm({ ...form, bankAccountName: v })} />
+                <InputField label="Account Number" value={String(f("bankAccount") ?? "")} onChange={(v) => setForm({ ...form, bankAccount: v })} />
+                <InputField label="Bank Name" value={String(f("bankName") ?? "")} onChange={(v) => setForm({ ...form, bankName: v })} />
+                <InputField label="Branch" value={String(f("bankBranch") ?? "")} onChange={(v) => setForm({ ...form, bankBranch: v })} />
               </div>
             )}
 

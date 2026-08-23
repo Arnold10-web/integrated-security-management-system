@@ -15,7 +15,7 @@ export const DashboardClientSitesList: React.FC<DashboardClientSitesListProps> =
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-base font-bold text-slate-900">Deployed Client Sites & Service Status</h3>
-          <p className="text-xs text-slate-500">Active guard deployments, armed posture, and K9 requirements by site</p>
+          <p className="text-xs text-slate-500">Active security officer deployments, armed posture, and K9 requirements by site</p>
         </div>
         <button onClick={() => onNavigate("clients")} className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer">
           View All Sites &rarr;
@@ -34,8 +34,8 @@ export const DashboardClientSitesList: React.FC<DashboardClientSitesListProps> =
                 {s.location}
               </p>
               <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-slate-600">
-                <span>☀️ Day: <strong>{s.dayShiftGuards}</strong> <span className="text-emerald-600 font-semibold">({s.dayShiftArmed || 0} armed</span> / <span className="text-slate-500">{unarmed(s.dayShiftGuards, s.dayShiftArmed)} unarmed)</span></span>
-                <span>🌙 Night: <strong>{s.nightShiftGuards}</strong> <span className="text-emerald-600 font-semibold">({s.nightShiftArmed || 0} armed</span> / <span className="text-slate-500">{unarmed(s.nightShiftGuards, s.nightShiftArmed)} unarmed)</span></span>
+                <span>☀️ Day: <strong>{s.dayShiftSecurityOfficers}</strong> <span className="text-emerald-600 font-semibold">({s.dayShiftArmed || 0} armed</span> / <span className="text-slate-500">{unarmed(s.dayShiftSecurityOfficers, s.dayShiftArmed)} unarmed)</span></span>
+                <span>🌙 Night: <strong>{s.nightShiftSecurityOfficers}</strong> <span className="text-emerald-600 font-semibold">({s.nightShiftArmed || 0} armed</span> / <span className="text-slate-500">{unarmed(s.nightShiftSecurityOfficers, s.nightShiftArmed)} unarmed)</span></span>
                 {s.k9Required && (
                   <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
                     <Dog className="w-3 h-3" /> K9 Required
