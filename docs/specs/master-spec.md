@@ -782,7 +782,7 @@ The Digital Contracts module replaces the old HTML-based e-signature system with
 
 **Scanned old contracts:** Old paper contracts can be digitized by uploading scanned PDFs with `SCAN-YYYY-ABBREV-NNN` IDs.
 
-**Detailed documentation:** See `docs/DIGITAL_CONTRACTS.md`
+**Detailed documentation:** See `docs/modules/digital-contracts.md`
 
 ---
 
@@ -1477,11 +1477,11 @@ Implemented the final hardening phases (8–14) that make the system fully datab
 - **ID camera + holder signature pad**: Records Officer captures the ID holder's photo via web camera (`IdCaptureCamera`, getUserMedia) or upload, and the holder's signature via canvas signature pad (`SignaturePad`) before issuing the card; both persist to the guard record (`photoUrl`/`signatureUrl`); issuance requires both captures; the signature pad is for the ID holder only. Migration `20260802142702_id_holder_signature_capture`.
 - **Security fixes**: invalid/expired JWT now returns **401** (was 403); a global async-route safety net wraps every Express layer so rejected handler promises reach the 500 middleware instead of hanging the request (fixes P2025/P2002 hangs on `driver.approve` and duplicate-unique writes).
 - **Automated test suite (Vitest, 78 assertions, `npm test`)**: auth rejection (401) + invalid token, hardened security headers, module access matrix (least privilege — owner reads 200, outsider 403), deployment-order chain (Ops issues, RM fills, region mismatch blocked), driver licence approval (Ops blocked, Fleet passes gate + 404 on unknown driver), full client-contract approval chain (BD → Ops → Finance → GM → archive with per-step RBAC), recruitment HR-ownership (`GET /api/candidates` now module-gated), rider onboarding (Hired Rider candidate → pending Fleet Rider record carrying the captured Class A licence → Fleet Manager approval, retaining `roleType: "Rider"` and a uniform `PSG<YYY>/<SEQ>` force number unique company-wide), and full DB persistence across re-login. Tests clean up their own data (including linked driver records) and are repeatable. `tests/security-rbac.test.ts`, `tests/module-access.test.ts`, `vitest.config.ts`.
-- **Test login credentials** are documented in `TEST_LOGINS.md` (all seeded users share password `password123`).
+- **Test login credentials** are documented in `docs/test-logins.md` (all seeded users share password `password123`).
 
 ### 30.9 v2.7 — Documentation/System Alignment & Least-Privilege Hardening
 
-Brought the master constitution, `USER_TRAINING_MANUAL.md`, and `TEST_LOGINS.md` into agreement with the running system, and closed the documented security gaps that the system had not yet enforced. The system (code) was treated as the source of truth; where the constitution mandated a control the code lacked, the code was fixed to match:
+Brought the master constitution and `docs/test-logins.md` into agreement with the running system, and closed the documented security gaps that the system had not yet enforced. The system (code) was treated as the source of truth; where the constitution mandated a control the code lacked, the code was fixed to match:
 
 - **Model catalog corrected to 47**: §8.1, §8.2, and §14.1 now reflect the full 47-model schema. The §8.2 table was completed (added `VehicleTripLog`, `FuelLog`, `MaintenanceServiceLog`, `DailyVehicleInspection`, `FleetBreakdownEmergency`, `WorkflowStep`, `ApprovalAction`) and model names corrected to their real names (`Workflow` not `WorkflowDefinition`, `Document` not `DocumentRecord`).
 - **Dead `UserRole` Prisma enum removed**: roles are free-form strings on `User.role` validated against the 23-role `UserRole` union in `src/types.ts`. The legacy enum values (`Marketing_Supervisor`, `Assistant_Accountant_1/2`) were dead code and are gone from `prisma/schema.prisma` and the generated client (Prisma validate + generate pass; §8.2, §8.7).
@@ -1490,8 +1490,8 @@ Brought the master constitution, `USER_TRAINING_MANUAL.md`, and `TEST_LOGINS.md`
 - **Module map aligned**: HR roles (`HR Manager`, `HR Assistant`, `Records Officer`) now include the `documents` module in `src/constants/modules.ts`, matching the server's `MODULE_PERMISSIONS` and the manual. "BDO" step labels replaced with "Business Development" in the contracts UI.
 - **Leave final approver clarified**: the code allows **HR Manager or HR Assistant** to give the final leave approval (`PUT /api/leave-requests/:id/hr-approve`); §4.2/§5.5/§6 of the manual and §28.4/§28.10 of the constitution updated accordingly. Operations Manager is a chain step, not the leave final approver (incidents: Operations closes escalated ones).
 - **Document Management access narrowed**: §2.2/§5.21 of the manual and §28.10 now state that Document Management is held by Directorate, HR roles, and IT Officer (not "all staff").
-- **Deletion scope corrected**: §9.7 and `TEST_LOGINS.md` no longer claim "no delete anywhere" — contracts and guards remain void/archive-only, but 15 supporting-record DELETE endpoints exist (trips, patrol inspections, roster, requisitions, cohorts, trainees, IT servers/tickets/assets, K9s, K9 health, armoury, regions, documents, custom roles).
-- **`TEST_LOGINS.md` corrected**: Ivan Ssebana is **Business Development Manager** (not BDO); added **Kenneth Tumusiime** (Sales and Marketing Supervisor, Mbarara); delete claim fixed.
+- **Deletion scope corrected**: §9.7 and `docs/test-logins.md` no longer claim "no delete anywhere" — contracts and guards remain void/archive-only, but 15 supporting-record DELETE endpoints exist (trips, patrol inspections, roster, requisitions, cohorts, trainees, IT servers/tickets/assets, K9s, K9 health, armoury, regions, documents, custom roles).
+- **`docs/test-logins.md` corrected**: Ivan Ssebana is **Business Development Manager** (not BDO); added **Kenneth Tumusiime** (Sales and Marketing Supervisor, Mbarara); delete claim fixed.
 - **Roadmap de-duplicated**: the "Performance Management" row was removed from §8.9 Phase 2 (delivered in v2.6, already marked DONE in §8.8).
 - **Tests**: `npm run lint` (tsc --noEmit) clean; `npm test` 78/78 passing (module-access matrix, RBAC, persistence).
 
@@ -1504,7 +1504,7 @@ Implemented the six root-level `.txt` form documents into the system (migration 
 - **Leave form**: `LeaveRequest` gained `contactAddress`, `entitlement/taken/balance`, `resumptionDate`, `gmApprovedBy`; leaveType union expanded to **10 types** (added Unpaid, Paternity, Maternity, Compensatory, Study). The chain is now Guard → Regional Manager → Operations Manager → **HR Manager/HR Assistant (records entitlement + resumption, forwards)** → **General Manager/Director (GM Final Approve)**. New statuses `Pending Ops Approval` and `Pending GM Approval`; new route `PUT /api/leave-requests/:id/gm-approve` (GM/Director only, guarded to the `Pending GM Approval` stage); `hr-approve` retargeted to forward to GM; reject allowlist now includes GM/Director.
 - **Charge sheet form**: `DisciplinaryAction` gained `offenceCategory` (Category 1 / Category 2), `offence`, `offenceDate`, `offenceTime`, `zone`, `actionTaken`. The Governance charge sheet lists **13 Category 1 offences** and **17 Category 2 offences** (`CATEGORY_1_OFFENCES` / `CATEGORY_2_OFFENCES` in `GovernancePanels.tsx`); the create form drives the offence dropdown from the selected category and the action card shows the category/offence/date/zone/action-taken.
 - **Salary advance form**: `CashierTransaction` gained `phone`, `signatureUrl` (typed signature), `notes`. `CashierDisbursementModal` shows a Salary Advance register block (phone, typed signature, notes); `CashierTransactionsTable` displays them. Simple register capture — no new approval chain (per user decision).
-- **Docs**: `USER_TRAINING_MANUAL.md` §4.1/§4.2/§5.5/§5.7/§5.13 and §8.2/§28 of this constitution updated for the GM leave step, 10 leave types, charge sheet, interview scoring, biodata/bank capture, and salary advance register.
+- **Docs**: §8.2/§28 of this constitution updated for the GM leave step, 10 leave types, charge sheet, interview scoring, biodata/bank capture, and salary advance register.
 - **Tests**: `npm run lint` clean; `npm test` 78/78 passing; `npx prisma validate` clean; end-to-end smoke test verified the full leave chain (Regional → Ops → HR → GM) plus GM-approve ACL (HR rejected with 403; stage guard rejects premature GM approval with 400).
 
 ### 30.11 v2.8 — Investigations Split Into an Independent Department
@@ -1516,7 +1516,7 @@ Per user direction, the Investigations Department is now **independent** — it 
 - New `InvestigationsPage` (`src/pages/ModulePages.tsx`): `OrgHierarchyPanel` for INVESTIGATIONS, an **"Independent Department"** banner, a grid with `DisciplinaryPanel` + `ComplaintsPanel`, and `IncidentsView` (the Incident Logbook).
 - Access maps: Operations Manager and Regional Manager keep `investigations` in their allowed module ids (shared visibility for escalation/approval); **Investigations Officer now has only `["investigations"]`** (`rbacService.ts`, `SystemWalkthroughModal.tsx` jump, `UserRolesView.tsx` "Investigations Department" role group, `AddUserModal.tsx`/`EditUserModal.tsx` department option + auto-set).
 - Seed + live DB: Investigations Officer user (Henry Kiyingi, `henry.kiyingi@iscms.ug`) department set to **"Investigations"**.
-- Docs updated: `USER_TRAINING_MANUAL.md` (module table, §3/§4.4b Investigations, §5.6) and §7.4/§7.4b/§8.2/§28.6/§28.6b of this constitution; `npm run lint` clean.
+- Docs updated: §7.4/§7.4b/§8.2/§28.6/§28.6b of this constitution; `npm run lint` clean.
 
 ### 30.12 v2.8 — Clickable Region Dashboards
 
@@ -1600,7 +1600,7 @@ Per client feedback, this release (a) fixed the wrong-dashboard-on-login edge ca
 
 ### 30.15 v3.1 — PDF Letterhead, Category 3 Fines, Staff Bank Details, Acting-Privilege Fix & Salary Advance Register
 
-Feature batch of 2026-08-23 (full session detail in `SESSION_LOG_2026-08-23.md`; workplan Part 6):
+Feature batch of 2026-08-23 (workplan Part 6):
 
 - **Company logo on generated PDFs**: `public/logo.png` (512×512 shield/crest placeholder in brand colours — replace the file to rebrand every document) and a `drawPdfHeader(doc, title)` helper in `server.ts` that stamps logo + company letterhead + centred title on both the disciplinary **charge sheet** and the **employment contract** PDFs.
 - **Category 3 offences with fines**: `DisciplinaryAction` gained `fineAmountUgx Int?` and `receivedBy String?` alongside an extended `offenceCategory` ("Category 3" = minor infractions: late reporting, improper uniform, sleeping on duty, phone on duty, lost ID card, etc.). The Investigations Officer captures category/fine/receiver at initiation; HR can set them at finalize; the charge sheet PDF renders an Offence Classification line plus a bordered **Fine Imposed** box and Received By line. Same approval chain as other warnings (`Initiated → Pending Ops Approval → Pending HR Approval → Finalized`). Migration `20260823090000_disciplinary_category3_fines`.

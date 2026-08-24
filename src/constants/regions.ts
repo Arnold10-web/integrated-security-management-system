@@ -1,7 +1,7 @@
 /**
  * Canonical company regions for ISCMS.
  * Order is intentional and must be preserved in UI dropdowns and reports.
- * Source: Integrated Security Company.md (conversation-derived regions list).
+ * Source: docs/specs/master-spec.md (conversation-derived regions list).
  */
 
 export const UGANDA_REGIONS = [

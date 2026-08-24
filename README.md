@@ -15,3 +15,12 @@
    `npm run seed`
 3. Run the app:
    `npm run dev`
+
+## Documentation
+
+See [`docs/README.md`](docs/README.md) for the full index. Start with:
+
+- `docs/specs/implementation-lockdown-spec.md` — source of truth for system behaviour (RBAC, workflows)
+- `docs/specs/master-spec.md` — master constitution: requirements, architecture, implementation record
+- `docs/test-logins.md` — seeded test accounts
+- `deploy/DEPLOY.md` — UAT deployment on the in-house server

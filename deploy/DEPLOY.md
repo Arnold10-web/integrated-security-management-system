@@ -96,7 +96,7 @@ sudo nginx -t && sudo systemctl reload nginx
 Open the server IP in a browser on the LAN — e.g. `http://192.168.x.x`
 (or the nginx hostname from `deploy/nginx-iscms.conf`).
 
-Test logins are in `TEST_LOGINS.md` (all share password `password123`).
+Test logins are in [`docs/test-logins.md`](../docs/test-logins.md) (all share password `password123`).
 
 ## Notes
 

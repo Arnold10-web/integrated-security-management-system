@@ -26,7 +26,7 @@ require('dotenv').config();
       console.log(role + ': ' + roleUsers.length + ' users');
     });
     
-    console.log('\n=== TEST_LOGINS.MD DOCUMENTED ROLES vs ACTUAL ===');
+    console.log('\n=== docs/test-logins.md documented roles vs ACTUAL ===');
     const testLoginsRoles = [
       'General Manager', 'Director', 'HR Manager', 'HR Assistant', 'Records Officer',
       'Business Development Manager', 'Sales and Marketing Supervisor', 'Operations Manager',
@@ -48,7 +48,7 @@ require('dotenv').config();
       }
     });
     
-    console.log('\nSummary: ' + missingCount + ' roles from TEST_LOGINS.md not found in database');
+    console.log('\nSummary: ' + missingCount + ' roles from docs/test-logins.md not found in database');
     
   } finally {
     await prisma.$disconnect();

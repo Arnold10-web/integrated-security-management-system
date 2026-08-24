@@ -1,6 +1,6 @@
 # ISCMS — Implementation Lockdown Spec
 
-**Purpose:** This is the single, final source of truth for how ISCMS is *supposed* to behave — organizational structure, RBAC, and every workflow chain — reconciled against the current build. It supersedes anything in the existing project docs (`Integrated Security Company.md`, `PROJECT_REVIEW_AND_WORKPLAN.md`, etc.) where they conflict with what's below. Written to be handed directly to whoever (human or AI agent) implements the remaining fixes before Monday's UAT.
+**Purpose:** This is the single, final source of truth for how ISCMS is *supposed* to behave — organizational structure, RBAC, and every workflow chain — reconciled against the current build. It supersedes anything in the existing project docs (`docs/specs/master-spec.md`, `docs/specs/project-review-and-workplan.md`, etc.) where they conflict with what's below. Written to be handed directly to whoever (human or AI agent) implements the remaining fixes before Monday's UAT.
 
 Each section states the **rule**, then, where relevant, a **Known Gap** — what the current build (per the project status doc reviewed this session) actually does instead, so implementation effort goes to the right place first.
 
