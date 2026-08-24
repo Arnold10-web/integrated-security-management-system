@@ -424,7 +424,7 @@ function getAllowedModuleIdsByRole(role: UserRole): string[] {
   switch (role) {
     case "General Manager":
     case "Director":
-      return ["dashboard", "reports", "esign"];
+      return ["dashboard", "reports", "esign", "fleet_requests"];
 
     case "HR Manager":
       return ["hr_register", "hr_leave", "hr_appraisals", "hr_contracts", "hr_remittances", "hr_staff", "hr_payroll", "disciplinary", "recruitment"];

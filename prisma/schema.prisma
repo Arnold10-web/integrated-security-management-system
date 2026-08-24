@@ -239,6 +239,7 @@ model SecurityOfficer {
   armedQualified           Boolean                       @default(false)
   k9Qualified              Boolean                       @default(false)
   joinDate                 DateTime                      @default(now())
+  passedOutDate            DateTime?
   region                   String?
   zone                     String?
   warningLettersCount      Int                           @default(0)
@@ -733,6 +734,7 @@ model Incident {
   description               String
   status                    IncidentStatus @default(Open)
   evidenceAttached          Boolean        @default(false)
+  resolvedAt                DateTime?
   createdAt                 DateTime       @default(now())
   updatedAt                 DateTime       @updatedAt
 
@@ -984,9 +986,10 @@ model RecruitTrainee {
   drillScore          Float    @default(0)
   marksmanshipScore   Float    @default(0)
   theoryScore         Float    @default(0)
-  overallStatus       String   @default("Under Training")
+  overallStatus       String   @default("Awaiting Reception")
   assignedForceNumber String?
   dateGraduated       String?
+  receptionDate       String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

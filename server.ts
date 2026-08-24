@@ -1302,7 +1302,9 @@ app.delete("/api/auth/users/:id/acting", authenticateToken, requireModuleAccess(
 /* ─────────────── CRUD: Security Officers ─────────────── */
 
 const SECURITY_OFFICER_CREATORS = ["HR Manager", "HR Assistant"];
-const SECURITY_OFFICER_LIFECYCLE_ROLES = ["Operations Manager", "Regional Manager", "HR Manager", "HR Assistant"];
+// Training Officer is lifecycle-aware: receives HANDED_TO_OPERATIONS recruits
+// into IN_TRAINING and marks them PASSED_OUT (never create/terminate/deploy).
+const SECURITY_OFFICER_LIFECYCLE_ROLES = ["Operations Manager", "Regional Manager", "HR Manager", "HR Assistant", "Training Officer"];
 const SECURITY_OFFICER_ID_FIELDS = ["idCardStatus", "idCardNumber", "idCardIssuedDate", "idCardExpiryDate", "idCardIssuerName", "idCardIssuerSignatureUrl", "photoUrl", "signatureUrl"];
 
 /* The UI sends human-readable designations ("K9 Handler", "Site In-Charge")
@@ -1483,6 +1485,8 @@ app.put("/api/security-officers/:id/lifecycle", authenticateToken, async (req, r
     terminationDate: z.string().optional(),
     terminationCategory: z.enum(["Terminated", "Suspended", "Deserted"]).optional(),
     desertionNotes: z.string().optional(),
+    passedOutDate: z.string().optional(),
+    certifications: z.array(z.string()).optional(),
   }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
@@ -1491,7 +1495,18 @@ app.put("/api/security-officers/:id/lifecycle", authenticateToken, async (req, r
   if (parsed.data.lifecycleStage && !parsed.data.stage) {
     parsed.data.stage = parsed.data.lifecycleStage;
   }
-  const { terminationCategory, terminationReason, desertionNotes, stage, ...rest } = parsed.data;
+  const { terminationCategory, terminationReason, desertionNotes, stage, passedOutDate, ...rest } = parsed.data;
+  // Training Officer scope: may only move recruits INTO training and mark them
+  // PASSED_OUT. Every other transition (hand-over, deploy, termination) stays
+  // with Operations/HR.
+  if (hasEffectiveRole(user, "Training Officer") && !SECURITY_OFFICER_CREATORS.some((r) => hasEffectiveRole(user, r))) {
+    const allowed = stage === "IN_TRAINING" || stage === "PASSED_OUT";
+    const touchesOnlyLifecycle = Object.keys(rest).every((k) => k === "passedOutDate" || k === "status" || k === "certifications");
+    if (!allowed || !touchesOnlyLifecycle || terminationCategory) {
+      res.status(403).json({ error: "Training Officer can only receive recruits into training or mark them passed out" });
+      return;
+    }
+  }
   if (terminationCategory) {
     if (terminationCategory === "Terminated" && !hasEffectiveRole(user, "HR Manager")) {
       res.status(403).json({ error: "Only the HR Manager can record a termination (final disciplinary step)" });
@@ -1512,6 +1527,9 @@ app.put("/api/security-officers/:id/lifecycle", authenticateToken, async (req, r
     data: {
       ...rest,
       ...(stage ? { lifecycleStage: stage } : {}),
+      ...(stage === "PASSED_OUT" || passedOutDate
+        ? { passedOutDate: passedOutDate ? new Date(passedOutDate) : existingOfficer.passedOutDate ?? new Date() }
+        : {}),
       ...(terminationCategory ? {
         status: terminationCategory,
         terminationReason,
@@ -2150,7 +2168,10 @@ app.put("/api/incidents/:id/investigate", authenticateToken, async (req, res) =>
     return;
   }
   const { id } = req.params;
-  const incident = await prisma.incident.update({ where: { id }, data: { status: "UnderInvestigation" } });
+  const resolvedAt = typeof (req.body as any)?.resolvedAt === "string" && !isNaN(Date.parse((req.body as any).resolvedAt))
+    ? new Date((req.body as any).resolvedAt)
+    : new Date();
+  const incident = await prisma.incident.update({ where: { id }, data: { status: "Resolved", resolvedAt } });
   res.json(incident);
 });
 
@@ -3359,7 +3380,7 @@ app.delete("/api/cohorts/:id", authenticateToken, requireModuleAccess("training"
   res.json({ ok: true });
 });
 
-const TRAINEE_KEYS = ["fullName", "nationalIdNumber", "age", "cohortId", "cohortName", "assignedRegion", "drillScore", "marksmanshipScore", "theoryScore", "overallStatus", "assignedForceNumber", "dateGraduated"];
+const TRAINEE_KEYS = ["fullName", "nationalIdNumber", "age", "cohortId", "cohortName", "assignedRegion", "drillScore", "marksmanshipScore", "theoryScore", "overallStatus", "receptionDate", "assignedForceNumber", "dateGraduated"];
 
 app.get("/api/trainees", authenticateToken, requireModuleAccess("training"), async (_req, res) => {
   const rows = await prisma.recruitTrainee.findMany({ orderBy: { createdAt: "desc" } });

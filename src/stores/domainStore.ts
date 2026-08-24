@@ -551,9 +551,25 @@ export const useDomainStore = create<DomainState>((set, get) => ({
 
   moveSecurityOfficerLifecycle: (forceNumber, updates) => {
     set((s) => ({
-      securityOfficers: s.securityOfficers.map((g) => (g.id === forceNumber ? { ...g, ...updates } : g)),
+      securityOfficers: s.securityOfficers.map((g) =>
+        g.id === forceNumber
+          ? {
+              ...g,
+              ...updates,
+              passedOutDate:
+                updates.lifecycleStage === "PASSED_OUT" && !g.passedOutDate
+                  ? new Date().toISOString().split("T")[0]
+                  : g.passedOutDate,
+            }
+          : g
+      ),
     }));
-    syncApi("put", `/security-officers/${forceNumber}/lifecycle`, updates);
+    const passedOutToday = new Date().toISOString().split("T")[0];
+    syncApi(
+      "put",
+      `/security-officers/${forceNumber}/lifecycle`,
+      updates.lifecycleStage === "PASSED_OUT" ? { ...updates, passedOutDate: updates.passedOutDate ?? passedOutToday } : updates
+    );
     const detail = updates.terminationCategory
       ? `Security Officer ${forceNumber} ${updates.terminationCategory.toLowerCase()} — reason: ${updates.terminationReason}`
       : `Security Officer ${forceNumber} lifecycle → ${updates.lifecycleStage ?? updates.status ?? "updated"}`;
@@ -967,10 +983,11 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   },
 
   resolveIncident: (incId, resolutionNotes) => {
+    const resolvedAt = new Date().toISOString();
     set((s) => ({
-      incidents: s.incidents.map((i) => (i.id === incId ? { ...i, status: "Resolved", resolvedBy: actor()?.name, resolutionNotes } : i)),
+      incidents: s.incidents.map((i) => (i.id === incId ? { ...i, status: "Resolved", resolvedBy: actor()?.name, resolvedAt, resolutionNotes } : i)),
     }));
-    syncApi("put", `/incidents/${incId}/resolve`, {});
+    syncApi("put", `/incidents/${incId}/resolve`, { resolvedAt });
     audit("Incident Resolved", `Resolved incident ID ${incId}: ${resolutionNotes}`, "Incident Operations");
     notif("success", "Incident Resolved", `Incident ${incId} closed: ${resolutionNotes}`, "Operations");
   },

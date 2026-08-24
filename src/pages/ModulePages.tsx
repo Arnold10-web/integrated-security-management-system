@@ -10,13 +10,10 @@ import { useAuthStore } from "../stores/authStore";
 import { useDomainStore } from "../stores/domainStore";
 import { useAuditStore } from "../stores/auditStore";
 import { getModuleById, getDefaultPathForRole } from "../constants/modules";
-import { RegionsPanel } from "../components/ui/RegionsPanel";
 import { RegionDashboardView } from "../components/views/RegionDashboardView";
 
-import { DashboardView } from "../components/views/DashboardView";
 import { OperationsWorkspaceView } from "../components/views/OperationsWorkspaceView";
 import { ContractInquiryPanel } from "../components/views/ContractInquiryPanel";
-import { GeneralManagerWorkspaceView } from "../components/views/GeneralManagerWorkspaceView";
 import { IncidentsView } from "../components/views/IncidentsView";
 import { SecurityOfficersHRView } from "../components/views/SecurityOfficersHRView";
 import { MyLeaveSection } from "../components/organisms/MyLeaveSection";
@@ -31,6 +28,8 @@ import { RecordsIdentityView } from "../components/views/RecordsIdentityView";
 import { FleetManagerWorkspaceView, InvestigationsWorkspace } from "../components/views/WorkspaceStrips";
 import { MarketingWorkspaceStrip, FinanceWorkspaceStrip, AdministrationWorkspaceStrip } from "../components/views/DeptOverhauls";
 import { SecurityOfficerPortalView } from "../components/views/SecurityOfficerPortalView";
+import { ExecutiveDashboardView } from "../components/views/executive/ExecutiveDashboardView";
+import { WorkforceAnalyticsPanel, OpsIncidentAgingPanel } from "../components/views/executive/DepartmentalPanels";
 import { LoginView } from "../components/views/LoginView";
 import { ReportsView } from "../components/views/ReportsView";
 import { RecruitmentView } from "../components/views/RecruitmentView";
@@ -43,11 +42,11 @@ import {
   DisciplinaryPanel,
   CampaignBudgetPanel,
   SecurityOfficerAvailabilityByRegion,
-  CorporateGovernancePanel,
 } from "../components/views/GovernancePanels";
 import { ArmouryView } from "../components/views/ArmouryView";
 import { K9UnitView } from "../components/views/K9UnitView";
-import { TrainingSchoolView } from "../components/views/TrainingSchoolView";
+import { TrainingSchoolWorkspace } from "../components/views/TrainingSchoolWorkspace";
+import { TransportRequestSelfService } from "../components/views/TransportRequestSelfService";
 import type { UserRole } from "../types";
 import { getEffectiveRole } from "../services/rbacService";
 
@@ -57,70 +56,18 @@ function useActiveRole(): UserRole | null {
 }
 
 export const DirectoratePage: React.FC = () => {
-  const navigate = useNavigate();
   const activeRole = useActiveRole();
-  const domain = useDomainStore();
-  const auditLogs = useAuditStore((s) => s.logs);
-
-  return (
-    <div className="space-y-6">
-      <GeneralManagerWorkspaceView />
-      <ContractInquiryPanel />
-      <CorporateGovernancePanel />
-      <RegionsPanel
-        offices={domain.regionalOffices}
-        title="National Coverage — Operating Regions"
-        onRegionClick={(regionName) => navigate(`/operations/regions/${encodeURIComponent(regionName)}`)}
-      />
-      <DashboardView
-        securityOfficers={domain.securityOfficers}
-        sites={domain.sites}
-        incidents={domain.incidents}
-        auditLogs={auditLogs}
-        activeRole={activeRole}
-        onNavigate={(tabId) => {
-          const mod = getModuleById(tabId);
-          if (mod) navigate(mod.path);
-        }}
-        armoury={domain.armoury}
-        k9s={domain.k9s}
-        invoices={domain.invoices}
-      />
-    </div>
-  );
+  if (!activeRole) return null;
+  return <ExecutiveDashboardView activeRole={activeRole} />;
 };
 
 export const OperationsPage: React.FC = () => {
   const activeRole = useActiveRole();
   const domain = useDomainStore();
-  const users = useAuthStore((s) => s.users);
-
-  const existingForceNumbers = React.useMemo(
-    () => [
-      ...domain.securityOfficers.map((g) => g.forceNumber),
-      ...domain.drivers.map((d) => d.forceNumber || d.driverCode),
-      ...users.map((u) => u.forceNumber || "").filter(Boolean),
-    ],
-    [domain.securityOfficers, domain.drivers, users]
-  );
 
   return (
     <div className="space-y-6">
-      {activeRole === "Training Officer" && (
-        <TrainingSchoolView
-          cohorts={domain.trainingCohorts}
-          trainees={domain.recruitTrainees}
-          activeRole={activeRole}
-          onAddCohort={domain.addCohort}
-          onUpdateCohort={domain.updateCohort}
-          onDeleteCohort={domain.deleteCohort}
-          onAddTrainee={domain.addTrainee}
-          onUpdateTrainee={domain.updateTrainee}
-          onDeleteTrainee={domain.deleteTrainee}
-          onGraduateTrainee={domain.graduateTrainee}
-          existingForceNumbers={existingForceNumbers}
-        />
-      )}
+      {activeRole === "Training Officer" && <TrainingSchoolWorkspace />}
       {activeRole === "Armorer" && (
         <ArmouryView
           items={domain.armoury}
@@ -152,7 +99,10 @@ export const OperationsPage: React.FC = () => {
         />
       )}
       {activeRole !== "Training Officer" && activeRole !== "Armorer" && activeRole !== "K9 Supervisor" && activeRole !== "K9 Handler" && (
-        <OperationsWorkspaceView />
+        <>
+          {(activeRole === "Operations Manager" || activeRole === "Regional Manager") && <OpsIncidentAgingPanel />}
+          <OperationsWorkspaceView />
+        </>
       )}
     </div>
   );
@@ -370,6 +320,7 @@ export const HRPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <ActingRequestPanel />
+      {activeRole === "HR Manager" && <WorkforceAnalyticsPanel />}
       <SecurityOfficersHRView
       securityOfficers={domain.securityOfficers}
       activeRole={activeRole}
@@ -641,7 +592,13 @@ export const FleetFuelPage: React.FC = () => <FleetViewWithTab initialTab="fuel"
 export const FleetMaintenancePage: React.FC = () => <FleetViewWithTab initialTab="maintenance" />;
 export const FleetDriversPage: React.FC = () => <FleetViewWithTab initialTab="drivers" />;
 export const FleetInspectionsPage: React.FC = () => <FleetViewWithTab initialTab="inspections" />;
-export const FleetRequestsPage: React.FC = () => <FleetViewWithTab initialTab="requests" />;
+export const FleetRequestsPage: React.FC = () => {
+  const activeRole = useActiveRole();
+  if (activeRole === "General Manager" || activeRole === "Director") {
+    return <TransportRequestSelfService />;
+  }
+  return <FleetViewWithTab initialTab="requests" />;
+};
 export const FleetBreakdownsPage: React.FC = () => <FleetViewWithTab initialTab="breakdowns" />;
 export const FleetGpsPage: React.FC = () => <FleetViewWithTab initialTab="gps" />;
 

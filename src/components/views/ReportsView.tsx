@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { Download, FileSpreadsheet } from "lucide-react";
 import type { SecurityOfficer, ClientSite, Incident, Vehicle, Invoice, Expense, LeaveRequest, PerformanceReviewRecord } from "../../types";
+import { ExecutiveSummarySection } from "./executive/ExecutiveSummarySection";
 
 interface ReportsViewProps {
   securityOfficers: SecurityOfficer[];
@@ -130,6 +131,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       </div>
 
+      <ExecutiveSummarySection />
       <div className="grid grid-cols-5 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Total Security Officers</span>

@@ -195,6 +195,7 @@ export interface SecurityOfficer {
   armedQualified: boolean;
   k9Qualified: boolean;
   joinDate: string;
+  passedOutDate?: string;
   warningLettersCount: number;
   certifications: string[];
 
@@ -728,6 +729,7 @@ export interface Incident {
   investigatedBy?: string;
   escalatedBy?: string;
   resolvedBy?: string;
+  resolvedAt?: string;
   resolutionNotes?: string;
 }
 
@@ -1032,7 +1034,15 @@ export interface RecruitTrainee {
   drillScore: number; // 0-100
   marksmanshipScore: number; // 0-100
   theoryScore: number; // 0-100
-  overallStatus: "Graduated & Certified" | "Under Training" | "Deferred" | "Disqualified";
+  overallStatus:
+    | "Graduated & Certified"
+    | "Under Training"
+    | "Awaiting Reception"
+    | "Ready for Pass-Out"
+    | "Deferred"
+    | "Disqualified";
+  /** Day the Training Officer received & admitted the recruit (pipeline intake). */
+  receptionDate?: string;
   assignedForceNumber?: string;
   dateGraduated?: string;
 }

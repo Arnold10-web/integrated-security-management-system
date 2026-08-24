@@ -6,6 +6,9 @@ import {
 import { getAccessToken } from "../../services/apiClient";
 import { SimpleTemplateUploader } from "../organisms/SimpleTemplateUploader";
 import { DigitalContractWizard } from "../organisms/DigitalContractWizard";
+import { useAuthStore } from "../../stores/authStore";
+import { getEffectiveRole } from "../../services/rbacService";
+import type { UserRole } from "../../types";
 
 type DigitalTemplate = {
   id: string;
@@ -42,11 +45,15 @@ type DigitalContract = {
 type ViewMode = "list" | "create-template" | "create-contract";
 
 export const DigitalContractsView: React.FC = () => {
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const activeRole: UserRole | null = currentUser ? getEffectiveRole(currentUser) : null;
+  const executiveOnly = activeRole === "General Manager" || activeRole === "Director";
+  const isRecordsOfficer = activeRole === "Records Officer";
   const [templates, setTemplates] = useState<DigitalTemplate[]>([]);
   const [contracts, setContracts] = useState<DigitalContract[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"templates" | "contracts">("templates");
+  const [activeTab, setActiveTab] = useState<"templates" | "contracts">(executiveOnly ? "contracts" : "templates");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [scanModal, setScanModal] = useState(false);
   const [scanFile, setScanFile] = useState<File | null>(null);
@@ -307,12 +314,14 @@ export const DigitalContractsView: React.FC = () => {
           <button onClick={fetchAll} className="px-3 py-2 bg-white text-slate-900 rounded-lg text-xs font-semibold">
             Refresh
           </button>
-          <button
-            onClick={() => setScanModal(true)}
-            className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1"
-          >
-            <Upload className="w-3 h-3" /> Upload Scanned
-          </button>
+          {isRecordsOfficer && (
+            <button
+              onClick={() => setScanModal(true)}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1"
+            >
+              <Upload className="w-3 h-3" /> Upload Scanned
+            </button>
+          )}
         </div>
       </div>
 
@@ -325,23 +334,25 @@ export const DigitalContractsView: React.FC = () => {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveTab("templates")}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold ${activeTab === "templates" ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-700"}`}
-        >
-          <FileText className="w-3 h-3 inline mr-1" /> Templates ({templates.length})
-        </button>
-        <button
-          onClick={() => setActiveTab("contracts")}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold ${activeTab === "contracts" ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-700"}`}
-        >
-          <Clock className="w-3 h-3 inline mr-1" /> Contracts ({contracts.length})
-        </button>
-      </div>
+      {!executiveOnly && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab("templates")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${activeTab === "templates" ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-700"}`}
+          >
+            <FileText className="w-3 h-3 inline mr-1" /> Templates ({templates.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("contracts")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${activeTab === "contracts" ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-700"}`}
+          >
+            <Clock className="w-3 h-3 inline mr-1" /> Contracts ({contracts.length})
+          </button>
+        </div>
+      )}
 
       {/* Templates Tab */}
-      {activeTab === "templates" && (
+      {activeTab === "templates" && !executiveOnly && (
         <div className="space-y-4">
           {/* Company Stamp Section */}
           <CompanyStampSection headers={headers} />
@@ -420,12 +431,14 @@ export const DigitalContractsView: React.FC = () => {
               <h3 className="font-bold text-sm">Digital Contracts</h3>
               <p className="text-xs text-slate-600 mt-1">Contracts created from templates with secure sequential signing.</p>
             </div>
-            <button
-              onClick={() => setViewMode("create-contract")}
-              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1"
-            >
-              <Plus className="w-3 h-3" /> New Contract
-            </button>
+            {!executiveOnly && (
+              <button
+                onClick={() => setViewMode("create-contract")}
+                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> New Contract
+              </button>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -474,7 +487,7 @@ export const DigitalContractsView: React.FC = () => {
                           <CheckCircle className="w-3 h-3" /> Approve
                         </button>
                       )}
-                      {c.status === "PendingSigning" && (
+                      {c.status === "PendingSigning" && !executiveOnly && (
                         <button
                           onClick={() => setSendModal(c)}
                           className="px-2 py-1 bg-cyan-600 text-white rounded-lg text-[11px] inline-flex items-center gap-1"
@@ -490,7 +503,7 @@ export const DigitalContractsView: React.FC = () => {
                           <Download className="w-3 h-3" /> PDF
                         </button>
                       )}
-                      {!c.isArchived && c.status !== "Draft" && (
+                      {isRecordsOfficer && !c.isArchived && c.status !== "Draft" && (
                         <button
                           onClick={() => handleArchive(c.id)}
                           className="px-2 py-1 bg-amber-600 text-white rounded-lg text-[11px] inline-flex items-center gap-1"
