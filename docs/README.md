@@ -6,11 +6,10 @@ Project documentation for the Integrated Security Company Management System.
 
 | Document | Purpose |
 |---|---|
-| [`implementation-lockdown-spec.md`](specs/implementation-lockdown-spec.md) | **Single source of truth** for how ISCMS is supposed to behave — org structure, RBAC, and every workflow chain. Supersedes the other specs where they conflict. |
-| [`master-spec.md`](specs/master-spec.md) | Master project constitution: requirements, architecture, data model, API surface, role-level access, implementation record (§30 changelog). |
+| [`master-spec.md`](specs/master-spec.md) | Master project constitution: requirements, architecture, data model, API surface, role-level access matrix (§28), build record (§30) — **plus the Implementation Lockdown Spec (Part II, §§31–45), the authoritative behavioural source of truth** for org structure, RBAC, and workflow chains. |
 | [`project-review-and-workplan.md`](specs/project-review-and-workplan.md) | Consolidated code review + role-centric workspace & workflow blueprint with implementation history (Parts 1–6). |
 
-**Precedence:** lockdown spec > master spec > workplan.
+**Precedence:** within `master-spec.md`, §§31–45 override earlier sections; master-spec overrides the workplan.
 
 ## Modules (`modules/`)
 
@@ -37,3 +36,4 @@ Project documentation for the Integrated Security Company Management System.
 
 - Filenames are kebab-case.
 - Historical session logs were removed from the repo; the durable outcome of each batch lives in `specs/master-spec.md` §30 and `specs/project-review-and-workplan.md`.
+- **Terminology (v3.3):** personnel records formerly called "guards" are **Security Officers** platform-wide (model `SecurityOfficer`, key `forceNumber`, role `Security Officer`). Dated documents may retain the legacy term as historical wording.

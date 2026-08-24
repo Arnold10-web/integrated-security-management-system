@@ -685,7 +685,7 @@ describe("RBAC — Driver Licence Approvals", () => {
 });
 
 /* ─────────── RBAC: Contracts approval chain (Marketing drafts → GM sole approval, no threshold, no Finance step) ─────────── */
-/* Spec (docs/specs/implementation-lockdown-spec.md §6): Marketing drafts the client contract, General Manager is the sole approver for ALL client contracts with no amount threshold. Finance and BDM are not approvers. OM is out of contract approval entirely — site-survey support only. */
+/* Spec (docs/specs/master-spec.md §37): Marketing drafts the client contract, General Manager is the sole approver for ALL client contracts with no amount threshold. Finance and BDM are not approvers. OM is out of contract approval entirely — site-survey support only. */
 
 describe("RBAC — Contract Approval Chain", () => {
   let contractId: string | null = null;

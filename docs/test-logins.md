@@ -88,4 +88,4 @@ App URL: `http://localhost:3000` (start with `npm run dev`)
 - Statuses `Expiring Soon` / `Expired` update automatically from `endDate`.
 - Records Officer can archive but **cannot** approve, void, edit, or delete contracts.
 - BDM cannot approve beyond its own step; HR Assistant cannot issue staff contracts.
-- Contracts and guards are **void/archive-only** (no hard delete). Hard delete exists on supporting records only: trips, patrol inspections, roster entries, requisitions, training cohorts, trainees, IT servers/tickets/assets, K9s, K9 health inspections, armoury items, regions, documents, and custom roles.
+- Contracts and security officers are **void/archive-only** (no hard delete). Hard delete exists on supporting records only: trips, patrol inspections, roster entries, requisitions, training cohorts, trainees, IT servers/tickets/assets, K9s, K9 health inspections, armoury items, regions, documents, and custom roles.

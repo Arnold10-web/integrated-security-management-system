@@ -42,7 +42,7 @@ export const DigitalContractWizard: React.FC<ContractCreationWizardProps> = ({ o
 
   // Service Details (APPENDIX A)
   const [serviceLocation, setServiceLocation] = useState("");
-  const [serviceDescription, setServiceDescription] = useState("Security security officer services");
+  const [serviceDescription, setServiceDescription] = useState("Security officer services");
   const [dayRate, setDayRate] = useState("");
   const [nightRate, setNightRate] = useState("");
   const [numberOfSecurityOfficers, setNumberOfSecurityOfficers] = useState("1");
@@ -292,11 +292,11 @@ export const DigitalContractWizard: React.FC<ContractCreationWizardProps> = ({ o
             <h3 className="font-bold text-sm mb-3">Pricing Schedule</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Day Shift Rate (UGX per securityOfficer)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Day Shift Rate (UGX per security officer)</label>
                 <input type="number" value={dayRate} onChange={(e) => setDayRate(e.target.value)} placeholder="0" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Night Shift Rate (UGX per securityOfficer)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Night Shift Rate (UGX per security officer)</label>
                 <input type="number" value={nightRate} onChange={(e) => setNightRate(e.target.value)} placeholder="0" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs" />
               </div>
             </div>

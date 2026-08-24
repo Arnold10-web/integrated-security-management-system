@@ -20,7 +20,6 @@
 
 See [`docs/README.md`](docs/README.md) for the full index. Start with:
 
-- `docs/specs/implementation-lockdown-spec.md` — source of truth for system behaviour (RBAC, workflows)
-- `docs/specs/master-spec.md` — master constitution: requirements, architecture, implementation record
+- `docs/specs/master-spec.md` — master constitution incl. the authoritative behavioural spec (Part II, §§31–45)
 - `docs/test-logins.md` — seeded test accounts
 - `deploy/DEPLOY.md` — UAT deployment on the in-house server

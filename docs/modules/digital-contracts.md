@@ -123,10 +123,10 @@ These values are stored in `filledFields` (JSON) and can be used to populate the
 #### Step 3 — Service Details (APPENDIX A)
 Define the security services:
 - Service Location (required)
-- Service Description (defaults to "Security guard services")
-- Number of Guards
-- Day Shift Rate (UGX per guard)
-- Night Shift Rate (UGX per guard)
+- Service Description (defaults to "Security officer services")
+- Number of Security Officers
+- Day Shift Rate (UGX per security officer)
+- Night Shift Rate (UGX per security officer)
 - Auto-calculated: Day Total, Night Total, Sub Total, VAT (18%), Grand Total
 
 #### Step 4 — Contract Dates

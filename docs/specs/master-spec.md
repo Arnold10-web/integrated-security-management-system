@@ -1,7 +1,11 @@
 # Integrated Security Company Management System (ISCMS)
-## Master Project Constitution, Requirements, Roadmap, Architecture, Implementation Record, and Agent Prompt
+## Master Project Constitution, Requirements, Roadmap, Architecture, Implementation Record, Agent Prompt, and Implementation Lockdown Spec
 
 > This is the single consolidated working reference for the ISCMS project. It documents the delivered system end-to-end: organizational structure, implemented architecture, data model, API surface, departmental requirements, role-level access, and the build record. It reflects what is currently built and running, with genuinely future work clearly marked as such.
+>
+> **Terminology (v3.3):** all personnel formerly called "guards" are **Security Officers** platform-wide — Prisma model `SecurityOfficer` (key: `forceNumber`), role/designation `Security Officer`, module `security_officer_portal`. The dated entries in §30.1–§30.15 retain legacy wording as historical build records.
+>
+> **Precedence:** Part II (**§§31–45 — Implementation Lockdown Spec**) is the authoritative behavioural source of truth. Where it conflicts with anything in Part I (§§1–30), §§31–45 win. See the Part II banner for details.
 >
 > This document is intended to be the single working reference for planning, analysis, architecture, implementation, current-state understanding, and future expansion of the system, and the single prompt block for any AI coding agent working on it.
 
@@ -298,7 +302,7 @@ The Operations Department structure is:
 ```
 Operations Manager (Department Head) — overall head, owns deployment, attendance, shifts, armoury, K9, fleet coordination, and training
 ├── Regional Manager(s) — regional command across company regions; outpost and station oversight
-│   └── Guard Officer (Guard) — front-line security officer; reports to the Regional Manager; uses Guard Portal
+│   └── Security Officer — front-line security officer; reports to the Regional Manager; uses Security Officer Portal
 ├── Armorer — armoury vault issue/return, chain of custody, ballistic accountability
 ├── K9 Unit Lead (K9 Supervisor) — canine unit command, handler pairing, health and deployment
 │   └── K9 Handler(s) — field handler paired with assigned canine
@@ -307,6 +311,8 @@ Operations Manager (Department Head) — overall head, owns deployment, attendan
 ```
 
 > **NOTE (v2.8):** **Investigations is an independent department** — it is **not** under Operations (see §7.4b). It only shares incident/complaint information with Operations for escalation and approval purposes.
+
+> **NOTE (v3.2, Lockdown §32):** **Fleet is likewise an independent top-level department** — no longer nested under Operations (see §35). Front-line Operations personnel hold a **rank** (`Security Officer → Site In-Charge → Inspector`) recorded on the Security Officer record, not system-login roles (rank-as-login-role is paused); the former `Guard Officer` role value was renamed platform-wide to `Security Officer` in v3.3. Where the chart and matrix below show Fleet under Operations, §§32/§35 supersede them.
 
 Operations responsibilities:
 
@@ -428,10 +434,10 @@ The architecture below reflects what is currently implemented in code.
 | Model | Domain | Key Fields |
 |---|---|---|
 | User | Auth & Users | name, email, password (hashed), role (string — validated against the 23-role `UserRole` union in `src/types.ts`, no Prisma enum), department, region, forceNumber, status; full staff biodata block (personal/residence/next-of-kin/education — v2.8+) and payroll bank detail form: `tin`, `nssfNo`, `bankAccountName`, `bankAccount`, `bankName`, `bankBranch` (v3.1); persisted wholesale by `PUT /api/auth/users/:id` |
-| Guard | HR / Guard Records | guardCode (unique), fullName, designation, photoUrl, signatureUrl (ID holder signature, v2.6), assignedSite, nationalId, tin, nssfNo, bank details (bankAccountName, bankBranch — v2.8), next-of-kin, residence, certifications, desertion tracking, idCardStatus/idCardNumber/idCardIssuedDate/idCardExpiryDate, lifecycleStage (ENROLLED → HANDED_TO_OPERATIONS → IN_TRAINING → PASSED_OUT → DEPLOYED), ethnicity & birth (surnameAtBirth, nationality, tribe, placeOfBirth, lc2Chairperson, closeRelatives, neighbours, fatherAlive, fatherResidence — v2.8) |
-| ClientSite | CRM / Sites | clientName, siteName, location, zone, dayShiftGuards, nightShiftGuards, slaStatus |
-| ArmouryItem | Armoury | assetTag, serialNumber, category, caliberOrSpecs, totalQuantity, availableQuantity, assignedToGuard |
-| ArmouryLog | Armoury Chain of Custody | guardName, firearmSerialNumber, ammoRoundsOut/In, dateTimeOut/In, armourerInCharge, signOut/In confirmed |
+| SecurityOfficer | HR / Security Officer Records | forceNumber (@unique), fullName, designation (enum: Security Officer / K9 Handler / Armorer / Site In-Charge / Inspector), monthlySalaryUgx, phone, assignedSite, region/zone, bankAccount/bankName (v2.8), status ("On Duty"/"Off Duty"/…), lifecycleStage (ENROLLED → HANDED_TO_OPERATIONS → IN_TRAINING → PASSED_OUT → DEPLOYED), desertion tracking, warningLettersCount, certifications, idCardStatus/idCardNumber/idCardIssuedDate/idCardExpiryDate + issuer signature; extended biodata & next-of-kin live on the related **SecurityOfficerBiodata** record and the signed offer on **SecurityOfficerEmploymentContract** (v3.0) |
+| ClientSite | CRM / Sites | clientName, siteName, location, zone, dayShiftSecurityOfficers, nightShiftSecurityOfficers, slaStatus |
+| ArmouryItem | Armoury | assetTag, serialNumber, category, caliberOrSpecs, totalQuantity, availableQuantity, assignedToSecurityOfficerName |
+| ArmouryLog | Armoury Chain of Custody | securityOfficerName, firearmSerialNumber, ammoRoundsOut/In, dateTimeOut/In, armourerInCharge, signOut/In confirmed |
 | K9Dog | K9 Unit | code (unique), name, breed, chipNumber, assignedHandler, specialization, vaccination status |
 | K9HealthInspection | K9 Veterinary | k9Id, weightKg, vaccinationStatus, physicalCondition, temperatureCelsius |
 | K9Log | K9 Deployment | k9Id, siteName, shiftType, trainingScore |
@@ -447,8 +453,8 @@ The architecture below reflects what is currently implemented in code.
 | CashierTransaction | Cashier | securityOfficerName + forceNumber, type (Advance/Loan/Food/Rent/etc.), amount, processedBy, phone/signatureUrl/notes (Salary Advance register capture — v2.8); **batch register posting** via `POST /api/cashier-transactions/batch` creates N pending rows in one call (v3.1) |
 | Lead | Marketing/Sales | companyName, contactPerson, estimatedValue, stage |
 | Campaign | Marketing | name, channel, leadsGenerated, budget, conversions |
-| DutyRoster | Ops / Attendance | guardId, siteId, shiftDate, shiftType, checkIn/Out time, region (scoping for Regional Managers) |
-| PatrolInspectionLog | Ops / Supervision | inspectionCode (unique), siteName, supervisorName, guardOnDuty, radioCheck, uniformTurnout, overallRating |
+| DutyRoster | Ops / Attendance | securityOfficerName, siteId, shiftDate, shiftType, checkIn/Out time, region (scoping for Regional Managers) |
+| PatrolInspectionLog | Ops / Supervision | inspectionCode (unique), siteName, supervisorName, securityOfficerOnDuty, radioCheck, uniformTurnout, overallRating |
 | AdminRequisition | Administration | department, itemDescription, quantity, estimatedCostUgx, priority, status |
 | TrainingCohort | Training School | code (unique), name, startDate, endDate, leadInstructor, totalRecruits, passedOutCount |
 | RecruitTrainee | Training School | traineeCode, fullName, nationalIdNumber, cohortId, drillScore, marksmanshipScore, theoryScore, overallStatus |
@@ -456,8 +462,8 @@ The architecture below reflects what is currently implemented in code.
 | ITServer | IT Admin | name, ipAddress, status, cpuUsage, memoryUsage, uptime |
 | ITSupportTicket | IT Admin | ticketCode (unique), reportedBy, subject, priority, status |
 | ITAsset | IT Admin | assetCode (unique), category, serialNumberOrKey, assignedDepartment, valueUgx, warrantyExpiry |
-| RegionalOffice | Geography | code (unique), name, regionName, locationCity, regionalManagerName, activeGuardsCount, armouryVaultStatus |
-| LeaveRequest | HR / Leave | guardId, leaveType (10 types incl. Unpaid/Paternity/Maternity/Compensatory/Study — v2.8), startDate, endDate, durationDays, reason, reliefGuard, contactAddress, entitlement/taken/balance, resumptionDate, gmApprovedBy, status (multi-step approval: Pending Regional Approval → Pending Ops Approval → Pending HR Review → Pending GM Approval → Approved / Rejected) |
+| RegionalOffice | Geography | code (unique), name, regionName, locationCity, regionalManagerName, activeSecurityOfficersCount, armouryVaultStatus |
+| LeaveRequest | HR / Leave | securityOfficerName, leaveType (10 types incl. Unpaid/Paternity/Maternity/Compensatory/Study — v2.8), startDate, endDate, durationDays, reason, reliefSecurityOfficerName, contactAddress, entitlement/taken/balance, resumptionDate, gmApprovedBy, status (multi-step approval: Pending Regional Approval → Pending Ops Approval → Pending HR Review → Pending GM Approval → Approved / Rejected) |
 | Workflow | Workflow Engine | code, name, module, isActive, steps (ordered step definitions with approver roles) |
 | WorkflowStep | Workflow Engine | workflowId, stepOrder, name, approverRole, escalationHours |
 | Approval | Workflow Engine | workflowId, referenceType/Id, currentStep, totalSteps, status, actions (approve/reject chain) |
@@ -466,23 +472,23 @@ The architecture below reflects what is currently implemented in code.
 | JobPosting | Recruitment | code, title, department, location, description, requirements, positionsCount, status |
 | Candidate | Recruitment (HR-owned) | jobPostingId, fullName, email, phone, resumePath, source, status (pipeline stages), roleType, licenceNumber, licenceClass, licenceExpiryDate, nationalId (v2.6 licence capture), gender/age/address/expectedSalary/availability/education/certifications/yearsExperience/employerHistory/reasonForLeaving/interviewScores (12-criterion panel — v2.8) |
 | Driver | Fleet | driverCode (unique), forceNumber (unique — PSG series), roleType (`Driver`/`Rider`), fullName, contactPhone, nationalId, licenceNumber, licenceClass, licenceExpiryDate, assignedVehiclePlate, dutyShift, safetyScorePct, totalTripsCompleted, trainingBadges, status (`Pending FM Approval`/`Active Duty`/…), sourceRef (recruitment candidate link), approvedBy/approvedAt (v2.6) |
-| Contract | HR / Contracts Vault | contractCode (unique), title, contractType (Staff/Client), partyName, startDate/endDate, valueUgx, status, approvalStep (BD → Operations → Finance → GM → Done), preparedBy/issuedBy/approvedBy/approvedAt, relatedGuardCode/relatedSiteName, voidReason, scanPages (multi-page scans, v2.6) |
-| DeploymentOrder | Operations (v2.6) | orderCode (unique), siteId/siteName/clientName, region, requiredHeadcount, shiftType, targetStartDate/EndDate, requestedBy, status (Open → Filled), assignedGuardIds |
-| PerformanceReview | HR / Performance | guardId, reviewPeriod, evaluationDate, 5 scoring criteria, overallRating, recommendation, development goals |
+| Contract | HR / Contracts Vault | contractCode (unique), title, contractType (Staff/Client), partyName, startDate/endDate, valueUgx, status, approvalStep (BD → Operations → Finance → GM → Done), preparedBy/issuedBy/approvedBy/approvedAt, relatedSiteName, voidReason, scanPages (multi-page scans, v2.6) |
+| DeploymentOrder | Operations (v2.6) | orderCode (unique), siteId/siteName/clientName, region, requiredHeadcount, shiftType, targetStartDate/EndDate, requestedBy, status (Open → Filled), assignedSecurityOfficerForceNumbers |
+| PerformanceReview | HR / Performance | securityOfficerName, reviewPeriod, evaluationDate, 5 scoring criteria, overallRating, recommendation, development goals |
 | Complaint | Governance | complaintCode (unique), clientName, siteName, category, description, satisfactionRating, status (Open/Investigating/Referred/Resolved), ownedBy (Marketing), referredForInvestigation, linkedIncidentCode |
-| DisciplinaryAction | Governance | actionCode (unique), guardId/Name/Code, actionType (Warning Letter/Suspension/Termination/Desertion), reason, severity, status (Initiated → Regional → Ops → HR Finalized), regionalApprovedBy, operationsApprovedBy, hrApprovedBy, offenceCategory (Category 1/2/**3** — Cat 3 is the minor-infractions tier with a monetary penalty), `fineAmountUgx`, `receivedBy`, offence, offenceDate, offenceTime, zone, actionTaken (v2.8 charge sheet; Cat 3 fines v3.1) |
-| SiteDeployment | Operations | deploymentCode (unique), siteId/siteName/clientName, guardId/Name, shiftType, deployedBy, status (Active/Completed) |
+| DisciplinaryAction | Governance | actionCode (unique), securityOfficerName/forceNumber, actionType (Warning Letter/Suspension/Termination/Desertion), reason, severity, status (Initiated → Regional → Ops → HR Finalized), regionalApprovedBy, operationsApprovedBy, hrApprovedBy, offenceCategory (Category 1/2/**3** — Cat 3 is the minor-infractions tier with a monetary penalty), `fineAmountUgx`, `receivedBy`, offence, offenceDate, offenceTime, zone, actionTaken (v2.8 charge sheet; Cat 3 fines v3.1) |
+| SiteDeployment | Operations | deploymentCode (unique), siteId/siteName/clientName, forceNumber/securityOfficerName, shiftType, deployedBy, status (Active/Completed) |
 | Region | Geography | name, code, description, isActive (dynamic CRUD by IT Officer) |
 | CustomRoleDefinition | RBAC | roleName, department, description, allowedModules, assignedRegions (region scoping), createdDate, isSystemDefault |
 
-All models include standard audit fields: createdAt, updatedAt. Enum: `GuardLifecycleStage` (5 values). Roles are stored as free-form strings on `User.role` and validated against the 23-role `UserRole` union in `src/types.ts` — the legacy `UserRole` Prisma enum (which included the superseded `Marketing_Supervisor` and `Assistant_Accountant_1/2`) was removed as dead code (v2.7).
+All models include standard audit fields: createdAt, updatedAt. Enum: `SecurityOfficerLifecycleStage` (5 values). Roles are stored as free-form strings on `User.role` and validated against the 23-role `UserRole` union in `src/types.ts` — the legacy `UserRole` Prisma enum (which included the superseded `Marketing_Supervisor` and `Assistant_Accountant_1/2`) was removed as dead code (v2.7).
 
 ### 8.3 Express API Server (`server.ts`)
 
 The server is a full Express API server:
 
 - **Auth Endpoints**: POST /api/auth/login, POST /api/auth/register, POST /api/auth/seed, GET /api/auth/me, GET /api/auth/users
-- **Business Endpoints**: Full CRUD for guards, sites, incidents, vehicles, invoices, expenses, leads, k9s, regions, leave-requests, workflows/approvals, documents, job-postings, candidates, performance-reviews, custom-roles; read for armoury items, armoury logs, k9 logs, audit logs; analytics summary endpoint
+- **Business Endpoints**: Full CRUD for security officers, sites, incidents, vehicles, invoices, expenses, leads, k9s, regions, leave-requests, workflows/approvals, documents, job-postings, candidates, performance-reviews, custom-roles; read for armoury items, armoury logs, k9 logs, audit logs; analytics summary endpoint
 - **Middleware**: JWT authentication (`authenticateToken`), per-module RBAC (`requireModuleAccess`), Zod schema validation, CORS, audit logging on all mutations
 - **Health**: GET /api/health
 - **Static serving**: Vite dev middleware in development, `dist/` in production
@@ -494,7 +500,7 @@ Centralized state management eliminating prop drilling:
 | Store | Responsibility |
 |---|---|
 | **authStore.ts** (227 lines) | currentUser, users, customRoles, login/logout (mock + API), role switching, session persistence, idle timeout, welcome banner, walkthrough modal |
-| **domainStore.ts** (~720 lines) | 24+ entity arrays with full CRUD methods — guards, sites, armoury, k9s, vehicles, incidents, rosters, invoices, expenses, cashier transactions, leads, campaigns, IT assets, patrol inspections, admin requisitions, training cohorts, recruit trainees, regional offices, leave requests, workflows, approvals, documents, job postings, candidates, performance reviews |
+| **domainStore.ts** (~720 lines) | 24+ entity arrays with full CRUD methods — security officers, sites, armoury, k9s, vehicles, incidents, rosters, invoices, expenses, cashier transactions, leads, campaigns, IT assets, patrol inspections, admin requisitions, training cohorts, recruit trainees, regional offices, leave requests, workflows, approvals, documents, job postings, candidates, performance reviews |
 | **auditStore.ts** (28 lines) | Audit log array with addLog() |
 
 All stores cross-call each other for integrated audit logging (every mutation records the actor).
@@ -515,7 +521,7 @@ All stores cross-call each other for integrated audit logging (every mutation re
 | /transport | Transport & Logistics | /transport | Transport |
 | /administration | Administrations | /administration | Admin |
 | /it | Information Technology | /it | IT Admin |
-| /guard-portal | Guard Portal | /guard-portal | Operations |
+| /security officer-portal | Security Officer Portal | /security officer-portal | Operations |
 | /reports | Reports & Analytics | /reports | All |
 | /recruitment | Recruitment & Staffing | /recruitment | HR |
 | /documents | Document Management | /documents | All |
@@ -529,21 +535,21 @@ Navigation sidebar is role-filtered via `getAllowedModuleIds()`. AppShell wraps 
 
 Views are decomposed using Atomic Design:
 
-- **atoms/** (5): StatusBadge, SearchInput, FilterButton, ActionButton, GuardAvatar
+- **atoms/** (5): StatusBadge, SearchInput, FilterButton, ActionButton, SecurityOfficerAvatar
 - **molecules/** (3): TabBar, Modal, DataTable
-- **organisms/** (~70): Extracted tables, modals, panels, cards, grids covering Armoury, Fleet, K9, Guards, IT, Finance, Operations, Training, Marketing, Client Sites, Transport, Administration, Cashier
-- **views/** (18): Page-level components (DashboardView, OperationsView, GuardsHRView, FinanceView, etc.) — all under 320 lines
+- **organisms/** (~70): Extracted tables, modals, panels, cards, grids covering Armoury, Fleet, K9, Security Officers, IT, Finance, Operations, Training, Marketing, Client Sites, Transport, Administration, Cashier
+- **views/** (18): Page-level components (DashboardView, OperationsView, SecurityOfficersHRView, FinanceView, etc.) — all under 320 lines
 - **layout/** (2): AppShell, index
 - **ui/** (3): SystemWalkthroughModal, RegionsPanel, OrgHierarchyPanel
-- **hooks/** (multiple): useGuardForm, useContractForm, useFleetAlerts, etc.
+- **hooks/** (multiple): useSecurityOfficerForm, useContractForm, useFleetAlerts, etc.
 
 ### 8.7 Security Architecture (Implemented)
 
 - **Authentication**: JWT tokens (24h expiry) issued by Express; bcryptjs password hashing; Bearer token injection in frontend API client
 - **Server-Side RBAC**: `requireModuleAccess(moduleName)` middleware on every protected route with MODULE_PERMISSIONS map; each route endpoint validates role against module
-- **Read-endpoint gating (v2.7)**: every list endpoint is role-gated — contracts (`requireAnyRole` allowlist: GM, Director, HR Manager/Assistant, Records Officer, BDM, SMS, Ops Manager, Regional Manager, Finance Manager, Internal Auditor, IT Officer), leave-requests (HR/Ops/Regional/Guard-Officer with region & self-scoping), vehicles (transport), k9s/k9-logs (k9s), armoury/armoury-logs (armoury), audit-logs (IT Officer/Internal Auditor/GM/Director), regions (any module holder), workflows/approvals (workflow), job-postings (recruitment), performance-reviews (performance), custom-roles (it), analytics/summary (directorate), auth/users (it)
+- **Read-endpoint gating (v2.7)**: every list endpoint is role-gated — contracts (`requireAnyRole` allowlist: GM, Director, HR Manager/Assistant, Records Officer, BDM, SMS, Ops Manager, Regional Manager, Finance Manager, Internal Auditor, IT Officer), leave-requests (HR/Ops/Regional/Security Officer-Officer with region & self-scoping), vehicles (transport), k9s/k9-logs (k9s), armoury/armoury-logs (armoury), audit-logs (IT Officer/Internal Auditor/GM/Director), regions (any module holder), workflows/approvals (workflow), job-postings (recruitment), performance-reviews (performance), custom-roles (it), analytics/summary (directorate), auth/users (it)
 - **Account provisioning (v2.7)**: `POST /api/auth/register` is IT-Officer-only (`requireModuleAccess("it", "full")`), no longer returns a token, and audits a "User Created" event in the IT Admin module — self-registration is not permitted
-- **Input Validation**: Zod schemas on all API endpoints (login, guards, sites, incidents, vehicles, invoices, expenses, leads)
+- **Input Validation**: Zod schemas on all API endpoints (login, security officers, sites, incidents, vehicles, invoices, expenses, leads)
 - **HTML Sanitization**: DOMPurify installed for frontend input cleaning
 - **Client-Side RBAC**: `getAllowedModuleIds()` in `modules.ts` gates navigation — mirrors server-side access
 
@@ -554,37 +560,37 @@ Views are decomposed using Atomic Design:
 | Module | Status | Notes |
 |---|---|---|
 | Auth & Access Control | **DONE** | JWT login, role-based module gating, user management CRUD |
-| Executive Directorate | **DONE** | Dashboard view, KPIs, revenue, active contracts, guard summaries |
+| Executive Directorate | **DONE** | Dashboard view, KPIs, revenue, active contracts, security officer summaries |
 | IT Administration | **DONE** | Audit logs, system health, support tickets, IT asset, region CRUD |
-| Human Resources | **DONE** | Guard records, deployment, contracts, leave, disciplinary, performance reviews |
+| Human Resources | **DONE** | Security Officer records, deployment, contracts, leave, disciplinary, performance reviews |
 | Operations | **DONE** | Shift scheduling, attendance, incident logging, patrol inspections |
 | Administrative & Asset Management | **DONE** | Admin requisitions, uniform/shoe/equipment inventory |
 | Cashier & Petty Cash | **DONE** | Advances, food, rent, loans, refunds, cash transactions |
 | Transport & Fleet | **DONE** | Vehicle records, driver allocation, fuel, maintenance, insurance |
-| Client & Site CRM | **DONE** | Client profiles, site locations, guard allocations, SLA tracking |
+| Client & Site CRM | **DONE** | Client profiles, site locations, security officer allocations, SLA tracking |
 | Complaint & Incident Management | **DONE** | Incident logging, evidence, severity, resolution tracking |
 | Marketing & Sales | **DONE** | Lead pipeline, campaign tracking, social media management |
 | K9 Unit | **DONE** | Dog records, health inspections, handler pairing, deployment logs |
 | Armoury | **DONE** | Item issue/return, chain of custody, ammo tracking, audit trail |
 | Training School | **DONE** | Cohort management, recruit tracking, graduation, pass-out |
-| Reports & Analytics | **DONE** | CSV export, guard/site/incident/revenue KPIs with charts |
+| Reports & Analytics | **DONE** | CSV export, security officer/site/incident/revenue KPIs with charts |
 | Audit & Logging | **DONE** | System-wide action logs with actor, module, timestamp |
-| Guard Portal | **DONE** | Guard check-in, leave requests (Regional→Ops→HR→GM approval, 10 leave types), incident reporting |
+| Security Officer Portal | **DONE** | Security Officer check-in, leave requests (Regional→Ops→HR→GM approval, 10 leave types), incident reporting |
 | Workflow Engine | **DONE** | Workflow definitions with steps, approval chains with multi-step approve/reject |
 | Document Management | **DONE** | Document upload/list/delete by category with search |
 | Recruitment & Staffing | **DONE** | Job postings, candidate pipeline with status transitions |
 | Performance Management | **DONE** | Structured review cycles, 5-criteria scoring, automated rating |
-| Advanced Analytics | **DONE** | Dashboard trends for guard strength, revenue, incidents, leave |
+| Advanced Analytics | **DONE** | Dashboard trends for security officer strength, revenue, incidents, leave |
 | Dynamic Regions | **DONE** | IT Officer CRUD for regions with regional office metadata |
 | Custom Roles | **DONE** | IT Officer can create roles with module permissions + region assignment |
 | Notifications Engine | **PLANNED** | In-app, email, SMS now; WhatsApp/push later |
 | Role-Level Duty & Access Matrix | **DONE** | Action-level RBAC: `AccessLevel` map ("view"/"full"), `moduleAccessLevel()`/`requireModuleAccess(module, minLevel)`, role-gated chain endpoints, region scoping, attribution rules — see §28 |
 | Governance Chains (Complaints / Discipline / Deployments / Campaign Budgets) | **DONE** | Marketing-owned complaints with site rating mirror; IO→RM→Ops→HR disciplinary chain; Ops deployment hand-off; FM→GM campaign budget approval |
 | Full DB Persistence (v2.6) | **DONE** | Every collection persisted to PostgreSQL via Prisma — data survives logout/restart (verified by automated persistence tests, §14.4) |
-| Deployment Orders (Ops → RM fill) | **DONE** | Operations issues a deployment order (`ORD-YYYY-NNN`); Regional Manager fills it from their region's guard pool (region-gated) and builds the roster |
+| Deployment Orders (Ops → RM fill) | **DONE** | Operations issues a deployment order (`ORD-YYYY-NNN`); Regional Manager fills it from their region's security officer pool (region-gated) and builds the roster |
 | Fleet Licence Approvals (v2.6) | **DONE** | Driver/Rider licence details captured at recruitment (HR) → `Pending FM Approval` → Fleet Manager approves → `Active Duty` with approved-by/at; licence-expiry CRITICAL/soon alerts on the Fleet register |
 | Contract Scans & Template (v2.6) | **DONE** | Multi-page contract scan manager (add page, thumbnail list, reorder up/down, delete, persisted `scanPages`); printable contract template with autoprint |
-| ID Camera + Holder Signature (v2.6) | **DONE** | Records Officer captures the ID holder's photo via web camera (or upload) and the holder's signature on a signature pad before issuance; both persisted on the guard record |
+| ID Camera + Holder Signature (v2.6) | **DONE** | Records Officer captures the ID holder's photo via web camera (or upload) and the holder's signature on a signature pad before issuance; both persisted on the security officer record |
 | Digital Contracts (v2.8) | **DONE** | PDF-based contract system: fixed legal PDF templates uploaded by Records Officer, contracts created from templates with auto-generated IDs (`CC-YYYY-ABBREV-NNN`, `SC-FORCENUMBER-NNN`, `SCAN-YYYY-ABBREV-NNN`), sequential signing (internal signers → client signers via secure link), company stamp overlay, signature certificate page appended to original template PDF, SHA-256 tamper-evident hashes, eIDAS + ESIGN Act compliant. Replaces old HTML-based e-signature system. |
 
 ### 8.9 Phase 2 — Planned Modules
@@ -593,10 +599,10 @@ Views are decomposed using Atomic Design:
 |---|---|
 | Automated Payroll Engine | Payslip generation, NSSF/PAYE computation and filing (client invoicing, payments, expenses, and budgeting are already implemented) |
 | Client Portal | Self-service complaint/incident submission, invoice viewing, document access |
-| Employee Self-Service Portal | Payslips, personal info updates (leave requests already flow through the Guard Portal) |
-| GPS Guard Tracking | Real-time field guard location tracking |
+| Employee Self-Service Portal | Payslips, personal info updates (leave requests already flow through the Security Officer Portal) |
+| GPS Security Officer Tracking | Real-time field security officer location tracking |
 | Biometric Attendance | Biometric check-in/out integration |
-| Mobile App | Native mobile for guards and supervisors |
+| Mobile App | Native mobile for security officers and supervisors |
 | AI & Advanced Analytics | Predictive analytics, AI-assisted incident categorization, business intelligence |
 | Procurement | Purchase requests, approvals, supplier records, PO tracking |
 | Multi-Tenancy | Multi-company/support (SaaS ERP expansion) |
@@ -614,7 +620,7 @@ Track and manage:
 
 - Client Name
 - Client Contact
-- Number of Guards
+- Number of Security Officers
 - Client Invoice
 - Location
 - Customer Support
@@ -683,13 +689,13 @@ Track:
 - days worked, provided by managers
 - deductions and fines, suggested by managers and approved by HR
 - overtime
-- leave for guards, approved by managers and HR, then final-approval by the General Manager (v2.8)
+- leave for security officers, approved by managers and HR, then final-approval by the General Manager (v2.8)
 
-**Guard deployment pipeline (implemented).** Every guard moves through a lifecycle stage enforced in the system:
-`ENROLLED` (HR enrolls) → `HANDED_TO_OPERATIONS` (HR hands guard to Operations) → `IN_TRAINING` (Operations sends guard to the Training Academy) → `PASSED_OUT` (Training Officer marks pass-out) → `DEPLOYED` (Operations/Regional Manager deploys to a region or client site; also set automatically when a scheduled guard checks in on the duty roster).
-Transition rights: HR roles move `ENROLLED → HANDED_TO_OPERATIONS`; Operations Manager / Regional Manager move `HANDED_TO_OPERATIONS → IN_TRAINING` and `PASSED_OUT → DEPLOYED`; Training Officer moves `IN_TRAINING → PASSED_OUT`. Regional Managers only see guards in their own region. The Guard Deployment Pipeline board is available on the HR Register tab and the Operations roster tab.
+**Security Officer deployment pipeline (implemented).** Every security officer moves through a lifecycle stage enforced in the system:
+`ENROLLED` (HR enrolls) → `HANDED_TO_OPERATIONS` (HR hands security officer to Operations) → `IN_TRAINING` (Operations sends security officer to the Training Academy) → `PASSED_OUT` (Training Officer marks pass-out) → `DEPLOYED` (Operations/Regional Manager deploys to a region or client site; also set automatically when a scheduled security officer checks in on the duty roster).
+Transition rights: HR roles move `ENROLLED → HANDED_TO_OPERATIONS`; Operations Manager / Regional Manager move `HANDED_TO_OPERATIONS → IN_TRAINING` and `PASSED_OUT → DEPLOYED`; Training Officer moves `IN_TRAINING → PASSED_OUT`. Regional Managers only see security officers in their own region. The Security Officer Deployment Pipeline board is available on the HR Register tab and the Operations roster tab.
 
-**Deployment orders (Order → Regional Manager fill, v2.6).** The Operations Manager issues a deployment order for a client site (`ORD-YYYY-NNN`) specifying the required headcount, shift type, start/end dates and region. Only the **Operations Manager** can issue an order; only a **Regional Manager** can fill it (`PUT /api/deployment-orders/:id/assign`), and only from guards in the matching region whose lifecycle stage is not yet `DEPLOYED`. A filled order assigns guards and promotes them to `DEPLOYED`. Sites remain **view-only for Operations**; they are created only by Marketing/Sales (Business Development Manager, or a Sales and Marketing Supervisor from a `Closed Won` lead).
+**Deployment orders (Order → Regional Manager fill, v2.6).** The Operations Manager issues a deployment order for a client site (`ORD-YYYY-NNN`) specifying the required headcount, shift type, start/end dates and region. Only the **Operations Manager** can issue an order; only a **Regional Manager** can fill it (`PUT /api/deployment-orders/:id/assign`), and only from security officers in the matching region whose lifecycle stage is not yet `DEPLOYED`. A filled order assigns security officers and promotes them to `DEPLOYED`. Sites remain **view-only for Operations**; they are created only by Marketing/Sales (Business Development Manager, or a Sales and Marketing Supervisor from a `Closed Won` lead).
 
 ### 9.6 Transport Department
 Track:
@@ -708,9 +714,11 @@ Track:
 
 ### 9.7 Contract Ownership & Approval Workflow (Implemented)
 
-Contracts live in a single central vault owned by **HR / Records Officer**. Records Officer is the only role that can `archive` a contract; there is **no hard delete on contracts or guards** — contracts are voided (with a mandatory reason) or archived, and guards are terminated rather than deleted. Hard delete is limited to supporting records (trips, patrol inspections, roster entries, requisitions, training cohorts, trainees, IT servers/tickets/assets, K9s, K9 health inspections, armoury items, regions, documents, custom roles).
+> **Superseded for client contracts (v3.2, Lockdown §§33/37):** the multi-step client chain below (`Business Development → Operations → Finance → GM ≥ 100M UGX`) has been replaced — Marketing/BD only *drafts*; the **General Manager is the sole approver of ALL client contracts with no amount threshold**, with no Finance or Operations approval step, and the Operations Manager has zero approve/reject/void contract authority (§§34/§37). Staff-contract rules below stand. The superseded description is retained as build history.
 
-**Staff contracts** (guard employment, owned by HR):
+Contracts live in a single central vault owned by **HR / Records Officer**. Records Officer is the only role that can `archive` a contract; there is **no hard delete on contracts or security officers** — contracts are voided (with a mandatory reason) or archived, and security officers are terminated rather than deleted. Hard delete is limited to supporting records (trips, patrol inspections, roster entries, requisitions, training cohorts, trainees, IT servers/tickets/assets, K9s, K9 health inspections, armoury items, regions, documents, custom roles).
+
+**Staff contracts** (security officer employment, owned by HR):
 `Draft` (HR Assistant prepares) → `Active` (HR Manager **issues**) → `Expiring Soon`/`Expired` (auto-derived from `endDate` unless Terminated/Archived) → `Terminated`/`Archived` (HR Manager voids, or Records Officer archives). Only HR Manager may issue/void; Records Officer may archive.
 
 **Client contracts** (owned by Marketing, owned-and-validated cross-departmentally):
@@ -808,13 +816,13 @@ Schedule: servicing, inspections, repairs, tyre checks, maintenance based on mil
 ### 10.6 Driver Management
 Maintain: driver records, licences, performance, duty rotas, training.
 
-**Licence capture at recruitment (v2.6).** Driver/Rider licence details are captured at the recruitment stage by HR: the candidate form collects **role type** (Security Guard / Driver / Rider / Office / Admin), **national ID**, and for Driver/Rider candidates a **licence number, licence class, and licence expiry date** (mandatory, amber-flagged when missing). On marking a Driver/Rider candidate **Hired**, the system auto-creates a Fleet driver record in **`Pending FM Approval`** status (deduplicated by `sourceRef`), carrying the licence details through to the Fleet register.
+**Licence capture at recruitment (v2.6).** Driver/Rider licence details are captured at the recruitment stage by HR: the candidate form collects **role type** (Security Officer / Driver / Rider / Office / Admin), **national ID**, and for Driver/Rider candidates a **licence number, licence class, and licence expiry date** (mandatory, amber-flagged when missing). On marking a Driver/Rider candidate **Hired**, the system auto-creates a Fleet driver record in **`Pending FM Approval`** status (deduplicated by `sourceRef`), carrying the licence details through to the Fleet register.
 
 **Fleet Manager approval & licence-expiry alerts (v2.6).** Pending drivers are shown as amber cards with an **Approve** action available only to the Fleet Manager (`PUT /api/drivers/:id/approve`), which sets `Active Duty` plus `approvedBy`/`approvedAt`. The Fleet register colour-codes licence expiry: **CRITICAL** when already expired, **warn** within 60 days, and shows the driver's contact and assigned vehicle.
 
 **Riders are first-class (v2.6).** Every Fleet record carries a **role type** — **Driver** (Car/Van) or **Rider** (Motorcycle) — carried over from the recruitment candidate on hire and available in the manual "Add New Driver Officer" form. Rider cards show a motorcycle badge and "Assigned Motorcycle" labelling; driver cards show a car badge and "Assigned Vehicle". Records without an explicit role default to **Driver**, so legacy data stays valid. Migration `20260803060148_driver_rider_role_type`; regression tests cover Rider hire → `Pending FM Approval` Rider record with captured Class A licence → Fleet Manager approval, all retaining `roleType: "Rider"`.
 
-**Uniform force numbers for ALL staff (v2.6).** Every hired staff member — guard, driver, rider, and office staff — is issued a company-wide **force number** in the single format `PSG<YYY>/<SEQ>` (e.g. `PSG025/007`; `YYY` = 3-digit year suffix, `SEQ` = sequence zero-padded to 3). It is the unique staff identifier. The sequence **resets per year**: the counter scans every existing `PSG<YYY>/<SEQ>` in the current year (computed across `Driver.forceNumber`, `Guard.guardCode`, and `User.forceNumber`) and issues the next number, so `PSG025/001, PSG025/002 …` then `PSG026/001` at the start of the next year — it can never collide within a year. The year used is the staff member's **enrolment/hire year**. Hired Driver/Rider candidates are **auto-issued** a force number at hire (`await nextForceNumber()`), trainee pass-out and guard enrolment default to the same PSG series, and office staff (Users) also carry force numbers. **All existing numbers were backfilled into PSG format** (`scripts/backfill-force-numbers.ts`): already-PSG values were preserved unchanged, legacy `FORCE-YYYY-N` / `SG-YYYY-N` / `PERSIST-…` codes were restyled into PSG using their embedded year + number, and anyone missing a number was issued the next PSG in their year — verified 0 duplicates, 0 non-PSG across all guards, drivers, and users. The recruitment badge reads "Force No. issued • Sent to Fleet for approval" and the Fleet register card shows "Force No. …".
+**Uniform force numbers for ALL staff (v2.6).** Every hired staff member — security officer, driver, rider, and office staff — is issued a company-wide **force number** in the single format `PSG<YYY>/<SEQ>` (e.g. `PSG025/007`; `YYY` = 3-digit year suffix, `SEQ` = sequence zero-padded to 3). It is the unique staff identifier. The sequence **resets per year**: the counter scans every existing `PSG<YYY>/<SEQ>` in the current year (computed across `Driver.forceNumber`, `Security Officer.forceNumber`, and `User.forceNumber`) and issues the next number, so `PSG025/001, PSG025/002 …` then `PSG026/001` at the start of the next year — it can never collide within a year. The year used is the staff member's **enrolment/hire year**. Hired Driver/Rider candidates are **auto-issued** a force number at hire (`await nextForceNumber()`), trainee pass-out and security officer enrolment default to the same PSG series, and office staff (Users) also carry force numbers. **All existing numbers were backfilled into PSG format** (`scripts/backfill-force-numbers.ts`): already-PSG values were preserved unchanged, legacy `FORCE-YYYY-N` / `SG-YYYY-N` / `PERSIST-…` codes were restyled into PSG using their embedded year + number, and anyone missing a number was issued the next PSG in their year — verified 0 duplicates, 0 non-PSG across all security officers, drivers, and users. The recruitment badge reads "Force No. issued • Sent to Fleet for approval" and the Fleet register card shows "Force No. …".
 
 ### 10.7 Daily Vehicle Inspection
 Track checks for: brakes, tyres, lights, oil, coolant, battery, and other safety components.
@@ -843,7 +851,7 @@ Track: fleet availability, fuel costs, maintenance costs, breakdowns, accidents,
 The armoury module should be controlled by the Armorer and tightly audited.
 
 ### 11.1 Armoury Fields
-Track at minimum: serial number, guard name, location name, firearm serial number, ammunition number of rounds, date out, time out, round about / round returned, sign out date in, time in, round in, sign in, substitute receiver, armoury in-charge.
+Track at minimum: serial number, security officer name, location name, firearm serial number, ammunition number of rounds, date out, time out, round about / round returned, sign out date in, time in, round in, sign in, substitute receiver, armoury in-charge.
 
 ### 11.2 Armoury Rules
 The armoury module should support: item issue, item return, chain of custody, location tracking, accountability, and audit trail.
@@ -859,7 +867,7 @@ The system should provide a dedicated web-based intake portal where clients can 
 
 ### 12.2 Conceptual Workflow
 1. **Intake:** the client submits a complaint (client-facing portal is FUTURE; today the Marketing team logs it via the Complaints panel).
-2. **Triage:** the complaint is categorized (Service Quality, Conduct of Guards, Billing, Response Time, Equipment, Other) and owned by **Marketing**.
+2. **Triage:** the complaint is categorized (Service Quality, Conduct of Security Officers, Billing, Response Time, Equipment, Other) and owned by **Marketing**.
 3. **Routing:** Marketing resolves service complaints and records a **satisfaction rating (1–5) that is mirrored to the linked ClientSite**; conduct/integrity complaints are **referred to the Investigations Officer**, who links them to an incident record.
 4. **Resolution:** the assigned owner updates the status (`Open → Investigating → Referred/Resolved`) until closure.
 5. **Closure:** the case is closed with a complete audit trail; Regional Managers see only in-region complaints.
@@ -914,14 +922,14 @@ The build order below reflects what has been delivered.
 | 1. Client-Side Routing | **DONE** | React Router v7 with 11 deep-linkable routes replacing state-based tab switching |
 | 2. Centralized State Management | **DONE** | 3 Zustand stores (auth, domain, audit) eliminating 25+ useState hooks from App.tsx |
 | 3. View Decomposition | **DONE** | All views under 320 lines; ~70 organism components extracted via Atomic Design |
-| 4. Decouple Business Logic | **STARTED** | Custom hooks (useGuardForm, etc.), service files, and Zod validation schemas extracted from views |
+| 4. Decouple Business Logic | **STARTED** | Custom hooks (useSecurityOfficerForm, etc.), service files, and Zod validation schemas extracted from views |
 | 5. Persistent Backend + DB | **DONE** | Prisma ORM + PostgreSQL, 47 models, Express API with CRUD endpoints |
 | 6. Server-Side RBAC + Security | **DONE** | JWT auth, bcrypt hashing, Zod validation, DOMPurify sanitization, per-module RBAC middleware + action-level RBAC (`AccessLevel` map, role-gated chain endpoints, region scoping) |
 | 7. Automated Tests (Security / RBAC / Persistence) | **DONE** | Vitest suite (78 assertions) covering: auth rejection (401), hardened security headers, module access matrix (least privilege), deployment-order chain (Ops issues, RM fills, region-gated), driver licence approval (Fleet-only), full contract approval chain (BD → Ops → Finance → GM → archive), recruitment HR-ownership, rider onboarding (Hired Rider → pending Fleet Rider record → FM approval) with uniform PSG force-number issuance + company-wide uniqueness, and full DB persistence across re-login (`npm test`) |
 
 ### 14.2 Remaining Work
 - Notifications Engine (in-app, email, SMS)
-- Client Portal / Employee Self-Service Portal (beyond the current Guard Portal)
+- Client Portal / Employee Self-Service Portal (beyond the current Security Officer Portal)
 - Automated payroll engine (NSSF/PAYE integration, payslips)
 - Field operations mobile app and GPS tracking
 - Advanced analytics with predictive trends (non-AI)
@@ -1170,7 +1178,7 @@ These are the important decisions and reminders captured during the discussion:
 
 ## 23. Summary of What This Document Covers
 
-This master document contains: the project vision, the project goals, the long-term ERP direction, the project philosophy, the AI operating rules, UI/UX and design system standards, organizational structure, departmental operational requirements, fleet management detail, armoury fields, complaint and incident handling, data flow, SDLC, security, database principles, performance goals, QA standards, documentation requirements, role-level duty and access control (§28), and the reusable AI prompt blocks (§21, §29).
+This master document contains: the project vision, the project goals, the long-term ERP direction, the project philosophy, the AI operating rules, UI/UX and design system standards, organizational structure, departmental operational requirements, fleet management detail, armoury fields, complaint and incident handling, data flow, SDLC, security, database principles, performance goals, QA standards, documentation requirements, role-level duty and access control (§28), the reusable AI prompt blocks (§21, §29), and the Implementation Lockdown behavioural spec (§§31–45).
 
 It is designed to be the single Markdown source of truth for planning, building, and extending the system.
 
@@ -1196,7 +1204,7 @@ The following regions define the company's operational geography. Order is inten
 | 12 | Kampala Central | — |
 | 13 | Outerstations | Currently includes Mityana; more locations to be added after consultation |
 
-These regions are defined in code at `src/constants/regions.ts`. The RegionalOffice model in the database stores per-region office metadata (location, regional manager, active guards, client sites, armoury status, assigned vehicles).
+These regions are defined in code at `src/constants/regions.ts`. The RegionalOffice model in the database stores per-region office metadata (location, regional manager, active security officers, client sites, armoury status, assigned vehicles).
 
 ---
 
@@ -1222,7 +1230,7 @@ Zustand was chosen for centralized state management because:
 
 ### 25.3 React Router over State-based Tab Switching
 React Router v7 was chosen because:
-- Enables deep linking (e.g., `/hr/guards/:guardId`)
+- Enables deep linking (e.g., `/operations/regions/:regionName`)
 - Browser refresh preserves active view
 - Back/forward navigation works naturally
 - Clear URL-to-component mapping improves developer experience
@@ -1246,6 +1254,8 @@ Section 7 defines organizational hierarchy — who reports to whom. It does not 
 
 This section governs the design of the `MODULE_PERMISSIONS` map and any future per-action permission map (e.g., `ACTION_PERMISSIONS`), and should be treated as the source of truth when `requireModuleAccess` middleware is extended to `requireActionPermission`.
 
+> **Note (v3.2, Lockdown §§32–37):** where the tables below show approval steps on Contracts (Business Development / Operations / Finance steps, GM ≥ 100M gate), Campaign Budgets or Expenses (> 10M UGX → GM), the Lockdown Spec supersedes them: the **General Manager is the sole, no-threshold approver** for Contracts (client and staff), Requisitions, Expenses, and Campaign Budgets (§33); the Operations Manager holds zero contract authority (§§34/§37); Fleet sits outside Operations (§35); leave approval follows §36.
+
 ### 28.2 Access Level Legend
 
 | Level | Meaning |
@@ -1254,7 +1264,7 @@ This section governs the design of the `MODULE_PERMISSIONS` map and any future p
 | **Create+Edit** | Create and edit records; cannot delete; cannot give final approval |
 | **View** | Read-only; can search, filter, export reports; cannot modify |
 | **Approve** | Can accept/reject records already submitted by others, at their step in a workflow; may not directly create/edit the underlying record |
-| **Own-record only** | Can only create/view/edit records tied to their own identity (e.g., a guard's own leave requests, own check-in/out) |
+| **Own-record only** | Can only create/view/edit records tied to their own identity (e.g., a security officer's own leave requests, own check-in/out) |
 | **None** | No access; module hidden from navigation and API rejects requests |
 
 A role can hold different access levels in different modules, and the level in a "home" module is usually higher than the level in modules it only feeds data into.
@@ -1263,31 +1273,31 @@ A role can hold different access levels in different modules, and the level in a
 
 | Role | Primary Duties in System | Module Access |
 |---|---|---|
-| General Manager | Reviews company-wide KPIs, revenue, guard deployment, complaints, incident trends; gives final approval on high-value/escalated items (large expenses, contract changes **including client contracts ≥ 100M UGX**, policy exceptions, **final leave approval after HR forwards — v2.8**); cannot bypass Finance/HR data entry | Directorate: Full (dashboard); Reports: Full (view+export); Finance, HR, Operations, Marketing, Client CRM, Transport, Administration, IT, Recruitment, Performance Reviews: View; **Contracts: Approve (GM step, ≥ 100M only), void**; Workflow: Approve (top-level steps only); **Leave Requests: GM Final Approve (last step)**; Documents: View |
+| General Manager | Reviews company-wide KPIs, revenue, security officer deployment, complaints, incident trends; gives final approval on high-value/escalated items (large expenses, contract changes **including client contracts ≥ 100M UGX**, policy exceptions, **final leave approval after HR forwards — v2.8**); cannot bypass Finance/HR data entry | Directorate: Full (dashboard); Reports: Full (view+export); Finance, HR, Operations, Marketing, Client CRM, Transport, Administration, IT, Recruitment, Performance Reviews: View; **Contracts: Approve (GM step, ≥ 100M only), void**; Workflow: Approve (top-level steps only); **Leave Requests: GM Final Approve (last step)**; Documents: View |
 | Director(s) | Strategic review, exception escalations, KPI review; does not process day-to-day transactions | Same as General Manager but View only on Workflow approvals unless explicitly delegated |
 
 ### 28.4 Human Resource Department
 
 | Role | Primary Duties in System | Module Access |
 |---|---|---|
-| HR Manager | Owns guard/employee master records, contracts, disciplinary actions, transfers; final sign-off on Performance Reviews; HR review step on Leave Requests (after Regional Manager & Operations; forwards to General Manager for final approval — v2.8); reviews payroll-prep inputs fed from Cashier and Administration | HR: Full; **Contracts: issues and voids staff contracts (final sign-off)**; Leave Requests: Approve (HR step → Pending GM Approval); Performance Reviews: Full; Recruitment: Full; Documents (HR category): Full; Cashier, Administration inventory: View (payroll-prep inputs only) |
-| HR Assistant | Data entry and updates to guard/employee records; **performs the HR leave review step alongside the HR Manager (forwards to General Manager — v2.8)**; **runs recruitment with HR Manager — job postings and candidate pipeline are HR-owned (v2.6)** | HR: Create+Edit (no delete); **Contracts: prepares staff contract Drafts**; Leave Requests: Create+Edit and HR review step (HR Manager / HR Assistant); Recruitment: Full (create/run postings + candidates); Documents (HR category): Create+Edit |
+| HR Manager | Owns security officer/employee master records, contracts, disciplinary actions, transfers; final sign-off on Performance Reviews; HR review step on Leave Requests (after Regional Manager & Operations; forwards to General Manager for final approval — v2.8); reviews payroll-prep inputs fed from Cashier and Administration | HR: Full; **Contracts: issues and voids staff contracts (final sign-off)**; Leave Requests: Approve (HR step → Pending GM Approval); Performance Reviews: Full; Recruitment: Full; Documents (HR category): Full; Cashier, Administration inventory: View (payroll-prep inputs only) |
+| HR Assistant | Data entry and updates to security officer/employee records; **performs the HR leave review step alongside the HR Manager (forwards to General Manager — v2.8)**; **runs recruitment with HR Manager — job postings and candidate pipeline are HR-owned (v2.6)** | HR: Create+Edit (no delete); **Contracts: prepares staff contract Drafts**; Leave Requests: Create+Edit and HR review step (HR Manager / HR Assistant); Recruitment: Full (create/run postings + candidates); Documents (HR category): Create+Edit |
 | Records Officer | Maintains personnel file integrity, archives documents, ensures completeness of employee files; **owns the central contract vault — archives contracts only (no edit, no void, no delete)**; **issues staff ID cards (IDC number + expiry) — moved from IT**; **captures the ID holder's photo (web camera/upload) and the holder's signature (signature pad) before issuance (v2.6)** | HR: View, plus Create+Edit limited to document/archival/ID-issuance fields (`idCardStatus`, `idCardNumber`, `idCardIssuedDate`, `idCardExpiryDate`, `photoUrl`, `signatureUrl`); **Contracts: View all + Archive only**; Documents (HR category): Full |
 
 ### 28.5 Marketing Department
 
 | Role | Primary Duties in System | Module Access |
 |---|---|---|
-| Business Development Manager | Owns lead pipeline end-to-end, client engagement, oversees Sales and Marketing Supervisor's activity; **approves client contracts at the Business Development step and may void**; **proposes campaign budgets and owns campaign budget approval routing (FM approves; > 10M UGX additionally GM)**; **owns client complaint resolution (Marketing) with satisfaction ratings mirrored to the client site**; sees aggregate guard availability by region for pipeline planning | Marketing: Full; **Contracts: Approve (Business Development step), edit/void Drafts**; Client & Site CRM: Full (owns site creation); Campaigns: Full (propose budgets); Complaints: Full (own resolution) |
+| Business Development Manager | Owns lead pipeline end-to-end, client engagement, oversees Sales and Marketing Supervisor's activity; **approves client contracts at the Business Development step and may void**; **proposes campaign budgets and owns campaign budget approval routing (FM approves; > 10M UGX additionally GM)**; **owns client complaint resolution (Marketing) with satisfaction ratings mirrored to the client site**; sees aggregate security officer availability by region for pipeline planning | Marketing: Full; **Contracts: Approve (Business Development step), edit/void Drafts**; Client & Site CRM: Full (owns site creation); Campaigns: Full (propose budgets); Complaints: Full (own resolution) |
 | Sales and Marketing Supervisor | Works assigned leads/campaigns, logs follow-ups, updates pipeline stage, runs campaigns and social media tracking, reports results to Business Development Manager; **prepares client contract Drafts and advances them through approval**; may create a ClientSite only from their own `Closed Won` lead (attribution rule) | Marketing: Create+Edit on records they own or are assigned; **Contracts: Create/Edit own Drafts, advance to Business Development approval**; View on department-wide pipeline; Campaigns: Create+Edit (propose budgets, FM/GM approve); Complaints: Create+Edit (resolve assigned) |
 
 ### 28.6 Operations Department
 
 | Role | Primary Duties in System | Module Access |
 |---|---|---|
-| Operations Manager | Department-wide oversight of deployment, attendance, armoury, K9, fleet, training; **closes escalated incidents (final) and approves leave after the Regional Manager and before HR (GM gives the final leave approval — v2.8)**; allocates Regional Managers to regions; **validates client contract SLA/resourcing feasibility (Operations step)**; **approves disciplinary actions (after Regional Manager) before HR finalization; creates deployments (hand-off marks guard DEPLOYED + site Deployed); issues deployment orders (v2.6, order → RM fill)** | Operations (all sub-modules): Full; **Contracts: Approve (Operations step)**; Leave Requests: Approve (after Regional Manager, before HR); Incidents: Approve/close (escalated cases — shared with the independent Investigations department); Deployments: Full (issue orders); Disciplinary: Approve (Ops step); Sites: View-only (no create — Marketing/Sales own site creation); Reports: View |
-| Regional Manager | Manages guards, sites, duty rosters, patrol inspections within their assigned region; approves leave/incident escalations within their region before passing to Operations Manager/HR; **creates deployments within own region; approves disciplinary actions within own region (first step); fills deployment orders from the region guard pool (v2.6)** | Operations (scoped to own region): Full; Leave Requests: Approve (first escalation step); Deployments: Full (own region, fill orders); Disciplinary: Approve (Regional step, own region); Fleet (within region): View; Sites: No access (excluded from the sites module) |
-| Guard Officer (Guard) | Front-line duty: checks in/out, submits own leave requests, reports incidents; **views own duty roster and own disciplinary record** | Guard Portal: Own-record only; all other modules: None |
+| Operations Manager | Department-wide oversight of deployment, attendance, armoury, K9, fleet, training; **closes escalated incidents (final) and approves leave after the Regional Manager and before HR (GM gives the final leave approval — v2.8)**; allocates Regional Managers to regions; **validates client contract SLA/resourcing feasibility (Operations step)**; **approves disciplinary actions (after Regional Manager) before HR finalization; creates deployments (hand-off marks security officer DEPLOYED + site Deployed); issues deployment orders (v2.6, order → RM fill)** | Operations (all sub-modules): Full; **Contracts: Approve (Operations step)**; Leave Requests: Approve (after Regional Manager, before HR); Incidents: Approve/close (escalated cases — shared with the independent Investigations department); Deployments: Full (issue orders); Disciplinary: Approve (Ops step); Sites: View-only (no create — Marketing/Sales own site creation); Reports: View |
+| Regional Manager | Manages security officers, sites, duty rosters, patrol inspections within their assigned region; approves leave/incident escalations within their region before passing to Operations Manager/HR; **creates deployments within own region; approves disciplinary actions within own region (first step); fills deployment orders from the region security officer pool (v2.6)** | Operations (scoped to own region): Full; Leave Requests: Approve (first escalation step); Deployments: Full (own region, fill orders); Disciplinary: Approve (Regional step, own region); Fleet (within region): View; Sites: No access (excluded from the sites module) |
+| Security Officer | Front-line duty: checks in/out, submits own leave requests, reports incidents; **views own duty roster and own disciplinary record** | Security Officer Portal: Own-record only; all other modules: None |
 | Armorer | Owns the armoury vault: item issue/return, chain of custody, ballistic accountability | Armoury (Items + Logs): Full |
 | K9 Unit Lead (K9 Supervisor) | Owns canine unit: dog records, health inspections, handler pairing, deployment | K9 (all sub-modules): Full |
 | K9 Handler | Logs deployment for their assigned canine, views health records | K9 Logs (own dog): Create+Edit; K9 Health Inspections: View |
@@ -1311,13 +1321,13 @@ A role can hold different access levels in different modules, and the level in a
 | Accountant | Books, reconciliations, prepares reports; creates/edits invoices and expenses; **submits expenses into the approval chain (FM approve → GM final for > 10M UGX); may not self-approve** | Finance: Create+Edit, cannot give final expense approval |
 | Assistant Accountant | Transaction-level data entry supporting the Accountant | Finance: Create+Edit limited to assigned transaction types; View on reports |
 | Internal Auditor | Independent review of financial controls; flags discrepancies; does not process transactions; **also views contract pricing** | Finance, Cashier, Audit Logs, Contracts (pricing): View only (read-access across all financial records, including historical/locked ones) |
-| Cashier | Owns petty cash operations: advances, food, rent, loans, refunds; **advances/loans/fines auto-flow onto the linked guard HR record** | Cashier: Full; Guard records: View (for verification only) |
+| Cashier | Owns petty cash operations: advances, food, rent, loans, refunds; **advances/loans/fines auto-flow onto the linked security officer HR record** | Cashier: Full; Security Officer records: View (for verification only) |
 
 ### 28.8 Administration Department
 
 | Role | Primary Duties in System | Module Access |
 |---|---|---|
-| Administrative Officer | Owns uniform/shoe/equipment inventory and issuance requisitions | Administration: Full; HR (inventory fields only, feeding payroll-prep): pushes data, View on HR guard list for issuance matching |
+| Administrative Officer | Owns uniform/shoe/equipment inventory and issuance requisitions | Administration: Full; HR (inventory fields only, feeding payroll-prep): pushes data, View on HR security officer list for issuance matching |
 
 ### 28.9 Information Technology Department
 
@@ -1328,18 +1338,18 @@ A role can hold different access levels in different modules, and the level in a
 ### 28.10 Cross-Cutting Access Rules
 
 **Workflow Engine approver chains** (drives the `Approval` model's step sequence):
-- Leave Requests: Guard (submit) → Regional Manager (initial) → Operations Manager → HR Manager / HR Assistant (final)
-- Incidents (escalated/high severity): Guard (report) → Investigations Officer (investigate) → Regional Manager (escalate, in-region) → Operations Manager (close)
+- Leave Requests: Security Officer (submit) → Regional Manager (initial) → Operations Manager → HR Manager / HR Assistant (final)
+- Incidents (escalated/high severity): Security Officer (report) → Investigations Officer (investigate) → Regional Manager (escalate, in-region) → Operations Manager (close)
 - Expenses: Accountant (submit) → Finance Manager (approve; **> 10M UGX → General Manager final**) → Approved
 - Performance Reviews: Direct supervisor (submit scores) → HR Manager (final sign-off)
 - Campaign Budgets: Business Development Manager / Sales and Marketing Supervisor (propose) → Finance Manager (approve; **> 10M UGX → General Manager final**) → Approved
-- Disciplinary Actions: Investigations Officer (initiate) → Regional Manager (approve, own region) → Operations Manager (approve) → HR Manager (finalize; Warning Letter increments `guard.warningLettersCount`; Suspension/Termination/Desertion updates guard status + writes audit logs to HR/Ops/Finance)
+- Disciplinary Actions: Investigations Officer (initiate) → Regional Manager (approve, own region) → Operations Manager (approve) → HR Manager (finalize; Warning Letter increments `warningLettersCount` on the officer's record; Suspension/Termination/Desertion updates security officer status + writes audit logs to HR/Ops/Finance)
 - Complaints: Marketing (log, own resolution) → resolve with `satisfactionRating` mirrored to the linked `ClientSite`; or refer to Investigations Officer (linked incident)
-- Deployments: Operations Manager / Regional Manager (own region) create → guard `lifecycleStage` = `DEPLOYED`, site `deploymentStatus` = `Deployed`
+- Deployments: Operations Manager / Regional Manager (own region) create → security officer `lifecycleStage` = `DEPLOYED`, site `deploymentStatus` = `Deployed`
 
-**Guard lifecycle (no hard delete):** guards are never deleted. Enroll → move stages (`ENROLLED → HANDED_TO_OPERATIONS → IN_TRAINING → PASSED_OUT → DEPLOYED`) by Ops Manager / Regional Manager (own region) / HR; termination (Suspension/Termination/Desertion) recorded by HR Manager only with a mandatory reason; ID card issuance is done by the Records Officer.
+**Security Officer lifecycle (no hard delete):** security officers are never deleted. Enroll → move stages (`ENROLLED → HANDED_TO_OPERATIONS → IN_TRAINING → PASSED_OUT → DEPLOYED`) by Ops Manager / Regional Manager (own region) / HR; termination (Suspension/Termination/Desertion) recorded by HR Manager only with a mandatory reason; ID card issuance is done by the Records Officer.
 
-**ClientSite attribution:** a Sales and Marketing Supervisor can create a site only from their own `Closed Won` lead; the Business Development Manager is exempt (may create a site for any won deal). Marketing sees aggregate guard availability by region.
+**ClientSite attribution:** a Sales and Marketing Supervisor can create a site only from their own `Closed Won` lead; the Business Development Manager is exempt (may create a site for any won deal). Marketing sees aggregate security officer availability by region.
 
 **Document Management scoping:** a document's visibility follows the module/category it's attached to. HR documents are visible to HR roles + Records Officer; Finance documents to Finance roles + Internal Auditor (view); IT-wide policy documents are visible to the Document Management module holders (Directorate, HR roles, IT Officer) as View.
 
@@ -1608,3 +1618,306 @@ Feature batch of 2026-08-23 (workplan Part 6):
 - **Acting-privilege requests fixed** (HR-initiated temporary role grants were never reaching the IT Officer): server module-permission key mismatch normalised (`security_officers` → `staff_records`), creation now notifies the resolved IT-Officer user id(s) with targetRole fallback, and the client approve action calls `PUT /api/auth/acting-privilege-requests/:id/approve`.
 - **Salary advance register digitised**: new `POST /api/cashier-transactions/batch` (Cashier-or-above) posts N transactions in one call as `Pending Approval` with a single audit entry and Finance Manager notification; `CashierDisbursementModal` gained a **Single Entry ⇄ Salary Advance Register** toggle whose grid (name / force number / phone / amount) shows live valid-row count and running total before posting.
 - **Validation**: migration deployed; **194/194 vitest pass**, `tsc --noEmit` clean, production build OK; live e2e verified the Cat 3 chain (DISC-2026-016 finalized with fine/receiver persisted and charge-sheet PDF on disk incl. letterhead), the IT-officer biodata+bank round-trip, and a 3-row register posted by the Cashier with FM approval to `Disbursed`.
+
+### 30.16 v3.2 — Implementation Lockdown Spec Merged Into the Constitution
+
+The standalone `docs/specs/implementation-lockdown-spec.md` (2026-08-23) was merged into this document as **Part II — §§31–45**, verbatim apart from section renumbering (lockdown §0–§14 → §31–§45, with all internal cross-references remapped), so the project keeps a single spec file. Its authority rule is explicit: **where §§31–45 conflict with anything in Part I — or with `docs/specs/project-review-and-workplan.md` — §§31–45 win.** Pointers were added at the known conflict sites: §7.4 (Fleet independence + rank-vs-role, superseding the Operations-nested chart), §9.7 (client-contract chain superseded by GM-sole-no-threshold approval per §§33/37), and §28 (approval cells superseded by §33 no-threshold rules). The original lockdown file was deleted after the merge; external references were updated to point here.
+
+### 30.17 v3.3 — Platform-Wide "Guard" → "Security Officer" Terminology Alignment
+
+The application code had already renamed "Guard Officer"/"Guard" to **Security Officer** everywhere (Prisma models `SecurityOfficer` / `SecurityOfficerBiodata` / `SecurityOfficerEmploymentContract`, key `forceNumber`; enums `SecurityOfficerLifecycleStage`/`Status`/`Designation`; API `/api/security-officers`; module `security_officer_portal`; store slice `securityOfficers`; role & designation value `"Security Officer"`). This revision aligned the spec to that reality: all Part I and Part II prose, tables, identifiers, and route references now use Security Officer terminology; §30.1–§30.15 history entries are kept verbatim as dated records (see the terminology note at the top of this document); the former `Guard Officer` role-value directives in §32 are annotated as resolved-by-rename; the §8 data-model rows were corrected against `prisma/schema.prisma` (e.g., `Contract` has no officer link; `DutyRoster`, `SiteDeployment`, `PerformanceReview`, `DisciplinaryAction` reference officers by `securityOfficerName`/`forceNumber`). Three rename-mangled UI strings in `DigitalContractWizard.tsx` were also fixed ("Security security officer services" → "Security officer services"; shift-rate labels camelCase leak).
+
+---
+
+# PART II — IMPLEMENTATION LOCKDOWN SPEC (AUTHORITATIVE BEHAVIOURAL SPEC)
+
+> **Purpose:** This part is the single, final source of truth for how ISCMS is *supposed* to behave — organizational structure, RBAC, and every workflow chain — reconciled against the current build. It was compiled from a dedicated working session (2026-08-23) to be handed directly to whoever (human or AI agent) implements the remaining fixes before Monday's UAT, and is merged here with section renumbering (v3.2) and v3.3 terminology alignment ("Guard" → "Security Officer" platform-wide) so the project keeps a single spec file.
+>
+> **Authority:** Where this part conflicts with anything earlier in this document — or with `docs/specs/project-review-and-workplan.md` — **this part wins**. Part I remains the reference for vision, architecture, data model, delivery history, standards, and prompts; behavioural rules live here.
+>
+> Each section states the **rule**, then, where relevant, a **Known Gap** — what the current build actually does instead, so implementation effort goes to the right place first. Section numbers continue from Part I; cross-references such as "see §37" point to sections of this part unless stated otherwise.
+
+## 31. Implementation Approach — Reconcile, Don't Rebuild
+
+**This is not a rebuild-from-scratch instruction.** Treat the current codebase as the starting point and this document as the target state, then reconcile the two:
+
+- **Already matches this spec?** Leave it alone. Don't touch working code just because this document restates what it already does.
+- **Conflicts with this spec** (wrong approver, wrong chain, wrong threshold, etc.)? Fix it to match — these are the "Known Gap" notes called out throughout.
+- **Genuine duplication or unnecessary cruft** (e.g. the duplicate hero banners on Identity Cards, HR-area widgets rendering on roles that shouldn't see them, the bypass "Issue Warning" button)? Remove it — flagged explicitly where known.
+- **Exists in the system, works fine, but was never discussed in this spec?** Leave it in place. Silence on something here means this conversation didn't get to it — not that it's wrong. Only remove something because it actively conflicts with a rule stated above, never merely because it isn't mentioned.
+
+When in doubt whether something falls in the "undiscussed but fine" bucket versus the "cruft to remove" bucket, the safer default is to preserve it and flag it for a follow-up decision rather than delete it outright.
+
+---
+
+## 32. Organizational Structure
+
+**Flat, independent departments — all report directly to Directorate/GM. No department sits inside another.**
+
+```
+Directorate (Director, General Manager)
+├── Operations
+├── Fleet                  ← now independent (was nested under Operations)
+├── Investigations
+├── HR
+├── Marketing / Sales
+├── Finance
+├── Administration
+└── IT
+```
+
+- **Director:** pure oversight. Zero approval power, zero operational access, anywhere, ever.
+- **General Manager:** the executive on the ground. Sole approver on Contracts, Requisitions, Expenses, Campaign Budgets (see §33). Full access to Directorate + Reports & Analytics. No CRUD in any department's day-to-day operations.
+
+**Ranks vs. Roles:** Within Operations, front-line personnel hold a **rank**, not a system-login role: `Security Officer → Site In-Charge → Inspector → Regional Manager`. Operations Manager is a management position, not part of this rank progression. **Rank-as-login-role (giving Site In-Charge, Inspector, and Security Officer their own system accounts) is explicitly paused** — not in scope for this build. Do not create User accounts for these; they remain attributes on the Security Officer record for now.
+
+**Terminology corrections:**
+- Drop "field ladder" — the correct term is **rank**.
+- Drop "Guard Officer" entirely — it does not correspond to anything decided. If it exists as a `UserRole` value, delete it. *(Resolved v3.3: the role value was renamed platform-wide to `Security Officer` rather than deleted, since the front-line rank needed a login role for the portal.)*
+
+### Known Gap
+- Current `UserRole` enum includes `Guard Officer`, which maps to nothing in this spec — remove it. *(Resolved v3.3: renamed to `Security Officer`.)*
+- `src/constants/organization.ts` / project docs still describe the org chart as *"Operations (incl. Fleet)"*. Fleet must be split out as its own top-level department everywhere this is defined (org chart data, module/nav grouping, department counts).
+
+---
+
+## 33. No-Threshold Approvals (Directorate)
+
+**General Manager is the sole approver, with no amount-based threshold, on:**
+- Contracts (all — client and staff)
+- Requisitions (from any department, including Administration's own)
+- Expenses
+- Campaign Budgets
+
+There is no split between "GM approves above X" and "someone else approves below X" anywhere in this list. Any existing threshold logic (e.g. 10M/100M UGX gates) on these four should be removed.
+
+### Known Gap
+- Current contract approve chain is `BD → Finance → GM`, gated only above 100M UGX. Needs to become GM-only, no threshold, no Finance step (see §37).
+
+---
+
+## 34. Operations Department
+
+**Operations Manager (OM):**
+- Direct reports: Regional Manager, Armorer, K9 Unit Lead (K9 Supervisor), Training Officer. (**Fleet Manager is no longer a direct report** — Fleet is independent, see §32.)
+- Role is KPI/analytics oversight across regions — **not** operational CRUD. OM cannot add armoury items, manage K9 records, touch Fleet, or manage HR records directly.
+- Issues deployment orders (headcount needed); **Regional Manager** selects which specific security officers fill each order.
+- **Zero contract authority** — no approve, no reject, no void, ever (see §37). If OM needs contract info, he submits a Contract Inquiry to Records Officer (see §37).
+- **Requests site surveys? No.** Marketing always requests the survey (see §37); OM only conducts/contributes to it. OM should have a **read-only history/log of site surveys he's conducted**, for accountability.
+- IT module access: view-only at most, no broader access.
+
+**Regional Manager:**
+- Oversees the rank ladder (Inspector → Site In-Charge → Security Officer) at their own region only.
+- Has **no authority** over other departments' staff physically located at their regional office (finance, marketing, etc. stay under their own department heads).
+- First approval step on leave requests and disciplinary actions originating in their region (Inspector has no approval role in either).
+- Can delegate non-sensitive work (e.g. shift scheduling) down to Inspector; not sensitive work.
+
+**Inspector (rank):** personally logs/submits patrol inspection records directly — not just reviewing Site In-Charge reports.
+
+**Site In-Charge (rank):** handles attendance/check-in oversight and incident reporting, scoped strictly to their own site.
+
+**Security Officer record:** must carry an assigned site (ties check-in/attendance to a specific Site In-Charge's location).
+
+### Security Officer Lifecycle (canonical path — final)
+1. Operations mobilizes/recruits candidates in the field. **This phase is entirely off-system — nothing is recorded until the recruit physically reaches the organization.**
+2. On arrival, **HR captures biodata and enrolls** the security officer (stage `ENROLLED`) — this is the actual point a security officer record first exists in the system.
+3. HR hands the security officer to Operations (stage `HANDED_TO_OPERATIONS`).
+4. OM sends the security officer to Training School (stage `IN_TRAINING`); Training School is notified.
+5. Training Officer trains and marks pass-out (stage `PASSED_OUT`); OM is notified. Training School UI should support surfacing top performers/qualifications from the cohort — this deserves a genuine UI upgrade, not just a pass/fail log.
+6. OM decides which region needs the security officer; **Regional Manager** deploys to a specific site (stage `DEPLOYED`).
+
+All lifecycle-stage transitions must fire real in-app notifications (Training Officer → OM on security officers received/passed out), not informal channels.
+
+### Recruitment (non-security officer roles)
+- **Security Officer positions:** HR posts/screens, builds shortlist → **OM personally interviews and selects** from the shortlist → HR finalizes hiring, captures biodata, enrolls.
+- **Non-security officer roles** (drivers, office staff): HR handles the pipeline end-to-end, no OM involvement.
+
+### Security Officer Transfers
+OM initiates/approves the transfer (operational decision). HR (Assistant) then updates the security officer's HR record to reflect it (status, region, history) — HR documents, doesn't initiate.
+
+### Known Gap
+- Verify Fleet Manager has already been removed as an OM direct report in whatever config currently lists this.
+
+---
+
+## 35. Fleet Department (independent)
+
+Owns Vehicles, Trips, Fuel Logs, Maintenance, Drivers, Inspections, Breakdowns — full CRUD, unchanged from current build.
+
+### Transport Request Flow — final
+1. **Requester:** any full-time operational staff member, **including the General Manager**. **Directors excluded** (not on-site staff).
+2. Request lands in the **Fleet Manager's** inbox.
+3. Fleet Manager checks driver/vehicle/rider availability and **assigns**: vehicle *or* motorcycle, driver *or* rider, and the vehicle/motorcycle's plate number.
+4. **Approve:** requester is notified the request was approved with the assigned details.
+5. **Decline:** Fleet Manager must give a reason via an interactive form — **dropdown of common reasons** (e.g. no driver available, vehicle in maintenance) **plus a custom/free-text option** if nothing in the list fits.
+6. Every action (request, assignment, approval, decline + reason) is audit-logged.
+
+This matches the existing Transport Request feature closely — confirm the decline-reason UI has the dropdown+custom pattern; add it if it's currently free-text-only or missing.
+
+---
+
+## 36. HR Department
+
+**HR Manager vs. HR Assistant split** (mirrors Finance's Accountant/Assistant Accountant pattern):
+- **HR Assistant:** day-to-day data entry — security officer record updates (including transfer reflections), recruitment shortlisting, leave-review step, preparing/documenting disciplinary cases before HR Manager finalizes.
+- **HR Manager:** sign-off/escalation authority only — contract issue/void (staff contracts), final disciplinary authority, final performance-review sign-off, forwards leave to GM.
+- **Security Officer lifecycle stage sign-off:** either HR Manager or HR Assistant can do this (not Manager-exclusive).
+- **Disciplinary finalization:** HR Manager only, strictly.
+
+**Records Officer** (unchanged, full ownership):
+- ID issuance interface (photo + signature capture, ID numbers).
+- Personnel file / contract archiving (contracts are confidential — not broadly visible to the org; see §37).
+- Fields Contract Inquiry requests (see §37).
+- Nav should **not** include "Recruitment & Staffing" or "Performance Reviews" — instead, both feed Records Officer via the existing Identity Cards **"Pending Records Issuance"** queue: a newly enrolled security officer lands there automatically, and a promotion changing a security officer's printed designation should trigger a "reissue required" entry — without exposing review scores/comments/case detail.
+
+**Leave workflow:** `Submit → HR Manager approves → [staff only, optional] GM approves → Approved`. HR Assistant is not an approver. Reject-with-reason available at any step.
+- **Requester is the General Manager, or another department manager at HR Manager's own level:** HR Manager still processes the approval step, but **cannot deny it** — for these requesters, HR Manager's approval is a formality/audit-log entry, not a real gate. HR Manager's actual denial authority only applies to leave requests from staff genuinely subordinate to them. The only person who truly outranks HR Manager is the General Manager.
+
+**Leave balance tracking:** currently incomplete (entitlement/taken/balance render as blank dashes) — needs real data wired in, this is a required fix, not cosmetic polish.
+
+**Disciplinary case UI:** ~~HR Manager currently can't see the actual charge sheet/incident narrative before deciding a case~~ **RESOLVED 2026-08-21.** The Disciplinary panel now renders a formal charge sheet per case: incident/complaint linkage captured at initiation (IO), employee hearing response recorded by the Investigations Officer, full approval trail (IO → RM → Ops → HR) with step-progress dots, prior-record strip, and a printable viewer (`ChargeSheetModal`). On HR finalization a canonical PDF is generated (pdf-lib), saved to `uploads/chargesheet_<actionCode>.pdf`, and auto-filed as `Document(category:"Disciplinary")` with sha256 checksum — visible to Records Officer/HR in the Documents vault. Server enforces the chain: approve routes reject out-of-turn status transitions (400); Category 1 offences and Suspension/Termination/Desertion cannot be finalized without a recorded employee response (400); finalized cases cannot be rejected. Force number is the identifier on all documents. **Added 2026-08-23 (v3.1):** offence categories extend to **Category 3** (minor infractions with a monetary fine) — IO captures category/fine (`fineAmountUgx`)/receiver (`receivedBy`) at initiation and HR at finalize; the generated PDF shows an Offence Classification line plus a Fine Imposed box + Received By line under the company letterhead.
+
+**Staff Appraisal:** ~~should auto-surface the security officer's disciplinary history for the review period~~ **RESOLVED** — StaffAppraisalModal shows an amber disciplinary-history strip (case count + recent cases) whenever the selected officer has actions on file, so omissions are visible at review time.
+
+**New ID card requirements:**
+- Photo/signature capture: phone, or a smartphone/webcam/camera connected to a PC — no dedicated hardware purchase needed.
+- ID template **auto-populates from the database record** — no manual typing of name, force number, etc.
+- Fields set manually at issuance: issuing date, expiry date, issuer's signature, holder's signature.
+- **Security Officer IDs:** simple — printed/laminated only, no smart card (cost + uncertain tenure).
+- **Permanent staff:** plastic cards.
+
+### Known Gap
+- The one-click "Issue Warning" button on every Personnel Directory row bypasses the formal disciplinary chain (Investigations Officer → Regional Manager → Operations Manager → HR sign-off) — **remove it**. Disciplinary actions should only originate from the security officer's individual profile page.
+- Security Officer Lifecycle, Security Officer Deployment Pipeline, and Disciplinary Actions widgets currently render identically (shared component) across HR Manager, HR Assistant, *and Records Officer* dashboards — Records Officer shouldn't see these at all; this is the likely root cause of most HR-area dashboard clutter findings.
+- Test/seed data (the demo security officers `PSG026/001`–`PSG026/006` from `prisma/seed.ts`) is currently visible in the Personnel Directory — strip before UAT.
+- Identity Cards page currently renders two near-duplicate hero banners with repeated stats/wording.
+
+---
+
+## 37. Contract Chain (Client Contracts) — FINAL
+
+```
+Marketing wins the client
+   → Marketing requests a Site Survey from Operations
+       (survey = pure risk assessment: what does the site need — nothing beyond that)
+   → Marketing drafts the contract from template + survey data
+   → General Manager reviews and approves
+       (SOLE approver, ALL contracts, no threshold — no Finance step in this chain)
+   → Contract signed (client copy + org copy)
+   → Records Officer holds/archives (confidential — not broadly visible)
+```
+
+- **Operations Manager has zero approve/reject/void authority on contracts, period.**
+- **Finance is not part of the standard chain at all** — except for the GM-absence fallback below.
+- **General Manager absence — Finance Manager stand-in:** this goes through the **acting-privilege system** (§42), not a separate standing permission. When GM is on leave: HR Manager requests IT Officer to grant Finance Manager acting-GM privileges → IT executes, audit-logged. This requires **one narrow, explicit exception** to the acting-privilege system's "no executive targets" rule: General Manager specifically, and only to Finance Manager specifically. Do not open executive-acting generally to any role.
+
+### Contract Inquiry (confidentiality mechanism)
+Since contracts are confidential and not broadly visible, anyone who needs contract information without full contract access submits an inquiry:
+
+`Requester asks (Confirmation | Full Copy) → Records Officer inbox → responds with a downloadable PDF → requester's outbox shows the response`
+
+**Confirmed requester list (final):** General Manager, Operations Manager, Finance Manager, HR Manager. (Internal Auditor was proposed but explicitly left out for now.)
+
+This maps directly onto the existing Contract Inquiry feature — likely just needs the requester role list confirmed/updated, not new construction.
+
+### Staff Contract Chain (HR — unchanged)
+`HR Assistant drafts → HR Manager issues → Active` (HR Manager can void with reason; Records Officer archives).
+
+### Known Gap
+- Current Contracts endpoint approve action is `BD → Finance → GM` gated at ≥100M UGX — needs to become GM-sole-approver, no threshold, Finance and BD removed from the approval action entirely (Marketing/BD still *drafts*, just doesn't *approve*).
+- Confirm the acting-privilege exception (GM→Finance Manager only) is scoped narrowly and doesn't accidentally open executive-acting more broadly.
+
+---
+
+## 38. Marketing / Sales Department
+
+- Lead source is a **mandatory field at creation**: website, X, LinkedIn, TikTok, referral, etc.
+- **Only Website gets automatic lead capture** (contact form integration). All other channels are manually logged by staff via the required source dropdown.
+- **Pipeline ownership model:** each lead has one owner (a Supervisor, or BDM for leads they personally work). Only the owner advances that lead's stage. BDM's oversight is exercised by **reassigning ownership**, not editing another person's lead directly. Reassignment is **BDM-only** — a Supervisor cannot reassign their own lead to another Supervisor.
+- **Campaign budget approval:** Accountant screens/prepares, Finance Manager gives final approval. **No threshold** (matches Contracts/Requisitions/Expenses).
+- **Complaint intake:** clients submit via a website form → Marketing notified → Marketing can escalate/refer to Investigations Officer for conduct/integrity issues.
+- **Client site onboarding:** security officer staffing numbers (day/night security officers, armed quota) come from an Operations site survey — not typed directly by Marketing. Marketing's onboarding form stays administrative-only: client org, site name, address, zone/region, contact.
+
+### Wanted UI improvements (flagged, not yet scoped in detail)
+- Sales Pipeline Stage Funnel: fix truncated company/owner names on cards, make cards open a full detail view (contact history, notes, activity log), add drag-and-drop stage advancement (owner-only), show days-in-stage, connect follow-up scheduling to the Follow-up Radar.
+- BDM dashboard currently crams nine sections into one scroll (pipeline, lead analytics, follow-ups, campaigns, funnel charts, collections, contracts, budget approvals, complaints) — needs restructuring, likely distributing content between the BDM dashboard and the separate Marketing & Sales / Client & Sites CRM pages (both pages are legitimate, not redundant).
+
+---
+
+## 39. Finance Department
+
+- **Invoicing:** Accountant creates → Finance Manager approves before it's sent to client → automated SMS + email payment reminders tied to due date (e.g. 3 days before, on due date, 7/14/30 days overdue). Marketing is notified when an invoice goes overdue (relationship follow-up), but Finance owns the invoice/payment data itself.
+- **Cashier transactions:** Loan and Salary Advance stay as **separate** types (not merged). Cashier initiates disbursement request → Finance Manager approves → Cashier disburses and logs. Every disbursement requires Finance Manager approval, no threshold.
+- **Accountant vs. Assistant Accountant split:** Assistant Accountant = transaction-level data entry/recording; Accountant = reconciliation, reporting, screening/preparing items before Finance Manager approval.
+- **Internal Auditor:** reviews financial records a few times a week — periodic, not continuous.
+- **Finance Manager:** reviews every invoice/expense personally, no threshold. GM's check only applies via the no-threshold rules in §33.
+- **Finance Manager as GM stand-in** on contracts: see §37/§42.
+
+---
+
+## 40. Administration Department
+
+- Administrative Officer's scope: inventory/administrative matters. **No rights to create a client site.**
+- **Requisitions:** any department (including Administration itself) submits a requisition → goes directly to **General Manager** for approval, no threshold, no Administrative Officer approval gate in between. GM needs a clear cross-department requisitions inbox.
+- Data-sharing: HR pulls stock-inventory data from Administrative Officer, and loans/rent/food data from Cashier (Finance).
+
+---
+
+## 41. Investigations Department
+
+- Two Investigations Officers are **peers** — either can handle any case, no senior/lead distinction.
+- Collaborates with Operations on incidents, but this should surface in Operations' workspace as a **single "Incidents" tab/section**, not a full nested Investigations department view inside the Ops workspace.
+- Receives escalated complaints from Marketing for conduct/integrity issues (see §38).
+
+---
+
+## 42. IT Department & Acting Privileges
+
+**IT Officer scope (unchanged):** user creation, roles/privileges, system-wide oversight.
+
+**Acting-privilege mechanism — final design:**
+1. **HR Manager initiates** the request — who needs coverage, for which role, and why.
+2. **IT Officer executes** the grant — does not decide independently, acts on HR's instruction.
+3. **Full audit trail** on both sides: that HR Manager requested it, and that IT Officer granted it on that request.
+4. **Additive, not a swap:** the covering person keeps their own role's full capabilities *and* gains the covered role's capabilities simultaneously — they don't lose their own job while covering someone else's.
+5. **Attribution stays honest:** every decision made while acting is recorded and displayed as made by *that person, acting in that role* — e.g. "Approved by [name], Acting General Manager" — visible in the audit log **and** wherever that decision is shown elsewhere (contract record, approval history), not buried in a log only IT can see.
+6. **Executive-target exception:** the general rule excludes executive roles as acting-privilege targets. **One narrow exception:** General Manager may be covered, and only by Finance Manager specifically (see §37) — not opened to any executive/any role generally.
+
+### Known Gap
+- Confirm the current acting-privilege implementation enforces additive (not swap) capability and produces the "Acting [Role]" attribution on the decisions themselves, not just in an internal audit table.
+
+---
+
+## 43. UI/UX Fixes Required (cross-department)
+
+- **Root cause identified:** several HR-area dashboards (HR Manager, HR Assistant, Records Officer) render from one shared dashboard template rather than role-specific widgets — this is why Records Officer sees Disciplinary Actions/Security Officer Lifecycle/Deployment Pipeline widgets that aren't in her scope. Fixing the template to be role-aware likely resolves multiple findings at once.
+- **GM dashboard:** repetition in analytics (security officer counts, revenue shown multiple times), executive attention items buried below analytics rather than surfaced first. Proposed principle: GM's home dashboard shows only aggregates/exceptions needed for oversight; operational detail stays within each department's own page. No department needs to hand GM full visibility — Administration surfaces logistics info, Investigations surfaces incident info, and so on, at summary level only.
+- **General wording issue:** some role dashboards have repetitive, oddly-phrased agent-generated section labels (e.g. "operations department decided by the operations manager") — needs a copy pass across all role dashboards once the structural fixes above land.
+- **Incidents:** own tab/section within Operations workspace, not a full nested Investigations tab (§41).
+
+---
+
+## 44. Explicitly Deferred / Future Work — do not build now
+
+- Rank-as-login-role (Site In-Charge, Inspector, Security Officer getting their own system accounts) — revisit after biodata/enrollment is stable in production use.
+- Contract e-stamp / enhanced signature validity verification — review what the current stylus/touch signature capture actually does first, decide after.
+- Document upload usage review + legacy paper-record migration (old contracts, etc.) — get the working system live first; migration will mix document upload and direct data entry, to be scoped later.
+- ISCMS ↔ QuickBooks integration/sync for Finance — not addressed, noted only.
+
+---
+
+## 45. Priority Order for Remaining Implementation Work
+
+Given Monday's UAT, suggested build order:
+
+1. **Contract chain correction** (§37) — remove BD/Finance from the approve action, make GM sole no-threshold approver. High-impact, currently wrong in a way testers will hit immediately.
+2. **Role list cleanup** (§32) — remove "Guard Officer" *(done v3.3 — renamed to "Security Officer")*, confirm Fleet's independence is reflected in org/nav config everywhere.
+3. **No-threshold rollout** (§33) — Expenses and Campaign Budgets, alongside Contracts/Requisitions.
+4. **Acting-privilege refinements** (§42) — HR-initiated request flow, additive capability, attribution display, narrow GM/Finance Manager exception.
+5. **Transport decline-reason UI** (§35) — dropdown + custom reason.
+6. **HR dashboard role-specific widgets** (§36/§43) — likely the single highest-leverage UI fix given how many findings trace back to it.
+7. Everything else in §36, §38, §43 as time allows before Monday; §44 stays parked.
+
+---
+
+*Compiled from the full working session reconciling ISCMS's intended design against its current build (2026-08-23). Merged into this constitution as §§31–45 in v3.2; where this part conflicts with any other project markdown file, this part is authoritative.*
