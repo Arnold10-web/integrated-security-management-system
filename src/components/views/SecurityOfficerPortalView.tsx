@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Clock, AlertTriangle, CheckCircle2,
-  Calendar, ShieldAlert, Send, UserCheck, CalendarRange, XCircle, ClipboardList, FileText,
+  Calendar, ShieldAlert, Send, UserCheck, CalendarRange, XCircle, ClipboardList, FileText, Download, Briefcase, MapPin, User as UserIcon, Shield, Award,
 } from "lucide-react";
 import type { User, Incident, LeaveRequest, SecurityOfficer, DutyRoster, SecurityOfficerEmploymentContract } from "../../types";
 import { domainApi } from "../../services/domainApi";
@@ -37,6 +37,7 @@ export const SecurityOfficerPortalView: React.FC<SecurityOfficerPortalViewProps>
   const forceNumber = mySecurityOfficer?.forceNumber || "SECURITY OFFICER-001";
   const [showContract, setShowContract] = useState(false);
   const [contract, setContract] = useState<SecurityOfficerEmploymentContract | null>(null);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "employment">("dashboard");
 
   useEffect(() => {
     let cancelled = false;
@@ -144,7 +145,34 @@ export const SecurityOfficerPortalView: React.FC<SecurityOfficerPortalViewProps>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl">
+        <button
+          onClick={() => setActiveTab("dashboard")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === "dashboard"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          Dashboard
+        </button>
+        <button
+          onClick={() => setActiveTab("employment")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === "employment"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Briefcase className="w-4 h-4" />
+          My Employment
+        </button>
+      </div>
+
+      {activeTab === "dashboard" && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
             <span>Current Post</span>
@@ -194,6 +222,221 @@ export const SecurityOfficerPortalView: React.FC<SecurityOfficerPortalViewProps>
           <div className="text-[11px] text-slate-500">{contract ? (contract.status === "Fully Signed" ? "Fully signed — view PDF" : contract.status) : "Contact HR"}</div>
         </button>
       </div>
+      )}
+
+      {activeTab === "employment" && (
+        <div className="space-y-5">
+          {/* Employment Header Card */}
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl p-6 text-white border border-slate-700 shadow-xl">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                  <Award className="w-8 h-8 text-emerald-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black">Employment Details</h2>
+                  <p className="text-sm text-slate-300 mt-1">{mySecurityOfficer?.fullName || currentUser.name} • {forceNumber}</p>
+                </div>
+              </div>
+              {contract?.pdfPath && (
+                <a
+                  href={`/uploads/${encodeURIComponent(contract.pdfPath)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg cursor-pointer transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Contract PDF
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Contract Status */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-emerald-600" />
+              Contract Status
+            </h3>
+            {contract ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Contract No.</p>
+                    <p className="font-mono font-bold text-slate-900 text-sm">{contract.contractCode}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Monthly Salary</p>
+                    <p className="font-bold text-emerald-700 text-sm">UGX {(contract.monthlySalaryUgx || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Start Date</p>
+                    <p className="font-bold text-slate-900 text-sm">{contract.startDate}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Probation</p>
+                    <p className="font-bold text-slate-900 text-sm">{contract.probationMonths} month(s)</p>
+                  </div>
+                </div>
+
+                {/* Status Trail */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(["Draft", "Pending Officer Signature", "Pending HR Signature", "Fully Signed"] as const).map((step, i) => {
+                    const stepIdx = contract.status === "Fully Signed" ? 3 :
+                      contract.status === "Pending HR Signature" ? 2 :
+                      contract.status === "Pending Officer Signature" ? 1 : 0;
+                    const isComplete = i <= stepIdx;
+                    return (
+                      <React.Fragment key={step}>
+                        <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${
+                          isComplete
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                            : "bg-slate-50 border-slate-200 text-slate-400"
+                        }`}>
+                          {isComplete && <CheckCircle2 className="w-3 h-3" />}
+                          {step}
+                        </div>
+                        {i < 3 && <span className="text-slate-300 text-[10px]">→</span>}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                {/* Signature Status */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className={`rounded-xl border p-3 ${contract.officerSignatureUrl ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200"}`}>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Employee Signature</p>
+                    {contract.officerSignatureUrl ? (
+                      <p className="text-xs font-bold text-emerald-700">
+                        Signed{contract.officerSignedAt ? ` on ${new Date(contract.officerSignedAt).toLocaleDateString()}` : ""}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-400 font-semibold">Awaiting signature</p>
+                    )}
+                  </div>
+                  <div className={`rounded-xl border p-3 ${contract.hrSignatureUrl ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200"}`}>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Employer Signature</p>
+                    {contract.hrSignatureUrl ? (
+                      <p className="text-xs font-bold text-emerald-700">
+                        Signed by {contract.hrSignerName}{contract.hrSignedAt ? ` on ${new Date(contract.hrSignedAt).toLocaleDateString()}` : ""}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-400 font-semibold">Awaiting employer signature</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 space-y-2">
+                <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+                <p className="text-sm font-bold text-slate-600">No employment contract has been issued yet.</p>
+                <p className="text-xs text-slate-400">Contact HR to request a contract.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Job Description */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-blue-600" />
+              Job Description
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
+                    <UserIcon className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Designation</p>
+                    <p className="font-bold text-sm text-slate-900">{mySecurityOfficer?.designation || "Security Officer"}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0 mt-0.5">
+                    <MapPin className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Assigned Site</p>
+                    <p className="font-bold text-sm text-slate-900">{mySecurityOfficer?.assignedSite || "—"}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0 mt-0.5">
+                    <Shield className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status</p>
+                    <p className="font-bold text-sm text-slate-900">{mySecurityOfficer?.status || "Active"}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center shrink-0 mt-0.5">
+                    <ShieldAlert className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Region</p>
+                    <p className="font-bold text-sm text-slate-900">{mySecurityOfficer?.region || "Central (Kampala HQ)"}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center shrink-0 mt-0.5">
+                    <Calendar className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Join Date</p>
+                    <p className="font-bold text-sm text-slate-900">{mySecurityOfficer?.joinDate || "—"}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0 mt-0.5">
+                    <Award className="w-4 h-4 text-cyan-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Lifecycle Stage</p>
+                    <p className="font-bold text-sm text-slate-900">{mySecurityOfficer?.lifecycleStage || "DEPLOYED"}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-4 h-4 text-teal-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Probation Status</p>
+                    <p className="font-bold text-sm text-slate-900">{mySecurityOfficer?.finishedProbation ? "Completed" : "In Progress"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Salary Information */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+              <span className="text-emerald-600">UGX</span>
+              Salary Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Monthly Salary</p>
+                <p className="text-lg font-black text-emerald-800 mt-1">
+                  UGX {(mySecurityOfficer?.monthlySalaryUgx || contract?.monthlySalaryUgx || 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Force Number</p>
+                <p className="text-sm font-bold text-slate-900 mt-1">{forceNumber}</p>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Probation Status</p>
+                <p className="text-sm font-bold text-slate-900 mt-1">{mySecurityOfficer?.finishedProbation ? "Completed" : "In Progress"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showContract && (
         <EmploymentContractModal show={showContract} securityOfficer={mySecurityOfficer || null} onClose={() => setShowContract(false)} />

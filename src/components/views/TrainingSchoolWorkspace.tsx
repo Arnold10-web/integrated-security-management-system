@@ -11,7 +11,6 @@
 import React, { useMemo, useState } from "react";
 import { GraduationCap, BookOpen, ClipboardList, BarChart3 } from "lucide-react";
 import { useDomainStore } from "../../stores/domainStore";
-import { useAuthStore } from "../../stores/authStore";
 import type { RecruitTrainee, TrainingCohort } from "../../types";
 import { TrainingPipelineView } from "./TrainingPipelineView";
 import { TrainingCohortCardGrid, AddCohortModal } from "../organisms";
@@ -20,11 +19,31 @@ import { STAGE_BADGE_CLASS, STAGE_LABEL } from "../../utils/trainingPipeline";
 
 type WorkspaceTab = "pipeline" | "cohorts" | "assessments" | "analytics";
 
-const TABS: { key: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
-  { key: "pipeline", label: "Pipeline", icon: <GraduationCap className="w-4 h-4 text-emerald-400" /> },
-  { key: "cohorts", label: "Cohorts", icon: <BookOpen className="w-4 h-4 text-emerald-400" /> },
-  { key: "assessments", label: "Assessments", icon: <ClipboardList className="w-4 h-4 text-emerald-400" /> },
-  { key: "analytics", label: "Analytics", icon: <BarChart3 className="w-4 h-4 text-emerald-400" /> },
+const TABS: { key: WorkspaceTab; label: string; tooltip: string; icon: React.ReactNode }[] = [
+  {
+    key: "pipeline",
+    label: "Pipeline",
+    tooltip: "Receive recruits sent by Operations, track their progress, and pass them out when training is complete",
+    icon: <GraduationCap className="w-4 h-4 text-emerald-400" />,
+  },
+  {
+    key: "cohorts",
+    label: "Cohorts",
+    tooltip: "Create and manage training intakes — dates, location, lead instructor and curriculum",
+    icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
+  },
+  {
+    key: "assessments",
+    label: "Assessments",
+    tooltip: "Record drill, marksmanship and theory scores for each recruit trainee",
+    icon: <ClipboardList className="w-4 h-4 text-emerald-400" />,
+  },
+  {
+    key: "analytics",
+    label: "Analytics",
+    tooltip: "Cohort durations, pass-out rate and deferred/disqualified counts across the school",
+    icon: <BarChart3 className="w-4 h-4 text-emerald-400" />,
+  },
 ];
 
 interface AssessmentRowProps {
@@ -110,7 +129,6 @@ export const TrainingSchoolWorkspace: React.FC = () => {
   const [assessmentQuery, setAssessmentQuery] = useState("");
 
   const domain = useDomainStore();
-  const currentUser = useAuthStore((s) => s.currentUser);
 
   // Recruit assessment records indexed by the officer force number HR assigned.
   const traineeByForceNumber = useMemo(
@@ -156,9 +174,8 @@ export const TrainingSchoolWorkspace: React.FC = () => {
             Security Officer Training Academy
           </h1>
           <p className="text-xs text-slate-300 mt-1 max-w-3xl">
-            Officers arrive registered by HR — force number, bank and biodata are already on file. Receive sent
-            recruits into training, record assessment scores, then pass them out on the same record.
-            {currentUser?.name ? ` Signed in: ${currentUser.name}.` : ""}
+            Officers arrive already registered by HR — force number, bank and biodata are on file. Your job here:
+            receive them into a cohort, record their assessment scores, then pass them out on the same record.
           </p>
         </div>
         <span className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-[11px] font-bold text-emerald-300 uppercase tracking-wider shrink-0 h-fit">
@@ -172,6 +189,7 @@ export const TrainingSchoolWorkspace: React.FC = () => {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
+            title={t.tooltip}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
               tab === t.key
                 ? "bg-slate-900 text-white shadow-md"
@@ -288,7 +306,11 @@ export const TrainingSchoolWorkspace: React.FC = () => {
                   {filteredAssessments.length === 0 && (
                     <tr>
                       <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
-                        No assessment records match.
+                        {assessmentQuery || assessmentCohortFilter !== "ALL"
+                          ? "No recruits match this filter."
+                          : domain.recruitTrainees.length === 0
+                            ? "No assessment records yet. Recruit records are created when Operations enrolls them."
+                            : "All records shown."}
                       </td>
                     </tr>
                   )}

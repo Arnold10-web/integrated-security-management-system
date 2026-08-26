@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { Invoice } from "../../types";
+import { Tooltip } from "../ui";
 
 interface CreateInvoiceModalProps {
   show: boolean;
@@ -70,7 +71,9 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({ show, on
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Amount (UGX)</label>
+              <Tooltip content="Total invoice amount in Ugandan Shillings (UGX). This will appear on the client invoice and is used for revenue tracking." position="top">
+                <label className="font-bold text-slate-700 block mb-1 cursor-help">Amount (UGX)</label>
+              </Tooltip>
               <input
                 type="number"
                 required
@@ -80,7 +83,9 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({ show, on
               />
             </div>
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Due Date</label>
+              <Tooltip content="Payment deadline for the client. Overdue invoices are automatically flagged after 60 days and forwarded to Finance for follow-up." position="top">
+                <label className="font-bold text-slate-700 block mb-1 cursor-help">Due Date</label>
+              </Tooltip>
               <input
                 type="date"
                 required

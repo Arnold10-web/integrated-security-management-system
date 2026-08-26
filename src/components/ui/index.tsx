@@ -1,5 +1,12 @@
 import React from 'react';
 
+export { ConfirmationDialog } from './ConfirmationDialog';
+export type { ConfirmationDialogProps } from './ConfirmationDialog';
+export { Toast, ToastStack } from './Toast';
+export type { ToastProps, ToastStackProps } from './Toast';
+export { Tooltip } from './Tooltip';
+export type { TooltipProps } from './Tooltip';
+
 export const Badge: React.FC<{
   children: React.ReactNode;
   variant?: 'blue' | 'emerald' | 'amber' | 'rose' | 'slate' | 'purple';

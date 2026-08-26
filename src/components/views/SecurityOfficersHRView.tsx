@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { ShieldCheck, Plus, Download, Calendar, FolderArchive, Users, Banknote, IdCard } from "lucide-react";
+import { ConfirmationDialog } from "../ui";
 import {
   SecurityOfficersTable, LeaveRequestPanel, StaffAppraisalPanel, ContractsPanel, HRRemittancesPanel,
   SecurityOfficerEnrollModal, SecurityOfficerBiodataModal, SecurityOfficerWarningModal, SecurityOfficerLeaveModal,
@@ -103,7 +104,53 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
   const [selStaffCard, setSelStaffCard] = useState<User | null>(null);
   const [showStaffCard, setShowStaffCard] = useState(false);
 
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "danger" | "warning" | "info";
+    onConfirm: () => void;
+  }>({ isOpen: false, title: "", message: "", variant: "danger", onConfirm: () => {} });
+
+  const confirmAction = useCallback(
+    (title: string, message: string, variant: "danger" | "warning" | "info", onConfirm: () => void) => {
+      setConfirmDialog({ isOpen: true, title, message, variant, onConfirm });
+    },
+    []
+  );
+
   const isPayrollAccessible = activeRole === "HR Manager" || activeRole === "HR Assistant";
+
+  const wrappedOnVoidContract = onVoidContract
+    ? (id: string, reason: string) =>
+        confirmAction(
+          "Void Contract",
+          "This will permanently void this contract. This action cannot be undone. Do you want to proceed?",
+          "danger",
+          () => onVoidContract(id, reason)
+        )
+    : undefined;
+
+  const wrappedOnArchiveSecurityOfficer = onArchiveSecurityOfficer
+    ? (id: string) =>
+        confirmAction(
+          "Archive Security Officer",
+          "This will move the security officer to the archived records. They will no longer appear in active registers.",
+          "warning",
+          () => onArchiveSecurityOfficer(id)
+        )
+    : undefined;
+
+  const wrappedOnMoveLifecycle = onMoveLifecycle
+    ? (id: string, updates: Partial<SecurityOfficer>) =>
+        confirmAction(
+          "Change Lifecycle Stage",
+          "You are about to change this officer's employment lifecycle stage. Please confirm this action.",
+          "warning",
+          () => onMoveLifecycle(id, updates)
+        )
+    : undefined;
+
   const fStaff = staff.filter((u) => {
     const q = staffSearch.toLowerCase();
     return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.forceNumber ?? "").toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
@@ -251,12 +298,12 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
             <SecurityOfficerDeploymentPipeline
               securityOfficers={fg}
               activeRole={activeRole ?? "General Manager"}
-              onMoveLifecycle={onMoveLifecycle}
+              onMoveLifecycle={wrappedOnMoveLifecycle}
             />
           )}
           <SecurityOfficersTable securityOfficers={fg} viewMode={vm} onViewModeChange={setVm}
             searchTerm={search} onSearchChange={setSearch} statusFilter={sf} onStatusFilterChange={setSf}
-            onViewBiodata={(g) => setSelBio(g)} onEmploymentContract={(g) => setSelContract(g)} onArchiveSecurityOfficer={onArchiveSecurityOfficer} />
+            onViewBiodata={(g) => setSelBio(g)} onEmploymentContract={(g) => setSelContract(g)} onArchiveSecurityOfficer={wrappedOnArchiveSecurityOfficer} />
         </div>
       )}
       {tab === "leave" && (
@@ -271,7 +318,7 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
           {activeRole && CONTRACT_ORIGINATORS.includes(activeRole) && <button onClick={() => setShowContract(true)} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"><FolderArchive className="w-4 h-4" />Add Contract Record</button>}
           <ContractsPanel contracts={fcs} contractFilter={cf} onFilterChange={setCf} activeRole={activeRole}
             onUpdateContract={onUpdateContract} onIssueContract={onIssueContract}
-            onArchiveContract={onArchiveContract} onVoidContract={onVoidContract}
+            onArchiveContract={onArchiveContract} onVoidContract={wrappedOnVoidContract}
             onAdvanceApproval={onAdvanceApproval} />
         </div>
       )}
@@ -407,6 +454,19 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
         billingCycle={ctBilling} setBillingCycle={setCtBilling} region={ctRegion} setRegion={setCtRegion}
         autoRenew={ctAutoRenew} setAutoRenew={setCtAutoRenew} relatedForceNumber={ctForceNumber} setRelatedForceNumber={setCtForceNumber}
         relatedSiteName={ctSiteName} setRelatedSiteName={setCtSiteName} onSubmit={subContract} />
+      <ConfirmationDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        confirmText="Yes, Proceed"
+        cancelText="Cancel"
+        onConfirm={() => {
+          confirmDialog.onConfirm();
+          setConfirmDialog((d) => ({ ...d, isOpen: false }));
+        }}
+        onCancel={() => setConfirmDialog((d) => ({ ...d, isOpen: false }))}
+      />
     </div>
   );
 };

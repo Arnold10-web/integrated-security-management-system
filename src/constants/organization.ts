@@ -264,13 +264,13 @@ export const ADMINISTRATION: DepartmentDefinition = {
 export const IT: DepartmentDefinition = {
   code: "it",
   name: "Information Technology",
-  primaryModules: ["it", "workflow", "documents"],
+  primaryModules: ["it", "documents"],
   headRole: "IT Officer",
   structure: [
     {
       role: "IT Officer",
       title: "IT Officer (Systems Overseer)",
-      description: "Users, roles, rights, system health, IT hardware/software assets, PVC ID coordination, technical administration, backups, server monitoring, support tickets, workflow configuration, document management.",
+      description: "Users, roles, rights, system health, IT hardware/software assets, PVC ID coordination, technical administration, backups, server monitoring, support tickets, document management.",
     },
   ],
   notes:

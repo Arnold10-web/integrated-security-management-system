@@ -407,6 +407,10 @@ const createInvoiceSchema = z.object({
   siteName: z.string().min(1),
   amount: z.number().positive(),
   dueDate: z.coerce.date(),
+  /* §9.1 VAT toggle: whether `amount` already includes 18% VAT (Inclusive) or
+     excludes it (Exclusive, the Uganda B2B default). vatAmount is computed
+     server-side so clients can't send inconsistent figures. */
+  vatMode: z.enum(["Exclusive", "Inclusive"]).optional(),
 });
 
 const createExpenseSchema = z.object({
@@ -1572,6 +1576,78 @@ app.put("/api/security-officers/:id/lifecycle", authenticateToken, async (req, r
   res.json({ ...officer, designation: unmapSecurityOfficerDesignation(officer.designation) });
 });
 
+/* §9.5 probation tracking: HR Manager completes (or extends) an officer's
+   3-month probation, transitioning them to "Approved Employee". The transition
+   is computed from the employment contract's probationMonths when available,
+   falling back to joinDate + 3 months. */
+app.put("/api/security-officers/:id/probation", authenticateToken, async (req, res) => {
+  const user = (req as any).user as JwtPayload | undefined;
+  if (!user || !hasEffectiveRole(user, "HR Manager")) {
+    res.status(403).json({ error: "Access denied: only the HR Manager can finalize a security officer's probation" });
+    return;
+  }
+  const parsed = z.object({
+    outcome: z.enum(["Approved Employee", "Extended"]),
+    notes: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const officer = await resolveSecurityOfficer(req.params.id);
+  if (!officer) {
+    res.status(404).json({ error: "Security officer not found" });
+    return;
+  }
+  if (officer.finishedProbation && officer.probationStatus === "Approved Employee") {
+    res.status(409).json({ error: `${officer.fullName} already completed probation` });
+    return;
+  }
+  const contract = await prisma.securityOfficerEmploymentContract.findFirst({
+    where: { forceNumber: officer.forceNumber },
+    orderBy: { createdAt: "desc" },
+  });
+  const months = contract?.probationMonths ?? 3;
+  const start = officer.probationStartDate ?? officer.joinDate;
+  const now = new Date();
+  const approved = parsed.data.outcome === "Approved Employee";
+  // Extension sets a fresh window from today; approval closes probation for good.
+  const end = approved
+    ? now
+    : new Date(now.getFullYear(), now.getMonth() + months, now.getDate());
+  const updated = await prisma.securityOfficer.update({
+    where: { forceNumber: officer.forceNumber },
+    data: {
+      finishedProbation: approved,
+      probationStartDate: start,
+      probationEndDate: end,
+      probationStatus: parsed.data.outcome,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: `Probation ${parsed.data.outcome === "Extended" ? "Extended" : "Completed"}`,
+      module: "HR",
+      details: `${officer.fullName} (${officer.forceNumber}) — probation ${parsed.data.outcome.toLowerCase()} by ${actorRoleLabel(user)}${parsed.data.notes ? `. Notes: ${parsed.data.notes}` : ""}.`,
+    },
+  });
+  await prisma.notification.create({
+    data: {
+      targetRole: "Operations Manager",
+      type: approved ? "success" : "warning",
+      title: approved ? "Probation Completed" : "Probation Extended",
+      message: approved
+        ? `${officer.fullName} (${officer.forceNumber}) completed the ${months}-month probation and is now an Approved Employee.`
+        : `${officer.fullName} (${officer.forceNumber})'s probation was extended by ${months} month(s).`,
+      module: "HR",
+    },
+  });
+  res.json({ ...updated, designation: unmapSecurityOfficerDesignation(updated.designation) });
+});
+
 app.put("/api/security-officers/:id/issue-id", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const user = (req as any).user as JwtPayload | undefined;
@@ -1773,8 +1849,18 @@ app.post("/api/sites", authenticateToken, requireModuleAccess("sites", "full"), 
     }
   }
   const actorName = (await contractActorName(req)) || user.role;
+  const existingClientSites = await prisma.clientSite.findMany({
+    where: { clientName: { equals: parsed.data.clientName, mode: "insensitive" } },
+    select: { id: true },
+  });
+  const isNewClient = existingClientSites.length === 0;
   const site = await (prisma.clientSite.create as any)({
-    data: { ...(parsed.data as any), wonBy: actorName },
+    data: {
+      ...(parsed.data as any),
+      wonBy: actorName,
+      broughtInBy: actorName,
+      commissionEligible: isNewClient,
+    },
   });
   await (prisma.auditLog.create as any)({
     data: {
@@ -1783,7 +1869,7 @@ app.post("/api/sites", authenticateToken, requireModuleAccess("sites", "full"), 
       userRole: actorRoleLabel(user),
       action: "Site Contract Onboarded",
       module: "Client CRM",
-      details: `Added new contract site ${site.siteName} for ${site.clientName}. Deal credited to ${actorName}.`,
+      details: `Added new contract site ${site.siteName} for ${site.clientName}. Deal credited to ${actorName}.${isNewClient ? " New client — commission eligible." : ""}`,
     },
   });
   res.status(201).json(site);
@@ -2168,10 +2254,30 @@ app.put("/api/incidents/:id/investigate", authenticateToken, async (req, res) =>
     return;
   }
   const { id } = req.params;
+  const actor = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
   const resolvedAt = typeof (req.body as any)?.resolvedAt === "string" && !isNaN(Date.parse((req.body as any).resolvedAt))
     ? new Date((req.body as any).resolvedAt)
     : new Date();
-  const incident = await prisma.incident.update({ where: { id }, data: { status: "Resolved", resolvedAt } });
+  /* §26.10: incidents carry "reported by" attribution + full audit trail of who
+     handled each step — persisted server-side, not just client-side state. */
+  const incident = await prisma.incident.update({
+    where: { id },
+    data: {
+      status: "UnderInvestigation",
+      investigatedBy: actor?.name ?? actorRoleLabel(user),
+      resolvedAt,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Incident Investigation Opened",
+      module: "Operations",
+      details: `${actor?.name ?? actorRoleLabel(user)} opened an investigation into ${incident.incidentCode} at ${incident.siteName}.`,
+    },
+  });
   res.json(incident);
 });
 
@@ -2182,7 +2288,21 @@ app.put("/api/incidents/:id/escalate", authenticateToken, async (req, res) => {
     return;
   }
   const { id } = req.params;
-  const incident = await prisma.incident.update({ where: { id }, data: { status: "Escalated" } });
+  const actor = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
+  const incident = await prisma.incident.update({
+    where: { id },
+    data: { status: "Escalated", escalatedBy: actor?.name ?? actorRoleLabel(user) },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Incident Escalated",
+      module: "Operations",
+      details: `${incident.incidentCode} escalated to the Operations Manager by ${actor?.name ?? actorRoleLabel(user)}.`,
+    },
+  });
   res.json(incident);
 });
 
@@ -2193,7 +2313,21 @@ app.put("/api/incidents/:id/ops-close", authenticateToken, async (req, res) => {
     return;
   }
   const { id } = req.params;
-  const incident = await prisma.incident.update({ where: { id }, data: { status: "Resolved" } });
+  const actor = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
+  const incident = await prisma.incident.update({
+    where: { id },
+    data: { status: "Resolved", resolvedBy: actor?.name ?? actorRoleLabel(user), resolutionNotes: (req.body as any)?.resolutionNotes ?? null },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Incident Closed",
+      module: "Operations",
+      details: `${incident.incidentCode} closed by Operations Manager ${actor?.name ?? actorRoleLabel(user)}.`,
+    },
+  });
   res.json(incident);
 });
 
@@ -2204,7 +2338,26 @@ app.put("/api/incidents/:id/resolve", authenticateToken, async (req, res) => {
     return;
   }
   const { id } = req.params;
-  const incident = await prisma.incident.update({ where: { id }, data: { status: "Resolved" } });
+  const actor = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
+  const incident = await prisma.incident.update({
+    where: { id },
+    data: {
+      status: "Resolved",
+      resolvedBy: actor?.name ?? actorRoleLabel(user),
+      resolutionNotes: (req.body as any)?.resolutionNotes ?? null,
+      resolvedAt: (req.body as any)?.resolvedAt && !isNaN(Date.parse((req.body as any).resolvedAt)) ? new Date((req.body as any).resolvedAt) : new Date(),
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Incident Resolved",
+      module: "Operations",
+      details: `${incident.incidentCode} resolved by ${actor?.name ?? actorRoleLabel(user)}${(req.body as any)?.resolutionNotes ? ` — ${(req.body as any).resolutionNotes}` : ""}.`,
+    },
+  });
   res.json(incident);
 });
 
@@ -2264,11 +2417,14 @@ app.post("/api/invoices", authenticateToken, requireModuleAccess("invoices", "fu
   }
   // Count-based numbering can race under concurrent inserts (unique constraint).
   // Retry by re-reading the count; a hard failure returns 500 instead of hanging.
+  const VAT_RATE = 0.18;
+  const vatMode = parsed.data.vatMode ?? "Exclusive";
+  const vatAmount = Math.round(parsed.data.amount * (vatMode === "Exclusive" ? VAT_RATE : VAT_RATE / (1 + VAT_RATE)));
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const invNumber = await nextInvoiceNumber();
       const invoice = await prisma.invoice.create({
-        data: { ...parsed.data, invoiceNumber: invNumber, date: new Date(), status: "Draft" },
+        data: { ...parsed.data, vatMode, vatAmount, invoiceNumber: invNumber, date: new Date(), status: "Draft" },
       });
       res.status(201).json(invoice);
       return;
@@ -3445,6 +3601,330 @@ app.put("/api/trainees/:id/graduate", authenticateToken, requireModuleAccess("tr
   res.json(result[0]);
 });
 
+/* ─────────────── Pass-Out Certificate Auto-Generation ─────────────── */
+
+app.post("/api/training-cohorts/:id/generate-certificates", authenticateToken, requireAnyRole("Training Officer"), async (req, res) => {
+  const { id } = req.params;
+  const user = (req as any).user as JwtPayload;
+  const cohort = await prisma.trainingCohort.findUnique({ where: { id } });
+  if (!cohort) {
+    res.status(404).json({ error: "Training cohort not found" });
+    return;
+  }
+  const passedTrainees = await prisma.recruitTrainee.findMany({
+    where: {
+      cohortId: id,
+      OR: [
+        { overallStatus: "Passed" },
+        { overallStatus: "Graduated & Certified" },
+        { dateGraduated: { not: null } },
+      ],
+    },
+  });
+  if (passedTrainees.length === 0) {
+    res.status(400).json({ error: "No passed trainees found in this cohort" });
+    return;
+  }
+  const existingCerts = await prisma.passOutCertificate.findMany({
+    where: { cohortId: id },
+    select: { forceNumber: true },
+  });
+  const existingForceNumbers = new Set(existingCerts.map((c) => c.forceNumber));
+  const traineesToCertify = passedTrainees.filter(
+    (t) => t.assignedForceNumber && !existingForceNumbers.has(t.assignedForceNumber)
+  );
+  if (traineesToCertify.length === 0) {
+    res.status(400).json({ error: "All eligible trainees already have certificates" });
+    return;
+  }
+  const year = new Date().getFullYear();
+  const baseCertCount = await prisma.passOutCertificate.count();
+  const createdCerts = [];
+  for (let i = 0; i < traineesToCertify.length; i++) {
+    const t = traineesToCertify[i];
+    const certSeq = baseCertCount + i + 1;
+    const certId = `CERT-${year}-${String(certSeq).padStart(3, "0")}`;
+    const cert = await prisma.passOutCertificate.create({
+      data: {
+        certificateId: certId,
+        forceNumber: t.assignedForceNumber!,
+        officerName: t.fullName,
+        cohortId: cohort.id,
+        cohortCode: cohort.code,
+        trainingStart: cohort.startDate,
+        trainingEnd: cohort.endDate,
+        passOutDate: t.dateGraduated || new Date().toISOString().split("T")[0],
+        filePath: "",
+        fileName: `${certId}-${t.assignedForceNumber}.pdf`,
+        generatedBy: user.userId,
+      },
+    });
+    createdCerts.push(cert);
+  }
+  res.status(201).json({ certificates: createdCerts, count: createdCerts.length });
+});
+
+app.get("/api/pass-out-certificates", authenticateToken, requireAnyRole("Training Officer", "Records Officer", "Operations Manager"), async (req, res) => {
+  const user = (req as any).user as JwtPayload;
+  if (hasEffectiveRole(user, "Records Officer") || hasEffectiveRole(user, "Operations Manager")) {
+    const rows = await prisma.passOutCertificate.findMany({ orderBy: { createdAt: "desc" } });
+    res.json(rows);
+    return;
+  }
+  const cohortIds = (await prisma.trainingCohort.findMany({ select: { id: true } })).map((c) => c.id);
+  const rows = await prisma.passOutCertificate.findMany({
+    where: { cohortId: { in: cohortIds } },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(rows);
+});
+
+/* ─────────────── CRUD: Training Curriculum ─────────────── */
+
+const CURRICULUM_KEYS = ["cohortId", "cohortCode", "version", "title", "description", "modules", "status", "createdBy"];
+
+app.get("/api/training-curricula", authenticateToken, requireModuleAccess("training"), async (req, res) => {
+  const user = (req as any).user as JwtPayload;
+  if (hasEffectiveRole(user, "Training Officer")) {
+    const cohortIds = (await prisma.trainingCohort.findMany({ select: { id: true } })).map((c) => c.id);
+    const rows = await prisma.trainingCurriculum.findMany({
+      where: { cohortId: { in: cohortIds } },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(rows);
+    return;
+  }
+  const rows = await prisma.trainingCurriculum.findMany({ orderBy: { createdAt: "desc" } });
+  res.json(rows);
+});
+
+app.post("/api/training-curricula", authenticateToken, requireModuleAccess("training", "full"), async (req, res) => {
+  const user = (req as any).user as JwtPayload;
+  const parsed = z.object({
+    cohortId: z.string().min(1),
+    title: z.string().min(1),
+    description: z.string().optional(),
+    modules: z.any(),
+    status: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const cohort = await prisma.trainingCohort.findUnique({ where: { id: parsed.data.cohortId } });
+  if (!cohort) {
+    res.status(404).json({ error: "Training cohort not found" });
+    return;
+  }
+  const existingCount = await prisma.trainingCurriculum.count({ where: { cohortId: parsed.data.cohortId } });
+  const curriculum = await prisma.trainingCurriculum.create({
+    data: {
+      cohortId: parsed.data.cohortId,
+      cohortCode: cohort.code,
+      version: existingCount + 1,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      modules: parsed.data.modules ?? [],
+      status: parsed.data.status || "Draft",
+      createdBy: user.userId,
+    } as any,
+  });
+  res.status(201).json(curriculum);
+});
+
+app.put("/api/training-curricula/:id", authenticateToken, requireModuleAccess("training", "full"), async (req, res) => {
+  const parsed = z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    modules: z.any().optional(),
+    status: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const curriculum = await prisma.trainingCurriculum.findUnique({ where: { id: req.params.id } });
+  if (!curriculum) {
+    res.status(404).json({ error: "Training curriculum not found" });
+    return;
+  }
+  const updated = await prisma.trainingCurriculum.update({
+    where: { id: req.params.id },
+    data: whitelistFields(req.body, ["title", "description", "modules", "status"]) as any,
+  });
+  res.json(updated);
+});
+
+app.delete("/api/training-curricula/:id", authenticateToken, requireModuleAccess("training", "full"), async (req, res) => {
+  const curriculum = await prisma.trainingCurriculum.findUnique({ where: { id: req.params.id } });
+  if (!curriculum) {
+    res.status(404).json({ error: "Training curriculum not found" });
+    return;
+  }
+  if (curriculum.status !== "Draft") {
+    res.status(400).json({ error: "Only Draft curricula can be deleted" });
+    return;
+  }
+  await prisma.trainingCurriculum.delete({ where: { id: req.params.id } });
+  res.json({ ok: true });
+});
+
+/* ─────────────── CRUD: Training Course Outline ─────────────── */
+
+const COURSE_OUTLINE_KEYS = ["curriculumId", "cohortId", "sessionNumber", "date", "topic", "instructor", "materials", "practicalExercises", "notes"];
+
+app.get("/api/training-course-outlines", authenticateToken, requireModuleAccess("training"), async (req, res) => {
+  const curriculumId = req.query.curriculumId as string | undefined;
+  const cohortId = req.query.cohortId as string | undefined;
+  const where: any = {};
+  if (curriculumId) where.curriculumId = curriculumId;
+  if (cohortId) where.cohortId = cohortId;
+  const rows = await prisma.trainingCourseOutline.findMany({ where, orderBy: { sessionNumber: "asc" } });
+  res.json(rows);
+});
+
+app.post("/api/training-course-outlines", authenticateToken, requireModuleAccess("training", "full"), async (req, res) => {
+  const parsed = z.object({
+    curriculumId: z.string().min(1),
+    cohortId: z.string().min(1),
+    sessionNumber: z.number().int().min(1),
+    date: z.string().min(1),
+    topic: z.string().min(1),
+    instructor: z.string().min(1),
+    materials: z.string().optional(),
+    practicalExercises: z.string().optional(),
+    notes: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const curriculum = await prisma.trainingCurriculum.findUnique({ where: { id: parsed.data.curriculumId } });
+  if (!curriculum) {
+    res.status(404).json({ error: "Training curriculum not found" });
+    return;
+  }
+  const row = await prisma.trainingCourseOutline.create({
+    data: whitelistFields(req.body, COURSE_OUTLINE_KEYS) as any,
+  });
+  res.status(201).json(row);
+});
+
+app.put("/api/training-course-outlines/:id", authenticateToken, requireModuleAccess("training", "full"), async (req, res) => {
+  const row = await prisma.trainingCourseOutline.findUnique({ where: { id: req.params.id } });
+  if (!row) {
+    res.status(404).json({ error: "Training course outline not found" });
+    return;
+  }
+  const updated = await prisma.trainingCourseOutline.update({
+    where: { id: req.params.id },
+    data: whitelistFields(req.body, COURSE_OUTLINE_KEYS) as any,
+  });
+  res.json(updated);
+});
+
+app.delete("/api/training-course-outlines/:id", authenticateToken, requireModuleAccess("training", "full"), async (req, res) => {
+  const row = await prisma.trainingCourseOutline.findUnique({ where: { id: req.params.id } });
+  if (!row) {
+    res.status(404).json({ error: "Training course outline not found" });
+    return;
+  }
+  await prisma.trainingCourseOutline.delete({ where: { id: req.params.id } });
+  res.json({ ok: true });
+});
+
+/* ─────────────── Peaceful Exit Clearance ─────────────── */
+
+const DEFAULT_CLEARANCE_CHECKLIST = {
+  uniform_returned: { department: "HR", status: "pending", signOffBy: null, signedAt: null },
+  firearms_returned: { department: "Armorer", status: "pending", signOffBy: null, signedAt: null },
+  id_card_returned: { department: "Records Officer", status: "pending", signOffBy: null, signedAt: null },
+  system_account_deactivated: { department: "IT Officer", status: "pending", signOffBy: null, signedAt: null },
+  vehicle_returned: { department: "Fleet Manager", status: "pending", signOffBy: null, signedAt: null },
+  final_salary_settlement: { department: "Finance Manager", status: "pending", signOffBy: null, signedAt: null },
+  equipment_returned: { department: "HR", status: "pending", signOffBy: null, signedAt: null },
+};
+
+app.post("/api/security-officers/:id/initiate-clearance", authenticateToken, requireAnyRole("HR Manager"), async (req, res) => {
+  const { id } = req.params;
+  const user = (req as any).user as JwtPayload;
+  const officer = await resolveSecurityOfficer(id);
+  if (!officer) {
+    res.status(404).json({ error: "Security officer not found" });
+    return;
+  }
+  if (officer.clearanceChecklist) {
+    res.status(400).json({ error: "Clearance process already initiated for this officer" });
+    return;
+  }
+  const updated = await prisma.securityOfficer.update({
+    where: { forceNumber: officer.forceNumber },
+    data: {
+      lifecycleStage: "COMPLETED_CONTRACT",
+      clearanceChecklist: DEFAULT_CLEARANCE_CHECKLIST,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Peaceful Exit Clearance Initiated",
+      module: "HR",
+      details: `Clearance process initiated for ${officer.fullName} (${officer.forceNumber}) by ${actorRoleLabel(user)}`,
+    },
+  });
+  res.json({ ...updated, designation: unmapSecurityOfficerDesignation(updated.designation) });
+});
+
+app.put("/api/security-officers/:id/clearance-signoff", authenticateToken, requireAnyRole("HR Manager", "Armorer", "Records Officer", "IT Officer", "Fleet Manager", "Finance Manager"), async (req, res) => {
+  const { id } = req.params;
+  const user = (req as any).user as JwtPayload;
+  const parsed = z.object({
+    itemKey: z.string().min(1),
+    status: z.enum(["pending", "completed"]),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const officer = await resolveSecurityOfficer(id);
+  if (!officer) {
+    res.status(404).json({ error: "Security officer not found" });
+    return;
+  }
+  if (!officer.clearanceChecklist) {
+    res.status(400).json({ error: "Clearance process has not been initiated for this officer" });
+    return;
+  }
+  const checklist = officer.clearanceChecklist as Record<string, any>;
+  if (!checklist[parsed.data.itemKey]) {
+    res.status(400).json({ error: `Unknown clearance item: ${parsed.data.itemKey}` });
+    return;
+  }
+  checklist[parsed.data.itemKey] = {
+    ...checklist[parsed.data.itemKey],
+    status: parsed.data.status,
+    signOffBy: actorRoleLabel(user),
+    signedAt: parsed.data.status === "completed" ? new Date().toISOString() : null,
+  };
+  const updated = await prisma.securityOfficer.update({
+    where: { forceNumber: officer.forceNumber },
+    data: { clearanceChecklist: checklist },
+  });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: `Clearance Item ${parsed.data.status === "completed" ? "Signed Off" : "Reset"}`,
+      module: "HR",
+      details: `${parsed.data.itemKey} ${parsed.data.status === "completed" ? "completed" : "reset"} for ${officer.fullName} (${officer.forceNumber}) by ${actorRoleLabel(user)}`,
+    },
+  });
+  res.json({ ...updated, designation: unmapSecurityOfficerDesignation(updated.designation) });
+});
+
 /* ─────────────── CRUD: IT Servers / Tickets / Assets ─────────────── */
 
 const IT_SERVER_KEYS = ["name", "ipAddress", "status", "cpuUsage", "memoryUsage", "uptime"];
@@ -3762,7 +4242,7 @@ app.delete("/api/armoury/:id", authenticateToken, requireModuleAccess("armoury",
 });
 
 app.post("/api/armoury-logs", authenticateToken, requireModuleAccess("armoury", "full"), async (req, res) => {
-  const { assetId, forceNumber, locationName, ammoRoundsOut, dateOut, timeOut, signOutConfirmed, armourerInCharge, notes } = req.body || {};
+  const { assetId, forceNumber, locationName, ammoRoundsOut, dateOut, timeOut, signOutConfirmed, armourerInCharge, notes, signOutFingerprintHash } = req.body || {};
   const item = await prisma.armouryItem.findUnique({ where: { id: assetId } });
   const officer = await prisma.securityOfficer.findUnique({ where: { forceNumber } });
   if (!item || !officer) {
@@ -3784,6 +4264,7 @@ app.post("/api/armoury-logs", authenticateToken, requireModuleAccess("armoury", 
         dateOut: dateOut || new Date().toISOString().split("T")[0],
         timeOut: timeOut || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         signOutConfirmed: Boolean(signOutConfirmed),
+        signOutFingerprintHash: signOutFingerprintHash || null,
         armourerInCharge: armourerInCharge || "Armourer Officer",
         status: "Checked Out",
         notes: notes || null,
@@ -3803,7 +4284,7 @@ app.post("/api/armoury-logs", authenticateToken, requireModuleAccess("armoury", 
 });
 
 app.put("/api/armoury-logs/:id/return", authenticateToken, requireModuleAccess("armoury", "full"), async (req, res) => {
-  const { ammoRoundsIn, dateIn, timeIn, signInConfirmed, substituteReceiver, notes } = req.body || {};
+  const { ammoRoundsIn, dateIn, timeIn, signInConfirmed, substituteReceiver, notes, fingerprintHash } = req.body || {};
   const log = await prisma.armouryLog.findUnique({ where: { id: req.params.id } });
   if (!log) {
     res.status(404).json({ error: "Armoury log not found" });
@@ -3817,6 +4298,7 @@ app.put("/api/armoury-logs/:id/return", authenticateToken, requireModuleAccess("
         dateIn: dateIn || new Date().toISOString().split("T")[0],
         timeIn: timeIn || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         signInConfirmed: Boolean(signInConfirmed),
+        fingerprintHash: fingerprintHash || null,
         substituteReceiver: substituteReceiver || null,
         status: "Returned",
         notes: notes ? (log.notes ? `${log.notes} | Return Note: ${notes}` : `Return Note: ${notes}`) : log.notes,
@@ -3941,27 +4423,6 @@ async function notifyUser(targetUserId: string, type: string, title: string, mes
   });
 }
 
-async function createLeaveApproval(leaveId: string, requesterId: string, requesterName: string, forceNumber?: string) {
-  const workflow = await prisma.workflow.findUnique({ where: { code: "LEAVE-REQ" }, include: { steps: { orderBy: { stepOrder: "asc" } } } });
-  if (!workflow) return null;
-  const isOfficerLeave = !!(forceNumber && (await prisma.securityOfficer.findUnique({ where: { forceNumber } })));
-  const approval = await prisma.approval.create({
-    data: {
-      workflowId: workflow.id,
-      workflowCode: workflow.code,
-      referenceType: "LeaveRequest",
-      referenceId: leaveId,
-      totalSteps: workflow.steps.length,
-      currentStep: 1,
-      requestedBy: requesterId,
-      requestedByName: requesterName,
-      regionScope: null,
-      meta: isOfficerLeave ? JSON.stringify({ excludeOptional: true }) : JSON.stringify({ excludeOptional: false }),
-    },
-  });
-  return approval;
-}
-
 async function computeLeaveBalance(forceNumber: string, currentDuration: number) {
   // §5 leave-balance fix: entitlement/taken/balance derive from the officer's
   // leave history instead of rendering as blank dashes. Annual entitlement is
@@ -4015,115 +4476,6 @@ async function computeUserLeaveSummary(userId: string) {
     pending,
     remaining: Math.max(ANNUAL_LEAVE_ENTITLEMENT_DAYS - taken - pending, 0),
   };
-}
-
-async function actOnLeaveApproval(leaveId: string, action: "Approved" | "Rejected", user: JwtPayload, comment?: string) {
-  const leave = await prisma.leaveRequest.findUnique({ where: { id: leaveId } });
-  if (!leave || !leave.approvalId) {
-    throw new Error("Leave request not found or not linked to an approval");
-  }
-  const approval = await prisma.approval.findUnique({ where: { id: leave.approvalId }, include: { actions: true } });
-  if (!approval) {
-    throw new Error("Approval not found");
-  }
-  const workflow = await prisma.workflow.findUnique({ where: { id: approval.workflowId }, include: { steps: { orderBy: { stepOrder: "asc" } } } });
-  if (!workflow) {
-    throw new Error("Workflow not found");
-  }
-  const currentStepDef = workflow.steps.find((s) => s.stepOrder === approval.currentStep);
-  if (!currentStepDef || !approverRolesOf(currentStepDef).some((r) => hasEffectiveRole(user, r))) {
-    throw new Error(`Access denied: ${actorRoleLabel(user)} cannot act on this approval; requires ${currentStepDef ? approverRolesOf(currentStepDef).join(" or ") : "an authorized role"}`);
-  }
-  const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
-  const actorName = dbUser?.name ? (user.actingRole && user.actingRole !== user.role ? `${dbUser.name} (Acting ${user.actingRole})` : dbUser.name) : user.role;
-  await prisma.approvalAction.create({
-    data: {
-      approvalId: approval.id,
-      stepOrder: approval.currentStep,
-      actorRole: actorRoleLabel(user),
-      actorName,
-      action,
-      comment,
-      actedAt: new Date(),
-    },
-  });
-
-  if (action === "Rejected") {
-    await prisma.approval.update({ where: { id: approval.id }, data: { status: "Rejected", decidedBy: actorName, decidedAt: new Date() } });
-    await prisma.leaveRequest.update({ where: { id: leaveId }, data: { status: "Rejected" } });
-    await prisma.auditLog.create({
-      data: {
-        timestamp: new Date(),
-        userName: user.userId,
-        userRole: actorRoleLabel(user),
-        action: "Leave Rejected",
-        module: "HR",
-        details: `${leave.securityOfficerName} leave request ${leaveId} rejected by ${actorName}`,
-      },
-    });
-    await notifyUser((leave as any).requesterUserId ?? leave.forceNumber, "error", "Leave Rejected", `${leave.securityOfficerName} leave (${leave.leaveType}) was rejected by ${actorName}${comment ? ` — ${comment}` : ""}.`, "HR");
-    return { status: "Rejected" };
-  }
-
-  const meta = approval.meta ? safeJson(approval.meta) : null;
-  let nextStep = approval.currentStep + 1;
-  while (nextStep <= approval.totalSteps) {
-    const stepDef = workflow.steps.find((s) => s.stepOrder === nextStep);
-    const skipped = stepDef?.optional && (meta?.excludeOptional === true || (Array.isArray(meta?.skipOptionalStepOrders) && (meta as any).skipOptionalStepOrders.includes(nextStep)));
-    if (!skipped) break;
-    await prisma.approvalAction.create({
-      data: {
-        approvalId: approval.id,
-        stepOrder: nextStep,
-        actorRole: "System",
-        actorName: "System",
-        action: "Skipped (optional)",
-        actedAt: new Date(),
-      },
-    });
-    nextStep += 1;
-  }
-
-  if (nextStep > approval.totalSteps) {
-    await prisma.approval.update({ where: { id: approval.id }, data: { status: "Approved", decidedBy: actorName, decidedAt: new Date() } });
-    await prisma.leaveRequest.update({ where: { id: leaveId }, data: { status: "Approved", approvedBy: actorName, gmApprovedBy: actorName } });
-    await prisma.auditLog.create({
-      data: {
-        timestamp: new Date(),
-        userName: user.userId,
-        userRole: actorRoleLabel(user),
-        action: "Leave Approved",
-        module: "HR",
-        details: `${leave.securityOfficerName} leave request ${leaveId} fully approved by ${actorName}`,
-      },
-    });
-    await notifyUser((leave as any).requesterUserId ?? leave.forceNumber, "success", "Leave Approved", `${leave.securityOfficerName} leave (${leave.leaveType}) has been fully approved.`, "HR");
-    return { status: "Approved" };
-  }
-
-  await prisma.approval.update({ where: { id: approval.id }, data: { currentStep: nextStep } });
-  const nextStepDef = workflow.steps.find((s) => s.stepOrder === nextStep);
-  let nextStatus = "Pending HR Approval";
-  if (nextStepDef?.name?.includes("GM")) {
-    nextStatus = "Pending GM Approval";
-  }
-  await prisma.leaveRequest.update({ where: { id: leaveId }, data: { status: nextStatus, approvedBy: actorName } });
-  await prisma.auditLog.create({
-    data: {
-      timestamp: new Date(),
-      userName: user.userId,
-      userRole: actorRoleLabel(user),
-      action: "Leave Advanced",
-      module: "HR",
-      details: `${leave.securityOfficerName} leave request ${leaveId} advanced to step ${nextStep} by ${actorName}`,
-    },
-  });
-  if (nextStatus === "Pending GM Approval") {
-    await notifyRole("General Manager", "info", "Leave Awaiting GM Approval", `${leave.securityOfficerName} leave (${leave.leaveType}) approved by HR Manager — awaiting your final approval.`, "HR");
-  } else {
-    await notifyUser((leave as any).requesterUserId ?? leave.forceNumber, "info", "Leave Progressing", `${leave.securityOfficerName} leave (${leave.leaveType}) approved by ${actorName}; continuing through the approval flow.`, "HR");
-  }
-  return { status: `Advanced to step ${nextStep}` };
 }
 
 /* ─────────────── CRUD: Leave Requests ─────────────── */
@@ -4219,10 +4571,6 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
         resumptionDate,
       },
     });
-    const approval = await createLeaveApproval(leave.id, user.userId, dbUser.name, "");
-    if (approval) {
-      await prisma.leaveRequest.update({ where: { id: leave.id }, data: { approvalId: approval.id } });
-    }
     await prisma.auditLog.create({
       data: {
         timestamp: new Date(),
@@ -4270,14 +4618,11 @@ app.post("/api/leave-requests", authenticateToken, async (req, res) => {
   const leave = await prisma.leaveRequest.create({
     data: {
       ...parsed.data,
+      requesterUserId: user.userId,
       appliedDate: new Date().toISOString().split("T")[0],
       status: "Pending HR Approval",
     },
   });
-  const approval = await createLeaveApproval(leave.id, user.userId, parsed.data.securityOfficerName, parsed.data.forceNumber);
-  if (approval) {
-    await prisma.leaveRequest.update({ where: { id: leave.id }, data: { approvalId: approval.id } });
-  }
   await prisma.auditLog.create({
     data: {
       timestamp: new Date(),
@@ -4342,9 +4687,6 @@ app.delete("/api/leave-requests/:id", authenticateToken, async (req, res) => {
     return;
   }
   await prisma.leaveRequest.delete({ where: { id: leave.id } });
-  if (leave.approvalId) {
-    await prisma.approval.update({ where: { id: leave.approvalId }, data: { status: "Cancelled" } }).catch(() => {});
-  }
   await prisma.auditLog.create({
     data: {
       timestamp: new Date(),
@@ -4388,34 +4730,54 @@ app.put("/api/leave-requests/:id/hr-approve", authenticateToken, requireModuleAc
     balance: z.number().int().optional(),
     resumptionDate: z.string().optional(),
   }).safeParse(req.body);
-  try {
-    const result = await actOnLeaveApproval(id, "Approved", user, parsed.success && parsed.data.resumptionDate ? `Resumption: ${parsed.data.resumptionDate}` : undefined);
-    if (result.status === "Approved" || result.status === "Advanced to step 2") {
-      const leave = await prisma.leaveRequest.findUnique({ where: { id } });
-      const updateData: Record<string, unknown> = { status: leave?.status };
-      if (parsed.success) {
-        updateData.entitlement = parsed.data.entitlement;
-        updateData.taken = parsed.data.taken;
-        updateData.balance = parsed.data.balance;
-        updateData.resumptionDate = parsed.data.resumptionDate;
-        if (parsed.data.resumptionDate) {
-          updateData.notes = existing.notes ? `${existing.notes} Resumption: ${parsed.data.resumptionDate}` : `Resumption: ${parsed.data.resumptionDate}`;
-        }
-      }
-      if (updateData.entitlement === undefined || updateData.taken === undefined || updateData.balance === undefined) {
-        const computed = await computeLeaveBalance(existing.forceNumber, existing.durationDays);
-        updateData.entitlement = computed.entitlement;
-        updateData.taken = computed.taken;
-        updateData.balance = computed.balance;
-      }
-      await prisma.leaveRequest.update({ where: { id }, data: updateData });
-      res.json(await prisma.leaveRequest.findUnique({ where: { id } }));
-    } else {
-      res.json(await prisma.leaveRequest.findUnique({ where: { id } }));
+  const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
+  const actorName = dbUser?.name || user.role;
+  const updateData: Record<string, unknown> = { approvedBy: actorName };
+  if (parsed.success) {
+    updateData.entitlement = parsed.data.entitlement;
+    updateData.taken = parsed.data.taken;
+    updateData.balance = parsed.data.balance;
+    updateData.resumptionDate = parsed.data.resumptionDate;
+    if (parsed.data.resumptionDate) {
+      updateData.notes = existing.notes ? `${existing.notes} Resumption: ${parsed.data.resumptionDate}` : `Resumption: ${parsed.data.resumptionDate}`;
     }
-  } catch (e: any) {
-    res.status(400).json({ error: e.message });
   }
+  if (updateData.entitlement === undefined || updateData.taken === undefined || updateData.balance === undefined) {
+    const computed = await computeLeaveBalance(existing.forceNumber, existing.durationDays);
+    updateData.entitlement = computed.entitlement;
+    updateData.taken = computed.taken;
+    updateData.balance = computed.balance;
+  }
+  const requesterRole = existing.requesterUserId
+    ? (await prisma.user.findUnique({ where: { id: existing.requesterUserId }, select: { role: true } }))?.role
+    : undefined;
+  // Security Officers: HR approves directly (GM step optional, skipped by default).
+  // Non-SO staff and peer managers: forward to GM for final approval.
+  const isSecurityOfficerRequester = requesterRole === "Security Officer";
+  if (isSecurityOfficerRequester || !requesterRole) {
+    updateData.status = "Approved";
+    updateData.gmApprovedBy = actorName;
+  } else {
+    updateData.status = "Pending GM Approval";
+  }
+  await prisma.leaveRequest.update({ where: { id }, data: updateData });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: isSecurityOfficerRequester || !requesterRole ? "Leave Approved" : "Leave Advanced",
+      module: "HR",
+      details: `${existing.securityOfficerName} leave request ${id} ${isSecurityOfficerRequester || !requesterRole ? "approved by HR Manager (no GM required)" : "advanced to GM for final approval"} by ${actorName}`,
+    },
+  });
+  if (isSecurityOfficerRequester || !requesterRole) {
+    const targetUserId = (existing as any).requesterUserId ?? existing.forceNumber;
+    await notifyUser(targetUserId, "success", "Leave Approved", `${existing.securityOfficerName} leave (${existing.leaveType}) has been approved.`, "HR");
+  } else {
+    await notifyRole("General Manager", "info", "Leave Awaiting GM Approval", `${existing.securityOfficerName} leave (${existing.leaveType}) approved by HR Manager — awaiting your final approval.`, "HR");
+  }
+  res.json(await prisma.leaveRequest.findUnique({ where: { id } }));
 });
 
 app.put("/api/leave-requests/:id/gm-approve", authenticateToken, async (req, res) => {
@@ -4435,7 +4797,21 @@ app.put("/api/leave-requests/:id/gm-approve", authenticateToken, async (req, res
     return;
   }
   try {
-    const result = await actOnLeaveApproval(id, "Approved", user);
+    const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
+    const actorName = dbUser?.name || user.role;
+    await prisma.leaveRequest.update({ where: { id }, data: { status: "Approved", gmApprovedBy: actorName } });
+    await prisma.auditLog.create({
+      data: {
+        timestamp: new Date(),
+        userName: user.userId,
+        userRole: actorRoleLabel(user),
+        action: "Leave Approved",
+        module: "HR",
+        details: `${existing.securityOfficerName} leave request ${id} fully approved by ${actorName}`,
+      },
+    });
+    const targetUserId = (existing as any).requesterUserId ?? existing.forceNumber;
+    await notifyUser(targetUserId, "success", "Leave Approved", `${existing.securityOfficerName} leave (${existing.leaveType}) has been fully approved.`, "HR");
     res.json(await prisma.leaveRequest.findUnique({ where: { id } }));
   } catch (e: any) {
     res.status(400).json({ error: e.message });
@@ -4458,255 +4834,34 @@ app.put("/api/leave-requests/:id/reject", authenticateToken, async (req, res) =>
   // §5: HR Manager's denial authority only applies to genuinely subordinate
   // staff. Leave from the General Manager or a peer department manager is a
   // formality — the approval step is recorded but cannot be denied.
-  const requesterRole = existing.approvalId
-    ? (await prisma.approval.findUnique({ where: { id: existing.approvalId }, select: { requestedBy: true } }))?.requestedBy
-    : undefined;
-  const requesterRoleResolved = requesterRole
-    ? (await prisma.user.findUnique({ where: { id: requesterRole }, select: { role: true } }))?.role
+  const requesterRoleResolved = existing.requesterUserId
+    ? (await prisma.user.findUnique({ where: { id: existing.requesterUserId }, select: { role: true } }))?.role
     : undefined;
   if (requesterRoleResolved && LEAVE_NON_DENIABLE_REQUESTERS.includes(requesterRoleResolved as any)) {
     res.status(403).json({ error: "Leave requests from the General Manager or peer department managers cannot be denied by HR — the approval step is a formality; escalate to the General Manager." });
     return;
   }
-  try {
-    await actOnLeaveApproval(id, "Rejected", user, parsed.success ? parsed.data.notes : undefined);
-    res.json(await prisma.leaveRequest.findUnique({ where: { id } }));
-  } catch (e: any) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
-/* ─────────────── CRUD: Workflow ─────────────── */
-
-app.get("/api/workflows", authenticateToken, requireModuleAccess("workflow"), async (_req, res) => {
-  const workflows = await prisma.workflow.findMany({ include: { steps: { orderBy: { stepOrder: "asc" } } }, orderBy: { createdAt: "desc" } });
-  res.json(workflows);
-});
-
-app.post("/api/workflows", authenticateToken, requireModuleAccess("workflow", "full"), async (req, res) => {
-  const parsed = z.object({
-    name: z.string().min(1),
-    code: z.string().min(1),
-    description: z.string().optional(),
-    module: z.string().min(1),
-    steps: z.array(z.object({
-      stepOrder: z.number().int().positive(),
-      name: z.string().min(1),
-      approverRole: z.string().min(1),
-      approverRoles: z.array(z.string()).optional(),
-      optional: z.boolean().optional(),
-      regionScoped: z.boolean().optional(),
-      condition: z.string().optional(),
-      escalationHours: z.number().int().optional(),
-    })).min(1),
-  }).safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
-    return;
-  }
-  const { steps, ...workflowData } = parsed.data;
-  const workflow = await prisma.workflow.create({
-    data: {
-      ...workflowData,
-      steps: {
-        create: steps.map((s) => ({
-          stepOrder: s.stepOrder,
-          name: s.name,
-          approverRole: s.approverRole,
-          approverRoles: s.approverRoles ? JSON.stringify(s.approverRoles) : null,
-          optional: s.optional ?? false,
-          regionScoped: s.regionScoped ?? false,
-          condition: s.condition,
-          escalationHours: s.escalationHours,
-        })),
-      },
-    },
-    include: { steps: { orderBy: { stepOrder: "asc" } } },
-  });
-  res.status(201).json(workflow);
-});
-
-app.put("/api/workflows/:id", authenticateToken, requireModuleAccess("workflow", "full"), async (req, res) => {
-  const { id } = req.params;
-  const parsed = z.object({
-    name: z.string().min(1).optional(),
-    isActive: z.boolean().optional(),
-    description: z.string().optional(),
-  }).safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
-    return;
-  }
-  const workflow = await prisma.workflow.update({ where: { id }, data: parsed.data });
-  res.json(workflow);
-});
-
-app.delete("/api/workflows/:id", authenticateToken, requireModuleAccess("workflow", "full"), async (req, res) => {
-  const { id } = req.params;
-  await prisma.workflowStep.deleteMany({ where: { workflowId: id } });
-  await prisma.approval.deleteMany({ where: { workflowId: id } });
-  await prisma.workflow.delete({ where: { id } });
-  res.json({ ok: true });
-});
-
-/* ─────────────── CRUD: Approvals ─────────────── */
-
-app.get("/api/approvals", authenticateToken, requireModuleAccess("workflow"), async (_req, res) => {
-  const approvals = await prisma.approval.findMany({
-    include: { actions: { orderBy: { stepOrder: "asc" } } },
-    orderBy: { createdAt: "desc" },
-  });
-  res.json(approvals);
-});
-
-/* Parse a workflow step's approver set: explicit JSON array or single role. */
-function approverRolesOf(step: { approverRole: string; approverRoles?: string | null }): string[] {
-  if (step.approverRoles) {
-    try {
-      const parsed = JSON.parse(step.approverRoles);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(String);
-    } catch {
-      /* fall through to single role */
-    }
-  }
-  return [step.approverRole];
-}
-
-function safeJson(value: string | null): Record<string, unknown> | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "object" && parsed !== null ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-app.post("/api/approvals", authenticateToken, requireModuleAccess("workflow"), async (req, res) => {
-  const parsed = z.object({
-    workflowId: z.string().min(1),
-    referenceType: z.string().min(1),
-    referenceId: z.string().min(1),
-    requestedBy: z.string().min(1),
-    requestedByName: z.string().min(1),
-    regionScope: z.string().optional(),
-    meta: z.object({
-      excludeOptional: z.boolean().optional(),
-      skipOptionalStepOrders: z.array(z.number().int()).optional(),
-    }).optional(),
-  }).safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
-    return;
-  }
-  const workflow = await prisma.workflow.findUnique({ where: { id: parsed.data.workflowId }, include: { steps: true } });
-  if (!workflow) {
-    res.status(404).json({ error: "Workflow not found" });
-    return;
-  }
-  const hasRegionScopedStep = workflow.steps.some((s) => s.regionScoped);
-  const approval = await prisma.approval.create({
-    data: {
-      workflowId: workflow.id,
-      workflowCode: workflow.code,
-      referenceType: parsed.data.referenceType,
-      referenceId: parsed.data.referenceId,
-      totalSteps: workflow.steps.length,
-      currentStep: 1,
-      requestedBy: parsed.data.requestedBy,
-      requestedByName: parsed.data.requestedByName,
-      regionScope: parsed.data.regionScope ?? null,
-      meta: parsed.data.meta ? JSON.stringify(parsed.data.meta) : null,
-    },
-  });
-  res.status(201).json(approval);
-});
-
-app.put("/api/approvals/:id/act", authenticateToken, requireModuleAccess("workflow"), async (req, res) => {
-  const { id } = req.params;
-  const parsed = z.object({
-    action: z.enum(["Approved", "Rejected"]),
-    comment: z.string().optional(),
-  }).safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
-    return;
-  }
-  const approval = await prisma.approval.findUnique({ where: { id }, include: { actions: true } });
-  if (!approval) {
-    res.status(404).json({ error: "Approval not found" });
-    return;
-  }
-  const user = (req as any).user as JwtPayload;
   const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
-  const workflow = await prisma.workflow.findUnique({ where: { id: approval.workflowId }, include: { steps: { orderBy: { stepOrder: "asc" } } } });
-  const currentStepDef = workflow?.steps.find(s => s.stepOrder === approval.currentStep);
-  if (!currentStepDef || !approverRolesOf(currentStepDef).some((r) => hasEffectiveRole(user, r))) {
-    const expectedRole = currentStepDef ? approverRolesOf(currentStepDef).join(" or ") : "an authorized role";
-    res.status(403).json({ error: `Access denied: ${actorRoleLabel(user)} cannot act on this approval; requires ${expectedRole}` });
-    return;
-  }
-  if (currentStepDef.regionScoped) {
-    const approvalRegion = approval.regionScope;
-    if (approvalRegion && dbUser?.region && dbUser.region !== approvalRegion) {
-      res.status(403).json({ error: `Access denied: this approval is scoped to region '${approvalRegion}'` });
-      return;
-    }
-  }
-
   const actorName = dbUser?.name || user.role;
-  await prisma.approvalAction.create({
+  await prisma.leaveRequest.update({ where: { id }, data: { status: "Rejected" } });
+  await prisma.auditLog.create({
     data: {
-      approvalId: id,
-      stepOrder: approval.currentStep,
-      actorRole: actorRoleLabel(user),
-      actorName,
-      action: parsed.data.action,
-      comment: parsed.data.comment,
-      actedAt: new Date(),
+      timestamp: new Date(),
+      userName: user.userId,
+      userRole: actorRoleLabel(user),
+      action: "Leave Rejected",
+      module: "HR",
+      details: `${existing.securityOfficerName} leave request ${id} rejected by ${actorName}`,
     },
   });
-
-  if (parsed.data.action === "Rejected") {
-    await prisma.approval.update({ where: { id }, data: { status: "Rejected", decidedBy: actorName, decidedAt: new Date() } });
-    res.json({ status: "Rejected" });
-    return;
-  }
-
-  /* Advance, skipping steps the requester opted out of (meta.excludeOptional /
-     skipOptionalStepOrders) — records an auto-skip action for each. */
-  const meta = approval.meta ? safeJson(approval.meta) : null;
-  let nextStep = approval.currentStep + 1;
-  while (nextStep <= approval.totalSteps) {
-    const stepDef = workflow?.steps.find((s) => s.stepOrder === nextStep);
-    const skipped = stepDef?.optional && (meta?.excludeOptional === true || (Array.isArray(meta?.skipOptionalStepOrders) && (meta as any).skipOptionalStepOrders.includes(nextStep)));
-    if (!skipped) break;
-    await prisma.approvalAction.create({
-      data: {
-        approvalId: id,
-        stepOrder: nextStep,
-        actorRole: "System",
-        actorName: "System",
-        action: "Skipped (optional)",
-        actedAt: new Date(),
-      },
-    });
-    nextStep += 1;
-  }
-
-  if (nextStep > approval.totalSteps) {
-    await prisma.approval.update({ where: { id }, data: { status: "Approved", decidedBy: actorName, decidedAt: new Date() } });
-    res.json({ status: "Approved" });
-    return;
-  }
-
-  await prisma.approval.update({ where: { id }, data: { currentStep: nextStep } });
-  res.json({ status: `Advanced to step ${nextStep}` });
+  const targetUserId = (existing as any).requesterUserId ?? existing.forceNumber;
+  await notifyUser(targetUserId, "error", "Leave Rejected", `${existing.securityOfficerName} leave (${existing.leaveType}) was rejected by ${actorName}${parsed.success && parsed.data.notes ? ` — ${parsed.data.notes}` : ""}.`, "HR");
+  res.json(await prisma.leaveRequest.findUnique({ where: { id } }));
 });
 
 /* ─────────────── CRUD: Transport Requests ─────────────── */
 
-app.get("/api/transport-requests", authenticateToken, requireAnyModuleAccess("fleet", "roster", "hr", "it", "workflow", "requisitions", "administration"), async (_req, res) => {
+app.get("/api/transport-requests", authenticateToken, requireAnyModuleAccess("fleet", "roster", "hr", "it", "requisitions", "administration"), async (_req, res) => {
   const rows = await prisma.transportRequest.findMany({ orderBy: { createdAt: "desc" } });
   res.json(rows);
 });
@@ -4832,7 +4987,7 @@ app.put("/api/transport-requests/:id/act", authenticateToken, requireRole("Fleet
 
 /* ─────────────── CRUD: Site Surveys ─────────────── */
 
-const SITE_SURVEY_MODULES = ["operations", "roster", "marketing", "workflow", "administration", "requisitions", "hr"];
+const SITE_SURVEY_MODULES = ["operations", "roster", "marketing", "administration", "requisitions", "hr"];
 
 app.get("/api/site-surveys", authenticateToken, requireAnyModuleAccess(...SITE_SURVEY_MODULES), async (_req, res) => {
   const rows = await prisma.siteSurvey.findMany({ orderBy: { createdAt: "desc" } });
@@ -5009,7 +5164,7 @@ app.put("/api/site-surveys/:id/cancel", authenticateToken, async (req, res) => {
 
 /* ─────────────── CRUD: Contract Inquiries ─────────────── */
 
-const CONTRACT_INQUIRY_MODULES = ["identity", "hr", "workflow", "operations", "marketing", "finance", "administration", "fleet", "requisitions"];
+const CONTRACT_INQUIRY_MODULES = ["identity", "hr", "operations", "marketing", "finance", "administration", "fleet", "requisitions"];
 
 app.get("/api/contract-inquiries", authenticateToken, requireAnyModuleAccess(...CONTRACT_INQUIRY_MODULES), async (_req, res) => {
   const rows = await prisma.contractInquiry.findMany({ orderBy: { createdAt: "desc" } });
@@ -6362,6 +6517,64 @@ app.put("/api/security-officers/:key/employment-contract/hr-sign", authenticateT
     },
   });
   res.json(await maybeFinalizeEmploymentContract(updated.id, user.userId, actorRoleLabel(user)));
+});
+
+/* ─────────────── Employee Portal (Security Officer self-service) ─────────────── */
+
+app.get("/api/employee-portal", authenticateToken, async (req, res) => {
+  const user = (req as any).user as JwtPayload;
+  if (!hasEffectiveRole(user, "Security Officer")) {
+    res.status(403).json({ error: "Access denied: this endpoint is only available to Security Officers" });
+    return;
+  }
+  const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
+  if (!dbUser) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const officer = await prisma.securityOfficer.findFirst({
+    where: { OR: [{ linkedUserId: user.userId }, { fullName: dbUser.name }] },
+  });
+  if (!officer) {
+    res.json({ officer: null, contract: null });
+    return;
+  }
+  const contract = await prisma.securityOfficerEmploymentContract.findFirst({
+    where: { forceNumber: officer.forceNumber },
+    orderBy: { createdAt: "desc" },
+  });
+  let contractPdfUrl: string | null = null;
+  if (contract?.pdfPath) {
+    contractPdfUrl = `/uploads/${encodeURIComponent(contract.pdfPath)}`;
+  }
+  res.json({
+    officer: {
+      forceNumber: officer.forceNumber,
+      fullName: officer.fullName,
+      designation: unmapSecurityOfficerDesignation(officer.designation),
+      assignedSite: officer.assignedSite,
+      region: officer.region,
+      zone: officer.zone,
+      joinDate: officer.joinDate,
+      status: officer.status,
+      lifecycleStage: officer.lifecycleStage,
+      probationStatus: officer.probationStatus,
+      monthlySalaryUgx: officer.monthlySalaryUgx,
+    },
+    contract: contract
+      ? {
+          contractCode: contract.contractCode,
+          status: contract.status,
+          startDate: contract.startDate,
+          probationMonths: contract.probationMonths,
+          monthlySalaryUgx: contract.monthlySalaryUgx,
+          pdfPath: contract.pdfPath,
+          pdfUrl: contractPdfUrl,
+          officerSignedAt: contract.officerSignedAt,
+          hrSignedAt: contract.hrSignedAt,
+        }
+      : null,
+  });
 });
 
 /* ─────────────── CRUD: Site Deployments (Ops picks security officers after a contract is won) ─────────────── */

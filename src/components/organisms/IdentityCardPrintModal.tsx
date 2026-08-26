@@ -194,17 +194,30 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
     const padX = 34;
     const padY = 30;
 
+    // Reserved logo plate — keeps its space even when the logo file is absent,
+    // so the letterhead never shifts (drop-in: replace public/logo.png).
+    const logoSize = 60;
+    const logoX = padX;
+    const logoY = padY - 16;
+    ctx.fillStyle = "rgba(34,211,238,0.10)";
+    ctx.beginPath();
+    ctx.roundRect(logoX, logoY, logoSize, logoSize, 10);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(34,211,238,0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     if (logoImg) {
-      ctx.drawImage(logoImg, padX, padY - 18, 56, 56);
+      ctx.drawImage(logoImg, logoX + 4, logoY + 4, logoSize - 8, logoSize - 8);
     }
+    const headTextX = logoX + logoSize + 14;
 
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 30px 'Arial Black', Arial, sans-serif";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText("INTEGRATED SECURITY COMPANY LTD", padX + (logoImg ? 66 : 0), padY + 26);
+    ctx.fillText("INTEGRATED SECURITY COMPANY LTD", headTextX, padY + 26);
     ctx.fillStyle = "#22d3ee";
     ctx.font = "bold 17px Arial, sans-serif";
-    ctx.fillText("LICENSED PRIVATE SECURITY ORGANIZATION", padX + (logoImg ? 66 : 0), padY + 50);
+    ctx.fillText("LICENSED PRIVATE SECURITY ORGANIZATION", headTextX, padY + 50);
 
     const badgeX = W - 190;
     ctx.fillStyle = "#fbbf24";
@@ -330,17 +343,29 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
     const padX = 40;
     const padY = 34;
 
+    // Reserved logo plate (matches the front side)
+    const logoSize = 58;
+    const logoX = padX;
+    const logoY = padY - 12;
+    ctx.fillStyle = "rgba(14,116,144,0.08)";
+    ctx.beginPath();
+    ctx.roundRect(logoX, logoY, logoSize, logoSize, 10);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(14,116,144,0.30)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     if (logoImg) {
-      ctx.drawImage(logoImg, padX, padY - 10, 54, 54);
+      ctx.drawImage(logoImg, logoX + 4, logoY + 4, logoSize - 8, logoSize - 8);
     }
+    const backHeadTextX = logoX + logoSize + 14;
 
     ctx.fillStyle = "#0f172a";
     ctx.font = "bold 26px 'Arial Black', Arial, sans-serif";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText("INTEGRATED SECURITY COMPANY LTD", padX + (logoImg ? 66 : 0), padY + 22);
+    ctx.fillText("INTEGRATED SECURITY COMPANY LTD", backHeadTextX, padY + 22);
     ctx.fillStyle = "#0e7490";
     ctx.font = "bold 15px Arial, sans-serif";
-    ctx.fillText("OFFICIAL PERSONNEL IDENTITY CARD — IF FOUND, PLEASE RETURN", padX + (logoImg ? 66 : 0), padY + 46);
+    ctx.fillText("OFFICIAL PERSONNEL IDENTITY CARD — IF FOUND, PLEASE RETURN", backHeadTextX, padY + 46);
 
     ctx.strokeStyle = "#0e7490";
     ctx.lineWidth = 2;
@@ -427,7 +452,9 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
         <div className="relative w-full max-w-md mx-auto aspect-[1.586] rounded-2xl bg-slate-50 text-slate-900 p-4 shadow-xl border-2 border-slate-300 overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-300 pb-2">
             <div className="flex items-center gap-2">
-              <CompanyLogo imgClassName="w-6 h-6 object-contain rounded-md" iconClassName="w-4 h-4" />
+              <span className="w-7 h-7 rounded-md bg-cyan-700/10 border border-cyan-700/25 flex items-center justify-center overflow-hidden shrink-0">
+                <CompanyLogo imgClassName="w-6 h-6 object-contain" iconClassName="w-4 h-4" />
+              </span>
               <div>
                 <span className="font-black text-[10px] tracking-wider block leading-tight">INTEGRATED SECURITY COMPANY LTD</span>
                 <span className="text-[7px] text-cyan-700 font-bold block tracking-tight">OFFICIAL PERSONNEL IDENTITY CARD</span>
@@ -457,7 +484,9 @@ export const IdentityCardPrintModal: React.FC<IdentityCardPrintModalProps> = ({ 
 
         <div className="flex items-center justify-between border-b border-slate-700/80 pb-2 relative z-10">
           <div className="flex items-center gap-2">
-            <CompanyLogo imgClassName="w-7 h-7 object-contain rounded-md" iconClassName="w-4 h-4" />
+            <span className="w-8 h-8 rounded-md bg-cyan-400/10 border border-cyan-300/30 flex items-center justify-center overflow-hidden shrink-0">
+              <CompanyLogo imgClassName="w-7 h-7 object-contain" iconClassName="w-4 h-4" />
+            </span>
             <div>
               <span className="font-black text-xs tracking-wider text-white block leading-tight">
                 INTEGRATED SECURITY COMPANY LTD

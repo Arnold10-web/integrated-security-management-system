@@ -159,6 +159,17 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
     "Operations Manager": "view",
     "Records Officer": "view",
   },
+  training_curriculum: {
+    "Training Officer": "full",
+    "HR Manager": "full",
+    "Operations Manager": "view",
+    "Records Officer": "view",
+  },
+  pass_out_certificates: {
+    "Training Officer": "full",
+    "Records Officer": "full",
+    "Operations Manager": "view",
+  },
   recruitment: {
     "HR Manager": "full",
     "HR Assistant": "full",
@@ -173,11 +184,6 @@ export const MODULE_PERMISSIONS: Record<string, Partial<Record<string, AccessLev
     "General Manager": "view",
     "Director": "view",
     "IT Officer": "view",
-  },
-  workflow: {
-    "IT Officer": "full",
-    "General Manager": "view",
-    "Director": "view",
   },
   documents: {
     "IT Officer": "full",
@@ -276,10 +282,11 @@ export const SERVER_MODULE_TO_CLIENT: Record<string, string> = {
   administration: "administration",
   requisitions: "administration",
   it: "it",
-  workflow: "workflow",
   documents: "documents",
   fleet: "fleet",
   directorate: "dashboard",
+  training_curriculum: "operations",
+  pass_out_certificates: "hr",
 };
 
 export const MODULE_DISPLAY_NAMES: Record<string, string> = {
@@ -307,11 +314,12 @@ export const MODULE_DISPLAY_NAMES: Record<string, string> = {
   recruitment: "Recruitment",
   training: "Training",
   performance: "Performance Reviews",
-  workflow: "Workflow",
   documents: "Documents",
   complaints: "Complaints",
   disciplinary: "Disciplinary Actions",
   deployments: "Deployments",
   directorate: "Directorate",
   leave: "Leave Requests",
+  training_curriculum: "Training Curriculum",
+  pass_out_certificates: "Pass-Out Certificates",
 };

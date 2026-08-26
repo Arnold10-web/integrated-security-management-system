@@ -21,7 +21,6 @@ import {
   Receipt,
   CreditCard,
   Target,
-  GitBranch,
   Star,
   BarChart3,
   Scale,
@@ -33,6 +32,7 @@ import {
   ClipboardCheck,
   MapPin,
   AlertTriangle,
+  BookOpen,
 } from "lucide-react";
 import type { UserRole } from "../types";
 
@@ -365,14 +365,6 @@ export const APP_MODULES: AppModule[] = [
     group: "hr",
   },
   {
-    id: "workflow",
-    path: "/workflow",
-    label: "Workflow Engine",
-    department: "IT Admin",
-    icon: GitBranch,
-    group: "it",
-  },
-  {
     id: "esign",
     path: "/esign",
     label: "Digital Contracts",
@@ -396,6 +388,24 @@ export const APP_MODULES: AppModule[] = [
     icon: Scale,
     group: "hr",
     badge: "Cat 1 · Cat 2",
+  },
+  {
+    id: "training_curriculum",
+    path: "/training-curriculum",
+    label: "Training Curriculum",
+    department: "Operations",
+    icon: BookOpen,
+    group: "operations",
+    badge: "Curriculum · Sessions",
+  },
+  {
+    id: "pass_out_certificates",
+    path: "/pass-out-certificates",
+    label: "Pass-Out Certificates",
+    department: "Records",
+    icon: Award,
+    group: "hr",
+    badge: "Records",
   },
   {
     id: "records_contracts",
@@ -432,20 +442,20 @@ function getAllowedModuleIdsByRole(role: UserRole): string[] {
       return ["hr_register", "hr_leave", "hr_appraisals", "hr_contracts", "hr_remittances", "hr_staff", "hr_payroll", "recruitment"];
 
     case "Records Officer":
-      return ["identity", "hr_register", "hr_staff", "records_contracts", "documents", "esign"];
+      return ["identity", "hr_register", "hr_staff", "records_contracts", "documents", "esign", "pass_out_certificates"];
 
     case "Business Development Manager":
     case "Sales and Marketing Supervisor":
       return ["marketing", "marketing_pipeline", "marketing_campaigns", "clients", "esign"];
 
     case "Operations Manager":
-      return ["operations", "disciplinary"];
+      return ["operations", "disciplinary", "pass_out_certificates"];
     case "Regional Manager":
       return ["operations", "disciplinary"];
     case "Fleet Manager":
       return ["fleet", "fleet_requests", "fleet_register", "fleet_trips", "fleet_fuel", "fleet_maintenance", "fleet_drivers", "fleet_inspections", "fleet_breakdowns", "fleet_gps"];
     case "Training Officer":
-      return ["operations"];
+      return ["operations", "training_curriculum", "pass_out_certificates"];
     case "Armorer":
       return ["operations"];
     case "Investigations Officer":
@@ -468,7 +478,7 @@ function getAllowedModuleIdsByRole(role: UserRole): string[] {
       return ["administration"];
 
     case "IT Officer":
-      return ["it", "workflow", "identity", "esign"];
+      return ["it", "identity", "esign"];
 
     default:
       return ["dashboard"];

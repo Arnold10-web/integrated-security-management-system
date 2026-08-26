@@ -22,6 +22,8 @@ Project documentation for the Integrated Security Company Management System.
 | Document | Purpose |
 |---|---|
 | [`test-logins.md`](test-logins.md) | Seeded test accounts (shared password `password123`). |
+| [`UI_TEXT_GUIDELINES.md`](UI_TEXT_GUIDELINES.md) | Standards for user-facing text and tooltips: removing generic copy, contextual empty states, when/how to write tooltips, print-document text rules, review checklist. |
+| [`DEAD_CODE_FINDINGS_2026-08-24.md`](DEAD_CODE_FINDINGS_2026-08-24.md) | Dead-code sweep results: 21 orphaned files removed (~2,540 lines), items kept intentionally. |
 | [`project-review-findings-2026-08-23.md`](project-review-findings-2026-08-23.md) | Dated findings from the 2026-08-23 full-repo static review + live API probe. |
 
 ## Deployment notes (`../deploy/`)

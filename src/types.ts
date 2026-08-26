@@ -301,7 +301,6 @@ export interface LeaveRequest {
   balance?: number;
   resumptionDate?: string;
   gmApprovedBy?: string;
-  approvalId?: string;
   requestedByRole?: string;
 }
 
@@ -362,6 +361,8 @@ export interface ClientSite {
   satisfactionRating?: number;
   deploymentStatus?: "Not Deployed" | "Deployed" | "Partially Deployed";
   wonBy?: string;
+  broughtInBy?: string;
+  commissionEligible?: boolean;
 }
 
 export interface ContractScanPage {
@@ -447,10 +448,12 @@ export interface ArmouryLog {
   dateOut: string; // Date Out
   timeOut: string; // Time Out
   signOutConfirmed: boolean; // Sign Out Confirmation
+  signOutFingerprintHash?: string; // Biometric fingerprint hash on sign-out (Mantra MFS100)
   dateIn?: string; // Date In
   timeIn?: string; // Time In
   ammoRoundsIn?: number; // Round In (Rounds Returned)
   signInConfirmed?: boolean; // Sign In Confirmation
+  fingerprintHash?: string; // Biometric fingerprint hash on sign-in (Mantra MFS100)
   substituteReceiver?: string; // Substitute Receiver (if returned by replacement officer)
   armourerInCharge: string; // Armory Incharge (Armourer Officer)
   status: "Checked Out" | "Returned" | "Discrepancy Reported";
@@ -589,7 +592,6 @@ export interface TransportRequest {
   declinedReason?: string;
   actedBy?: string;
   actedAt?: string;
-  approvalId?: string;
 }
 
 export type SiteSurveyStatus = "Requested" | "In Progress" | "Completed" | "Cancelled";
@@ -726,11 +728,12 @@ export interface Incident {
   evidenceAttached: boolean;
   region?: string;
   assignedTo?: string;
+  /** §26.10 incident audit trail — who handled each step, persisted server-side. */
   investigatedBy?: string;
   escalatedBy?: string;
   resolvedBy?: string;
-  resolvedAt?: string;
   resolutionNotes?: string;
+  resolvedAt?: string;
 }
 
 export interface AuditLog {
@@ -756,6 +759,10 @@ export interface Invoice {
   amount: number;
   status: "Draft" | "Paid" | "Pending" | "Overdue";
   itemsCount: number;
+  /** §9.1 VAT toggle — "Exclusive" = amount excludes 18% VAT; "Inclusive" = amount includes it. */
+  vatMode?: "Exclusive" | "Inclusive";
+  /** Computed server-side: VAT portion of `amount` at the 18% Uganda rate. */
+  vatAmount?: number;
   approvedBy?: string;
   approvedAt?: string;
   sentAt?: string;
@@ -1055,58 +1062,6 @@ export interface Region {
   isActive: boolean;
 }
 
-export interface WorkflowDefinition {
-  id: string;
-  code: string;
-  name: string;
-  description?: string;
-  module: string;
-  isActive: boolean;
-  steps: WorkflowStepDefinition[];
-}
-
-export interface WorkflowStepDefinition {
-  id: string;
-  workflowId: string;
-  stepOrder: number;
-  name: string;
-  approverRole: string;
-  approverRoles?: string[];
-  optional?: boolean;
-  regionScoped?: boolean;
-  condition?: string;
-  escalationHours?: number;
-}
-
-export interface Approval {
-  id: string;
-  workflowId: string;
-  workflowCode: string;
-  referenceType: string;
-  referenceId: string;
-  currentStep: number;
-  totalSteps: number;
-  status: "Pending" | "Approved" | "Rejected";
-  requestedBy: string;
-  requestedByName: string;
-  regionScope?: string;
-  decidedBy?: string;
-  decidedAt?: string;
-  meta?: { excludeOptional?: boolean; skipOptionalStepOrders?: number[] };
-  actions: ApprovalAction[];
-}
-
-export interface ApprovalAction {
-  id: string;
-  approvalId: string;
-  stepOrder: number;
-  actorRole: string;
-  actorName?: string;
-  action?: "Approved" | "Rejected";
-  comment?: string;
-  actedAt?: string;
-}
-
 export interface SecurityOfficerEmploymentContract {
   id: string;
   contractCode: string;
@@ -1213,6 +1168,59 @@ export interface PerformanceReviewRecord {
   growthAreas?: string;
   developmentGoals?: string;
   status: "Draft" | "Pending Approval" | "Approved & Archived";
+}
+
+export interface TrainingCurriculum {
+  id: string;
+  cohortId: string;
+  cohortCode: string;
+  version: number;
+  title: string;
+  description?: string;
+  modules: CurriculumModule[];
+  status: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CurriculumModule {
+  title: string;
+  topics: string[];
+  objectives: string[];
+  duration: string;
+  assessmentCriteria: string[];
+}
+
+export interface TrainingCourseOutline {
+  id: string;
+  curriculumId: string;
+  cohortId: string;
+  sessionNumber: number;
+  date: string;
+  topic: string;
+  instructor: string;
+  materials?: string;
+  practicalExercises?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PassOutCertificate {
+  id: string;
+  certificateId: string;
+  forceNumber: string;
+  officerName: string;
+  cohortId: string;
+  cohortCode: string;
+  trainingStart: string;
+  trainingEnd: string;
+  passOutDate: string;
+  filePath: string;
+  fileName: string;
+  generatedBy?: string;
+  createdAt: string;
 }
 
 export interface AppNotification {

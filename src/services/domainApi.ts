@@ -7,7 +7,7 @@ import type {
   TrainingCohort, RecruitTrainee, ITServer, ITSupportTicket, ITAsset,
   Invoice, Expense, CashierTransaction, Lead, Campaign, Reminder,
   Complaint, DisciplinaryAction, SiteDeployment, DeploymentOrder,
-  RegionalOffice, Region, LeaveRequest, WorkflowDefinition, Approval,   TransportRequest,
+  RegionalOffice, Region, LeaveRequest, TransportRequest,
   SiteSurvey,
   ContractInquiry,
   DocumentRecord, JobPosting, Candidate, PerformanceReviewRecord, ContractRecord,
@@ -219,7 +219,6 @@ export const domainApi = {
   leaveRequests: {
     list: () => api.get<LeaveRequest[]>("/leave-requests"),
     create: (data: Omit<LeaveRequest, "id">) => api.post<LeaveRequest>("/leave-requests", data),
-    act: (id: string, action: "Approved" | "Rejected", comment?: string) => api.put(`/approvals/${id}/act`, { action, comment }),
   },
   myLeave: {
     summary: () => api.get<{ requests: LeaveRequest[]; summary: MyLeaveSummary }>("/my/leave"),
@@ -259,17 +258,6 @@ export const domainApi = {
     create: (data: Omit<DeploymentOrder, "id" | "orderCode" | "status" | "assignedSecurityOfficerForceNumbers">) => api.post<DeploymentOrder>("/deployment-orders", data),
     assign: (id: string, securityOfficerForceNumbers: string[]) => api.put<DeploymentOrder>(`/deployment-orders/${id}/assign`, { securityOfficerForceNumbers }),
     cancel: (id: string) => api.put<DeploymentOrder>(`/deployment-orders/${id}/cancel`, {}),
-  },
-  workflows: {
-    list: () => api.get<WorkflowDefinition[]>("/workflows"),
-    create: (data: Omit<WorkflowDefinition, "id">) => api.post<WorkflowDefinition>("/workflows", data),
-    update: (id: string, data: Partial<WorkflowDefinition>) => api.put<WorkflowDefinition>(`/workflows/${id}`, data),
-    remove: (id: string) => api.delete(`/workflows/${id}`),
-  },
-  approvals: {
-    list: () => api.get<Approval[]>("/approvals"),
-    create: (data: Omit<Approval, "id">) => api.post<Approval>("/approvals", data),
-    act: (id: string, action: "Approved" | "Rejected", comment?: string) => api.put(`/approvals/${id}/act`, { action, comment }),
   },
   transportRequests: {
     list: () => api.get<TransportRequest[]>("/transport-requests"),
@@ -331,4 +319,7 @@ export const domainApi = {
     remove: (id: string) => api.delete<{ ok: boolean }>(`/notifications/${id}`),
   },
   seed: () => api.post<any>("/auth/seed"),
+  employeePortal: {
+    get: () => api.get<{ officer: any; contract: any }>("/employee-portal"),
+  },
 };

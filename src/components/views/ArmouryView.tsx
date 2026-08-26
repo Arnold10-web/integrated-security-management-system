@@ -17,7 +17,8 @@ interface ArmouryViewProps {
     timeOut: string,
     signOutConfirmed: boolean,
     armourerInCharge: string,
-    notes: string
+    notes: string,
+    signOutFingerprintHash?: string
   ) => void;
   onReturnItem: (
     logId: string,
@@ -26,7 +27,8 @@ interface ArmouryViewProps {
     timeIn: string,
     signInConfirmed: boolean,
     substituteReceiver?: string,
-    notes?: string
+    notes?: string,
+    fingerprintHash?: string
   ) => void;
   onAddItem: (newItem: Omit<ArmouryItem, "id">) => void;
 }

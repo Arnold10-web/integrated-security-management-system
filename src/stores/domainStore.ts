@@ -30,9 +30,6 @@ import type {
   RecruitTrainee,
   RegionalOffice,
   LeaveRequest,
-  WorkflowDefinition,
-  Approval,
-  ApprovalAction,
   ContractRecord,
   DocumentRecord,
   JobPosting,
@@ -190,8 +187,6 @@ interface DomainState {
 
   // New entities
   leaveRequests: LeaveRequest[];
-  workflows: WorkflowDefinition[];
-  approvals: Approval[];
   documents: DocumentRecord[];
   jobPostings: JobPosting[];
   candidates: Candidate[];
@@ -227,7 +222,8 @@ interface DomainState {
     timeOut: string,
     signOutConfirmed: boolean,
     armourerInCharge: string,
-    notes: string
+    notes: string,
+    signOutFingerprintHash?: string
   ) => void;
   returnArmouryItem: (
     logId: string,
@@ -236,7 +232,8 @@ interface DomainState {
     timeIn: string,
     signInConfirmed: boolean,
     substituteReceiver?: string,
-    notes?: string
+    notes?: string,
+    fingerprintHash?: string
   ) => void;
 
   // K9
@@ -325,12 +322,6 @@ interface DomainState {
   gmApproveLeave: (id: string) => void;
   rejectLeaveRequest: (id: string, notes?: string) => void;
   deleteLeaveRequest: (id: string) => void;
-
-  // Workflow
-  addWorkflow: (wf: Omit<WorkflowDefinition, "id">) => void;
-  updateWorkflow: (id: string, updates: Partial<WorkflowDefinition>) => void;
-  deleteWorkflow: (id: string) => void;
-  actOnApproval: (id: string, action: "Approved" | "Rejected", comment?: string) => void;
 
   // Documents
   uploadDocument: (d: Omit<DocumentRecord, "id">) => void;
@@ -457,8 +448,6 @@ export const useDomainStore = create<DomainState>((set, get) => ({
 
   // New entity initial values
   leaveRequests: initialLeaveRequests,
-  workflows: [],
-  approvals: [],
   documents: [],
   jobPostings: [],
   candidates: [],
@@ -629,7 +618,8 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     timeOut,
     signOutConfirmed,
     armourerInCharge,
-    notes
+    notes,
+    signOutFingerprintHash
   ) => {
     const { armoury, securityOfficers, armouryLogs } = get();
     const item = armoury.find((i) => i.id === assetId);
@@ -664,6 +654,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       dateOut: dateOut || new Date().toISOString().split("T")[0],
       timeOut: timeOut || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       signOutConfirmed,
+      signOutFingerprintHash: signOutFingerprintHash || undefined,
       armourerInCharge: armourerInCharge || "Armourer Officer",
       status: "Checked Out",
       notes,
@@ -679,6 +670,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       signOutConfirmed,
       armourerInCharge,
       notes,
+      signOutFingerprintHash,
     });
     audit(
       "Armoury Issue",
@@ -688,7 +680,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
     notif("warning", "Weapon Issued", `${item.serialNumber} → ${securityOfficer.fullName} at ${locationName}`, "Armoury");
   },
 
-  returnArmouryItem: (logId, ammoRoundsIn, dateIn, timeIn, signInConfirmed, _substituteReceiver, notes) => {
+  returnArmouryItem: (logId, ammoRoundsIn, dateIn, timeIn, signInConfirmed, _substituteReceiver, notes, fingerprintHash) => {
     const log = get().armouryLogs.find((l) => l.id === logId);
     if (!log) return;
 
@@ -701,6 +693,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
               dateIn: dateIn || new Date().toISOString().split("T")[0],
               timeIn: timeIn || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               signInConfirmed,
+              fingerprintHash: fingerprintHash || undefined,
               status: "Returned",
               notes: notes ? `${l.notes} | Return Note: ${notes}` : l.notes,
             }
@@ -725,6 +718,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       signInConfirmed,
       substituteReceiver: _substituteReceiver,
       notes,
+      fingerprintHash,
     });
     audit(
       "Armoury Return",
@@ -1953,10 +1947,6 @@ export const useDomainStore = create<DomainState>((set, get) => ({
 
   hrApproveLeave: (id, verification) => {
     const lr = get().leaveRequests.find((lr) => lr.id === id);
-    const approvalId = lr?.approvalId;
-    if (approvalId) {
-      get().actOnApproval(approvalId, "Approved", verification?.resumptionDate ? `Resumption: ${verification.resumptionDate}` : undefined);
-    }
     const computed = verification
       ? { entitlement: verification.entitlement, taken: verification.taken, balance: verification.balance }
       : computeMockLeaveBalance(get().leaveRequests, lr);
@@ -1965,16 +1955,12 @@ export const useDomainStore = create<DomainState>((set, get) => ({
         lr.id === id ? { ...lr, status: "Pending GM Approval" as const, ...computed } : lr
       ),
     }));
+    syncApi("put", `/leave-requests/${id}/hr-approve`, verification);
     audit("Leave HR Approved", `HR approved leave request ${id}, forwarded to GM`, "HR");
     notif("info", "HR Approved", `Leave request ${id} forwarded to GM for final approval`, "HR");
   },
 
   gmApproveLeave: (id) => {
-    const lr = get().leaveRequests.find((lr) => lr.id === id);
-    const approvalId = lr?.approvalId;
-    if (approvalId) {
-      get().actOnApproval(approvalId, "Approved");
-    }
     set((s) => ({
       leaveRequests: s.leaveRequests.map((lr) =>
         lr.id === id
@@ -1982,6 +1968,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
           : lr
       ),
     }));
+    syncApi("put", `/leave-requests/${id}/gm-approve`, {});
     audit("Leave GM Approved", `GM gave final approval to leave request ${id}`, "Directorate");
     notif("success", "Leave Approved", `Leave request ${id} fully approved`, "HR");
   },
@@ -2003,101 +1990,14 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       notif("error", "Cannot Reject", "Leave requests from the General Manager or peer department managers cannot be denied by HR — escalate to the General Manager.", "HR");
       return;
     }
-    const approvalId = lr?.approvalId;
-    if (approvalId) {
-      get().actOnApproval(approvalId, "Rejected", notes);
-    } else {
-      set((s) => ({
-        leaveRequests: s.leaveRequests.map((lr) =>
-          lr.id === id ? { ...lr, status: "Rejected" as const, notes: notes ?? lr.notes } : lr
-        ),
-      }));
-    }
+    set((s) => ({
+      leaveRequests: s.leaveRequests.map((lr) =>
+        lr.id === id ? { ...lr, status: "Rejected" as const, notes: notes ?? lr.notes } : lr
+      ),
+    }));
+    syncApi("put", `/leave-requests/${id}/reject`, notes ? { notes } : {});
     audit("Leave Request Rejected", `Leave request ${id} rejected`, "HR");
     notif("error", "Leave Rejected", `Leave request ${id} was rejected`, "HR");
-  },
-
-  addWorkflow: (wf) => {
-    const w = { ...wf, id: `wf-${Date.now()}`, isActive: true, steps: wf.steps.map((s) => ({ ...s, id: `ws-${Date.now()}-${s.stepOrder}` })) };
-    set((s) => ({ workflows: [...s.workflows, w] }));
-    syncApi("post", "/workflows", wf);
-    audit("Workflow Created", `Created workflow '${wf.name}' (${wf.code}) for ${wf.module}`, "IT Admin");
-    notif("info", "Workflow Created", `${wf.name} (${wf.code}) for ${wf.module}`, "IT");
-  },
-
-  updateWorkflow: (id, updates) => {
-    set((s) => ({ workflows: s.workflows.map((w) => (w.id === id ? { ...w, ...updates } : w)) }));
-    syncApi("put", `/workflows/${id}`, updates);
-  },
-
-  deleteWorkflow: (id) => {
-    set((s) => ({ workflows: s.workflows.filter((w) => w.id !== id) }));
-    syncApi("delete", `/workflows/${id}`);
-    audit("Workflow Deleted", `Deleted workflow ID ${id}`, "IT Admin");
-    notif("warning", "Workflow Deleted", `Workflow ${id} removed`, "IT");
-  },
-
-  actOnApproval: (id, action, comment) => {
-    const approval = get().approvals.find((a) => a.id === id);
-    if (!approval) return;
-    const prev = get().approvals;
-    const newAction: ApprovalAction = {
-      id: `aa-${Date.now()}`,
-      approvalId: id,
-      stepOrder: approval.currentStep,
-      actorRole: actor()?.role || "system",
-      actorName: actor()?.name || "system",
-      action,
-      comment,
-      actedAt: new Date().toISOString(),
-    };
-    const applyLocal = (next: Partial<Approval>) => {
-      set((s) => ({ approvals: s.approvals.map((a) => a.id === id ? { ...a, ...next, actions: [...a.actions, newAction] } : a) }));
-    };
-    if (action === "Rejected") {
-      applyLocal({ status: "Rejected" });
-    } else if (approval.currentStep >= approval.totalSteps) {
-      applyLocal({ status: "Approved" });
-    } else {
-      applyLocal({ currentStep: approval.currentStep + 1 });
-    }
-    if (approval.referenceType === "LeaveRequest") {
-      set((s) => ({
-        leaveRequests: s.leaveRequests.map((lr) => {
-          if (lr.approvalId !== id) return lr;
-          let status = lr.status;
-          if (action === "Rejected") status = "Rejected";
-          else if (approval.currentStep >= approval.totalSteps) status = "Approved";
-          else {
-            const nextStep = approval.currentStep + 1;
-            const wf = s.workflows.find((w) => w.id === approval.workflowId || w.code === approval.workflowCode);
-            const stepDef = wf?.steps.find((st) => st.stepOrder === nextStep);
-            status = stepDef?.name?.includes("GM") ? "Pending GM Approval" : "Pending HR Approval";
-          }
-          return { ...lr, status };
-        }),
-      }));
-    }
-    notif(action === "Approved" ? "success" : "error", `Approval ${action}`, `${approval.referenceType || "Request"} ${action.toLowerCase()}${comment ? `: ${comment}` : ""}`, "Workflow");
-
-    const { useApi } = get();
-    if (!useApi) return;
-    api.put<{ status: string }>(`/approvals/${id}/act`, { action, comment })
-      .then((res) => {
-        set((s) => ({
-          approvals: s.approvals.map((a) => {
-            if (a.id !== id) return a;
-            if (res.status === "Approved") return { ...a, status: "Approved" as const };
-            if (res.status === "Rejected") return { ...a, status: "Rejected" as const };
-            const match = /Advanced to step (\d+)/.exec(res.status);
-            return match ? { ...a, currentStep: Number(match[1]) } : a;
-          }),
-        }));
-      })
-      .catch(() => {
-        set({ approvals: prev });
-        notif("error", "Sync Failed", `Could not persist approval action for ${approval.referenceType || "request"}`, "Workflow");
-      });
   },
 
   uploadDocument: (d) => {
@@ -2215,7 +2115,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
   hydrateFromApi: async () => {
     try {
       const [securityOfficers, sites, incidents, vehicles, invoices, expenses, leads, regions,
-        regionalOffices, leaveRequests, workflows, approvals, documents, jobPostings, candidates,
+        regionalOffices, leaveRequests, documents, jobPostings, candidates,
         performanceReviews, k9s, k9Logs, k9HealthInspections, armoury, armouryLogs, cashierTxns, contracts,
         campaigns, complaints, disciplinaryActions, deployments, deploymentOrders,
         transportRequests,
@@ -2233,8 +2133,6 @@ export const useDomainStore = create<DomainState>((set, get) => ({
         domainApi.regions.list().catch(() => []),
         domainApi.regionalOffices.list().catch(() => []),
         domainApi.leaveRequests.list().catch(() => []),
-        domainApi.workflows.list().catch(() => []),
-        domainApi.approvals.list().catch(() => []),
         domainApi.documents.list().catch(() => []),
         domainApi.jobPostings.list().catch(() => []),
         domainApi.candidates.list().catch(() => []),
@@ -2283,8 +2181,6 @@ export const useDomainStore = create<DomainState>((set, get) => ({
         regions: regions.length > 0 ? regions : get().regions,
         regionalOffices: regionalOffices.length > 0 ? regionalOffices : get().regionalOffices,
         leaveRequests: leaveRequests.length > 0 ? leaveRequests : get().leaveRequests,
-        workflows: workflows.length > 0 ? workflows : get().workflows,
-        approvals: approvals.length > 0 ? approvals : get().approvals,
         documents: documents.length > 0 ? documents : get().documents,
         jobPostings: jobPostings.length > 0 ? jobPostings : get().jobPostings,
         candidates: candidates.length > 0 ? candidates : get().candidates,

@@ -58,12 +58,12 @@ export const TrainingPipelineView: React.FC<TrainingPipelineViewProps> = ({
   const kpis = useMemo(() => officerPipelineKpis(securityOfficers), [securityOfficers]);
   const filtered = useMemo(() => filterOfficers(securityOfficers, tab, query), [securityOfficers, tab, query]);
 
-  const issueCertificate = (g: SecurityOfficer) => {
+  const issueCertificate = async (g: SecurityOfficer) => {
     const scores = traineeByForceNumber[g.forceNumber];
     const drill = scores?.drillScore ?? 80;
     const marks = scores?.marksmanshipScore ?? 80;
     const theory = scores?.theoryScore ?? 80;
-    downloadPassOutCertificate({
+    await downloadPassOutCertificate({
       fullName: g.fullName,
       forceNumber: g.forceNumber,
       nationalId: g.nationalId,
@@ -81,29 +81,26 @@ export const TrainingPipelineView: React.FC<TrainingPipelineViewProps> = ({
     <div className="space-y-6">
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm space-y-1" title="Officers sent here by Operations and waiting to be received into a cohort">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-[11px] font-bold uppercase tracking-wider">Awaiting Reception</span>
             <Inbox className="w-4 h-4 text-amber-600" />
           </div>
           <div className="text-2xl font-black text-slate-900">{kpis.awaiting}</div>
-          <p className="text-[11px] font-semibold text-amber-700">Sent by Operations — action required</p>
         </div>
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm space-y-1" title="Currently enrolled in an active cohort at the academy">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-[11px] font-bold uppercase tracking-wider">Under Training</span>
             <Users className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-black text-slate-900">{kpis.inTraining}</div>
-          <p className="text-[11px] font-semibold text-blue-700">Active at the academy</p>
         </div>
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm space-y-1" title="Graduated and returned to Operations, which assigns their deployment">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-[11px] font-bold uppercase tracking-wider">Passed Out</span>
             <Award className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-black text-slate-900">{kpis.passedOut}</div>
-          <p className="text-[11px] font-semibold text-emerald-700">Awaiting deployment by Ops</p>
         </div>
       </div>
 
@@ -112,10 +109,10 @@ export const TrainingPipelineView: React.FC<TrainingPipelineViewProps> = ({
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-black text-amber-900 text-sm uppercase tracking-wider flex items-center gap-2">
-              <Inbox className="w-4 h-4" /> Incoming Queue — Action Required
+              <Inbox className="w-4 h-4" /> Incoming Queue
             </h2>
             <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-900">
-              {kpis.awaiting} new
+              {kpis.awaiting} waiting
             </span>
           </div>
           <div className="mt-3 grid gap-2">
@@ -216,6 +213,7 @@ export const TrainingPipelineView: React.FC<TrainingPipelineViewProps> = ({
                         {canReceiveOfficer(g) && (
                           <button
                             onClick={() => onReceiveTrainee(g.id)}
+                            title="Admit into training — officer moves to the Under Training list"
                             className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-bold text-white cursor-pointer hover:bg-slate-800"
                           >
                             Receive
@@ -224,6 +222,7 @@ export const TrainingPipelineView: React.FC<TrainingPipelineViewProps> = ({
                         {canPassOutOfficer(g) && (
                           <button
                             onClick={() => onPassOutTrainee(g.id)}
+                            title="Graduate this officer — marks them Passed Out with today's date, adds pass-out certifications, and returns them to Operations for deployment"
                             className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white cursor-pointer hover:bg-emerald-700"
                           >
                             Pass Out
@@ -246,7 +245,11 @@ export const TrainingPipelineView: React.FC<TrainingPipelineViewProps> = ({
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
-                    No officers in this view.
+                    {query || tab !== "ALL"
+                      ? "No officers match this filter."
+                      : kpis.awaiting + kpis.inTraining + kpis.passedOut === 0
+                        ? "No recruits have been sent yet. Officers appear here once Operations sends them to the school."
+                        : "All officers accounted for."}
                   </td>
                 </tr>
               )}
@@ -254,10 +257,6 @@ export const TrainingPipelineView: React.FC<TrainingPipelineViewProps> = ({
           </table>
         </div>
       </div>
-
-      <p className="text-center text-xs text-slate-400">
-        No “Create Recruit” and no force-number allocation in this role — officers are registered by HR at recruitment.
-      </p>
     </div>
   );
 };

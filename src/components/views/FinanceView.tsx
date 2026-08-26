@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { DollarSign, CreditCard, Plus, CheckCircle2, Clock, Receipt, Search, FileText, PieChart as PieIcon, TrendingUp, AlertTriangle, Truck } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend,
@@ -8,6 +8,7 @@ import { InvoicesTable, ExpensesTable, CashierTransactionsTable, CreateInvoiceMo
 import { FINANCE_INVOICE_ROLES, FINANCE_CASHIER_ROLES, FINANCE_CONTRACT_APPROVER_ROLES } from "../../services/rbacService";
 import { useDomainStore } from "../../stores/domainStore";
 import { useAuthStore } from "../../stores/authStore";
+import { ConfirmationDialog } from "../ui";
 
 const INVOICE_ROLES: UserRole[] = FINANCE_INVOICE_ROLES;
 const CASHIER_ROLES: UserRole[] = FINANCE_CASHIER_ROLES;
@@ -74,6 +75,81 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
     });
   }, [invoices]);
   const [search, setSearch] = useState("");
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "danger" | "warning" | "info";
+    onConfirm: () => void;
+  }>({ isOpen: false, title: "", message: "", variant: "warning", onConfirm: () => {} });
+
+  const confirmAction = useCallback(
+    (title: string, message: string, variant: "danger" | "warning" | "info", onConfirm: () => void) => {
+      setConfirmDialog({ isOpen: true, title, message, variant, onConfirm });
+    },
+    []
+  );
+
+  const wrappedOnApproveInvoice = onApproveInvoice
+    ? (id: string) => {
+        const inv = invoices.find((i) => i.id === id);
+        confirmAction(
+          "Approve Invoice",
+          `You are about to approve invoice ${inv?.invoiceNumber ?? id} for UGX ${inv?.amount.toLocaleString() ?? "—"}. This action will mark the invoice as approved for billing.`,
+          "info",
+          () => onApproveInvoice(id)
+        );
+      }
+    : undefined;
+
+  const wrappedOnDeleteInvoice = onDeleteInvoice
+    ? (id: string) => {
+        const inv = invoices.find((i) => i.id === id);
+        confirmAction(
+          "Delete Invoice",
+          `Are you sure you want to permanently delete invoice ${inv?.invoiceNumber ?? id}? This action cannot be undone.`,
+          "danger",
+          () => onDeleteInvoice(id)
+        );
+      }
+    : undefined;
+
+  const wrappedOnDeleteExpense = onDeleteExpense
+    ? (id: string) => {
+        const exp = expenses.find((e) => e.id === id);
+        confirmAction(
+          "Delete Expense",
+          `Are you sure you want to permanently delete expense record ${exp?.description ?? id}? This action cannot be undone.`,
+          "danger",
+          () => onDeleteExpense(id)
+        );
+      }
+    : undefined;
+
+  const wrappedOnApproveCashierTxn = onApproveCashierTxn
+    ? (id: string) => {
+        const txn = cashierTxns.find((c) => c.id === id);
+        confirmAction(
+          "Approve Disbursement",
+          `You are about to approve a cashier disbursement of UGX ${txn?.amount.toLocaleString() ?? "—"} for ${txn?.securityOfficerName ?? "—"}. Confirm approval.`,
+          "info",
+          () => onApproveCashierTxn(id)
+        );
+      }
+    : undefined;
+
+  const wrappedOnRejectCashierTxn = onRejectCashierTxn
+    ? (id: string) => {
+        const txn = cashierTxns.find((c) => c.id === id);
+        confirmAction(
+          "Reject Disbursement",
+          `Are you sure you want to reject the cashier disbursement of UGX ${txn?.amount.toLocaleString() ?? "—"} for ${txn?.securityOfficerName ?? "—"}?`,
+          "warning",
+          () => onRejectCashierTxn(id)
+        );
+      }
+    : undefined;
 
   const filteredInvoices = invoices.filter((inv) =>
     !search ||
@@ -333,11 +409,11 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
       </div>
 
       {activeTab === "invoices" && (
-        <InvoicesTable invoices={filteredInvoices} activeRole={activeRole} onUpdateInvoice={onUpdateInvoice} onDeleteInvoice={onDeleteInvoice} onApproveInvoice={onApproveInvoice} />
+        <InvoicesTable invoices={filteredInvoices} activeRole={activeRole} onUpdateInvoice={onUpdateInvoice} onDeleteInvoice={wrappedOnDeleteInvoice} onApproveInvoice={wrappedOnApproveInvoice} />
       )}
-      {activeTab === "expenses" && <ExpensesTable expenses={filteredExpenses} activeRole={activeRole} onDeleteExpense={onDeleteExpense} />}
+      {activeTab === "expenses" && <ExpensesTable expenses={filteredExpenses} activeRole={activeRole} onDeleteExpense={wrappedOnDeleteExpense} />}
       {activeTab === "cashier" && (
-        <CashierTransactionsTable transactions={cashierTxns} activeRole={activeRole} onApprove={onApproveCashierTxn} onReject={onRejectCashierTxn} />
+        <CashierTransactionsTable transactions={cashierTxns} activeRole={activeRole} onApprove={wrappedOnApproveCashierTxn} onReject={wrappedOnRejectCashierTxn} />
       )}
       {activeTab === "contracts" && (
         <ClientContractsView
@@ -357,11 +433,11 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${activeTab}…`} className="w-full p-2.5 pl-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none" />
       </div>
       {activeTab === "invoices" && (
-        <InvoicesTable invoices={filteredInvoices} activeRole={activeRole} onUpdateInvoice={onUpdateInvoice} onDeleteInvoice={onDeleteInvoice} onApproveInvoice={onApproveInvoice} />
+        <InvoicesTable invoices={filteredInvoices} activeRole={activeRole} onUpdateInvoice={onUpdateInvoice} onDeleteInvoice={wrappedOnDeleteInvoice} onApproveInvoice={wrappedOnApproveInvoice} />
       )}
-      {activeTab === "expenses" && <ExpensesTable expenses={filteredExpenses} activeRole={activeRole} onDeleteExpense={onDeleteExpense} />}
+      {activeTab === "expenses" && <ExpensesTable expenses={filteredExpenses} activeRole={activeRole} onDeleteExpense={wrappedOnDeleteExpense} />}
       {activeTab === "cashier" && (
-        <CashierTransactionsTable transactions={cashierTxns} activeRole={activeRole} onApprove={onApproveCashierTxn} onReject={onRejectCashierTxn} />
+        <CashierTransactionsTable transactions={cashierTxns} activeRole={activeRole} onApprove={wrappedOnApproveCashierTxn} onReject={wrappedOnRejectCashierTxn} />
       )}
       {activeTab === "contracts" && (
         <ClientContractsView
@@ -387,6 +463,19 @@ export const FinanceView: React.FC<FinanceViewWithTabProps> = ({
       )}
       <CreateInvoiceModal show={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} onSubmit={onAddInvoice} />
       <CashierDisbursementModal show={showCashierModal} onClose={() => setShowCashierModal(false)} onSubmit={onDisburseAdvance} onSubmitBatch={onDisburseAdvanceBatch} />
+      <ConfirmationDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        confirmText="Yes, Proceed"
+        cancelText="Cancel"
+        onConfirm={() => {
+          confirmDialog.onConfirm();
+          setConfirmDialog((d) => ({ ...d, isOpen: false }));
+        }}
+        onCancel={() => setConfirmDialog((d) => ({ ...d, isOpen: false }))}
+      />
     </div>
   );
 };

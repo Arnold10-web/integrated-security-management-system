@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ChevronRight, ChevronLeft, Plus, Trash2, AlertTriangle, Send } from "lucide-react";
 import { getAccessToken } from "../../services/apiClient";
+import { Tooltip } from "../ui";
 
 interface Template {
   id: string;
@@ -205,7 +206,12 @@ export const DigitalContractWizard: React.FC<ContractCreationWizardProps> = ({ o
       {/* Step 1: Select Template */}
       {step === 1 && (
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h3 className="font-bold text-sm mb-3">Select Contract Template</h3>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="font-bold text-sm">Select Contract Template</h3>
+            <Tooltip content="Choose a pre-approved PDF template. Company details and legal clauses are pre-filled. The selected template determines the contract structure and formatting." position="right">
+              <span className="text-[10px] text-slate-400 font-semibold cursor-help border-b border-dashed border-slate-300">What is this?</span>
+            </Tooltip>
+          </div>
           <p className="text-xs text-slate-500 mb-3">Choose the fixed PDF template. Company details are pre-filled in the template.</p>
           {loading ? (
             <p className="text-xs text-slate-500">Loading templates...</p>
@@ -307,7 +313,11 @@ export const DigitalContractWizard: React.FC<ContractCreationWizardProps> = ({ o
                 <div className="flex justify-between"><span className="text-slate-600">Day Total:</span><span className="font-semibold">UGX {dayTotal.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-slate-600">Night Total:</span><span className="font-semibold">UGX {nightTotal.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-slate-600">Sub Total:</span><span className="font-semibold">UGX {subTotal.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-slate-600">VAT ({vatRate}%):</span><span className="font-semibold">UGX {vatAmount.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-slate-600">VAT ({vatRate}%):</span>
+                  <Tooltip content="VAT is automatically calculated at 18% as per Uganda Revenue Authority requirements. This rate is fixed for all client contracts." position="left">
+                    <span className="font-semibold cursor-help border-b border-dashed border-slate-300">UGX {vatAmount.toLocaleString()}</span>
+                  </Tooltip>
+                </div>
                 <div className="col-span-2 flex justify-between border-t border-slate-300 pt-2 mt-1">
                   <span className="text-slate-900 font-bold">TOTAL:</span>
                   <span className="text-cyan-700 font-bold">UGX {grandTotal.toLocaleString()}</span>
@@ -346,7 +356,12 @@ export const DigitalContractWizard: React.FC<ContractCreationWizardProps> = ({ o
       {/* Step 5: Signers (4 signature blocks) */}
       {step === 5 && (
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h3 className="font-bold text-sm mb-3">Signatories</h3>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="font-bold text-sm">Signatories</h3>
+            <Tooltip content="Contracts follow a fixed signing order: (1) Company Representative, (2) Company Witness, (3) Client Representative, (4) Client Witness. Each signer receives a notification email and must sign in sequence." position="right">
+              <span className="text-[10px] text-slate-400 font-semibold cursor-help border-b border-dashed border-slate-300">Signing order explained</span>
+            </Tooltip>
+          </div>
           <p className="text-xs text-slate-500 mb-3">The contract requires 4 signatures: Company Representative, Company Witness, Client Representative, and Client Witness.</p>
           <div className="space-y-3">
             {signers.map((signer, index) => (

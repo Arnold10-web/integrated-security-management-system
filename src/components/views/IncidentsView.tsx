@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { AlertTriangle, Plus, Paperclip } from "lucide-react";
 import { Incident } from "../../types";
+import { ConfirmationDialog } from "../ui";
 
 interface IncidentsViewProps {
   incidents: Incident[];
@@ -15,6 +16,13 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [search, setSearch] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "danger" | "warning" | "info";
+    onConfirm: () => void;
+  }>({ isOpen: false, title: "", message: "", variant: "warning", onConfirm: () => {} });
 
   const filteredIncidents = incidents.filter((inc) =>
     !search ||
@@ -128,7 +136,15 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
                 </span>
                 {inc.status !== "Resolved" && (
                   <button
-                    onClick={() => onResolveIncident(inc.id)}
+                    onClick={() =>
+                      setConfirmDialog({
+                        isOpen: true,
+                        title: "Mark Incident as Resolved",
+                        message: `Are you sure you want to mark incident "${inc.incidentCode}" as resolved? This status change will be recorded in the audit log.`,
+                        variant: "info",
+                        onConfirm: () => onResolveIncident(inc.id),
+                      })
+                    }
                     className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
                   >
                     Mark Resolved
@@ -240,6 +256,19 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
           </div>
         </div>
       )}
+      <ConfirmationDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        confirmText="Yes, Proceed"
+        cancelText="Cancel"
+        onConfirm={() => {
+          confirmDialog.onConfirm();
+          setConfirmDialog((d) => ({ ...d, isOpen: false }));
+        }}
+        onCancel={() => setConfirmDialog((d) => ({ ...d, isOpen: false }))}
+      />
     </div>
   );
 };

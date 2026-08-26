@@ -34,6 +34,7 @@ import { ApprovalsHub } from "./ApprovalsHub";
 import { StatsBand } from "./StatsBand";
 import { TrendsPanel } from "./TrendsPanel";
 import { RegionalDataCards } from "./RegionalDataCards";
+import { ActivityLog } from "../../organisms/ActivityLog";
 
 export const ExecutiveDashboardView: React.FC<{ activeRole: UserRole }> = ({ activeRole }) => {
   const domain = useDomainStore();
@@ -117,6 +118,9 @@ export const ExecutiveDashboardView: React.FC<{ activeRole: UserRole }> = ({ act
 
       {/* R4 — regional picture */}
       <RegionalDataCards bundle={bundle} filters={statsFilters} />
+
+      {/* R5 — individual activity log */}
+      <ActivityLog maxEntries={25} />
     </div>
   );
 };

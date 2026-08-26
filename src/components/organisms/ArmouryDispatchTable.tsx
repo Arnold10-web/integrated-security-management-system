@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, FileSpreadsheet, CheckSquare, FileCheck } from "lucide-react";
+import { Search, FileSpreadsheet, CheckSquare, FileCheck, Fingerprint } from "lucide-react";
 import type { ArmouryLog } from "../../types";
 
 interface ArmouryDispatchTableProps {
@@ -102,8 +102,12 @@ export const ArmouryDispatchTable: React.FC<ArmouryDispatchTableProps> = ({
                 <td className="py-3 px-3 whitespace-nowrap">
                   {log.signOutConfirmed ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      <CheckSquare className="w-3 h-3 text-emerald-600" />
-                      Signed
+                      {log.signOutFingerprintHash ? (
+                        <Fingerprint className="w-3 h-3 text-indigo-600" />
+                      ) : (
+                        <CheckSquare className="w-3 h-3 text-emerald-600" />
+                      )}
+                      {log.signOutFingerprintHash ? "FP Signed" : "Signed"}
                     </span>
                   ) : (
                     <span className="text-slate-400 italic">Pending</span>
@@ -127,8 +131,12 @@ export const ArmouryDispatchTable: React.FC<ArmouryDispatchTableProps> = ({
                 <td className="py-3 px-3 whitespace-nowrap">
                   {log.signInConfirmed ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                      <FileCheck className="w-3 h-3 text-blue-600" />
-                      Verified
+                      {log.fingerprintHash ? (
+                        <Fingerprint className="w-3 h-3 text-indigo-600" />
+                      ) : (
+                        <FileCheck className="w-3 h-3 text-blue-600" />
+                      )}
+                      {log.fingerprintHash ? "FP Verified" : "Verified"}
                     </span>
                   ) : (
                     <span className="text-slate-400 italic">Not Returned</span>

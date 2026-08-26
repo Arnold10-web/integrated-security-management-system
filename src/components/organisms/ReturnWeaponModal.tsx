@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { X, PackageCheck } from "lucide-react";
+import { X, PackageCheck, Fingerprint, CheckCircle2 } from "lucide-react";
 import type { ArmouryLog } from "../../types";
+import { FingerprintCaptureModal } from "./FingerprintCaptureModal";
 
 interface ReturnWeaponModalProps {
   show: boolean;
@@ -13,7 +14,8 @@ interface ReturnWeaponModalProps {
     timeIn: string,
     signInConfirmed: boolean,
     substituteReceiver?: string,
-    notes?: string
+    notes?: string,
+    fingerprintHash?: string
   ) => void;
 }
 
@@ -28,9 +30,11 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
   const [timeIn, setTimeIn] = useState(
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })
   );
-  const [signInConfirmed, setSignInConfirmed] = useState(true);
+  const [signInConfirmed, setSignInConfirmed] = useState(false);
   const [substituteReceiver, setSubstituteReceiver] = useState("");
   const [returnNotes, setReturnNotes] = useState("");
+  const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
+  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
 
   useEffect(() => {
     if (log) {
@@ -39,8 +43,16 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
       setTimeIn(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }));
       setSubstituteReceiver("");
       setReturnNotes("Firearm & ammunition inspected, weapon cleared and safe.");
+      setFingerprintHash(null);
+      setSignInConfirmed(false);
     }
   }, [log]);
+
+  const handleFingerprintCaptured = (hash: string) => {
+    setFingerprintHash(hash);
+    setSignInConfirmed(true);
+    setShowFingerprintModal(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +64,8 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
       timeIn,
       signInConfirmed,
       substituteReceiver || "Self (Assigned Security Officer)",
-      returnNotes
+      returnNotes,
+      fingerprintHash || undefined
     );
     onClose();
   };
@@ -68,8 +81,8 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
               <PackageCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-slate-900">Weapon Return & Sign In Register</h3>
-              <p className="text-xs text-slate-500">Log Serial: {log.serialNumberLog}</p>
+              <h3 className="text-base font-black text-slate-900">Weapon Return & Fingerprint Sign In</h3>
+              <p className="text-xs text-slate-500">Log Serial: {log.serialNumberLog} — Biometric Authentication</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer">
@@ -142,11 +155,11 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
 
           <div>
             <label className="block font-bold text-slate-700 mb-1">
-              4. Substitute Receiver (If returned by replacement securityOfficer)
+              4. Substitute Receiver (If returned by replacement officer)
             </label>
             <input
               type="text"
-              placeholder="e.g. Self (Leave blank if returned by assigned securityOfficer, or enter substitute officer name)"
+              placeholder="e.g. Self (Leave blank if returned by assigned officer, or enter substitute officer name)"
               value={substituteReceiver}
               onChange={(e) => setSubstituteReceiver(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -154,17 +167,33 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-              <div>
-                <span className="block font-bold text-slate-800">5. Sign In Verification</span>
-                <span className="text-[10px] text-slate-500">Return & weapon safety verified</span>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="block font-bold text-slate-800">5. Fingerprint Sign In</span>
+                  <span className="text-[10px] text-slate-500">Biometric verification via Mantra MFS100</span>
+                </div>
+                {fingerprintHash && (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                )}
               </div>
-              <input
-                type="checkbox"
-                checked={signInConfirmed}
-                onChange={(e) => setSignInConfirmed(e.target.checked)}
-                className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-              />
+              {fingerprintHash ? (
+                <div className="mt-1 p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <p className="text-[10px] font-bold text-emerald-700 flex items-center gap-1">
+                    <Fingerprint className="w-3 h-3" />
+                    Captured — {fingerprintHash.slice(0, 24)}...
+                  </p>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowFingerprintModal(true)}
+                  className="w-full mt-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Fingerprint className="w-4 h-4" />
+                  Capture Fingerprint & Sign In
+                </button>
+              )}
             </div>
 
             <div>
@@ -203,13 +232,25 @@ export const ReturnWeaponModal: React.FC<ReturnWeaponModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-md cursor-pointer"
+              disabled={!fingerprintHash}
+              className={`px-5 py-2 rounded-xl font-bold shadow-md transition-all ${
+                fingerprintHash
+                  ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
+              }`}
             >
               Sign In & Close Register Entry
             </button>
           </div>
         </form>
       </div>
+
+      <FingerprintCaptureModal
+        show={showFingerprintModal}
+        onClose={() => setShowFingerprintModal(false)}
+        onCapture={handleFingerprintCaptured}
+        label="Sign In"
+      />
     </div>
   );
 };

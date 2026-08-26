@@ -24,7 +24,7 @@ for (const { file, pattern } of forbiddenPatterns) {
 
 // Verify single source exists and has expected keys
 import { MODULE_PERMISSIONS, SERVER_MODULE_TO_CLIENT } from "../src/config/permissions.ts";
-const requiredModules = ["guards","sites","armoury","incidents","vehicles","k9s","hr","finance","leave","it","workflow"];
+const requiredModules = ["guards","sites","armoury","incidents","vehicles","k9s","hr","finance","leave","it"];
 for (const m of requiredModules) {
   if (!MODULE_PERMISSIONS[m]) {
     console.error(`FAIL: MODULE_PERMISSIONS missing module "${m}"`);

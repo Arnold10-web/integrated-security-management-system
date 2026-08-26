@@ -37,7 +37,6 @@ import {
   ReportsPage,
   RecruitmentPage,
   DocumentsPage,
-  WorkflowPage,
   EsignPage,
   DisciplinaryPage,
   HRRegisterPage,
@@ -49,6 +48,8 @@ import {
   HRStaffPage,
   HRPayrollPage,
   RecordsContractsPage,
+  TrainingCurriculumPage,
+  PassOutCertificatesPage,
 } from "./pages/ModulePages";
 
 export default function App() {
@@ -118,9 +119,10 @@ export default function App() {
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/recruitment" element={<RecruitmentPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
-        <Route path="/workflow" element={<WorkflowPage />} />
         <Route path="/esign" element={<EsignPage />} />
         <Route path="/disciplinary" element={<DisciplinaryPage />} />
+        <Route path="/training-curriculum" element={<TrainingCurriculumPage />} />
+        <Route path="/pass-out-certificates" element={<PassOutCertificatesPage />} />
       </Route>
     </Routes>
   );

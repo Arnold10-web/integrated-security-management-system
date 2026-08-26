@@ -34,7 +34,6 @@ import { LoginView } from "../components/views/LoginView";
 import { ReportsView } from "../components/views/ReportsView";
 import { RecruitmentView } from "../components/views/RecruitmentView";
 import { DocumentManagementView } from "../components/views/DocumentManagementView";
-import { WorkflowView } from "../components/views/WorkflowView";
 import { PerformanceReviewsView } from "../components/views/PerformanceReviewsView";
 import { Scale } from "lucide-react";
 import {
@@ -46,7 +45,10 @@ import {
 import { ArmouryView } from "../components/views/ArmouryView";
 import { K9UnitView } from "../components/views/K9UnitView";
 import { TrainingSchoolWorkspace } from "../components/views/TrainingSchoolWorkspace";
+import { TrainingCurriculumView } from "../components/views/TrainingCurriculumView";
+import { PassOutCertificatesView } from "../components/views/PassOutCertificatesView";
 import { TransportRequestSelfService } from "../components/views/TransportRequestSelfService";
+import { PeacefulExitView } from "../components/views/PeacefulExitView";
 import type { UserRole } from "../types";
 import { getEffectiveRole } from "../services/rbacService";
 
@@ -722,20 +724,6 @@ export const DocumentsPage: React.FC = () => {
   );
 };
 
-export const WorkflowPage: React.FC = () => {
-  const domain = useDomainStore();
-  return (
-    <WorkflowView
-      workflows={domain.workflows}
-      approvals={domain.approvals}
-      onAddWorkflow={domain.addWorkflow}
-      onUpdateWorkflow={domain.updateWorkflow}
-      onDeleteWorkflow={domain.deleteWorkflow}
-      onActOnApproval={domain.actOnApproval}
-    />
-  );
-};
-
 export const PerformanceReviewsPage: React.FC = () => {
   const domain = useDomainStore();
   return (
@@ -774,8 +762,28 @@ export const SecurityOfficerPortalPage: React.FC = () => {
   />;
 };
 
+export const TrainingCurriculumPage: React.FC = () => {
+  return <TrainingCurriculumView />;
+};
+
+export const PassOutCertificatesPage: React.FC = () => {
+  return <PassOutCertificatesView />;
+};
+
 export const LoginPage: React.FC = () => {
   const loginWithApi = useAuthStore((s) => s.loginWithApi);
   const idleNotice = useAuthStore((s) => s.idleNotice);
   return <LoginView onLogin={loginWithApi} idleNotice={idleNotice} />;
+};
+
+export const PeacefulExitPage: React.FC = () => {
+  const activeRole = useActiveRole();
+  const domain = useDomainStore();
+  return (
+    <PeacefulExitView
+      securityOfficers={domain.securityOfficers}
+      contracts={domain.contracts}
+      activeRole={activeRole}
+    />
+  );
 };

@@ -55,13 +55,6 @@ beforeAll(async () => {
   await prisma.incident.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { message: { contains: "RBAC" } } });
-  const rbacLeaves = await prisma.leaveRequest.findMany({ where: { securityOfficerName: { startsWith: "RBAC" } }, select: { id: true, approvalId: true } });
-  for (const l of rbacLeaves) {
-    if (l.approvalId) {
-      await prisma.approvalAction.deleteMany({ where: { approvalId: l.approvalId } });
-      await prisma.approval.delete({ where: { id: l.approvalId } });
-    }
-  }
   await prisma.leaveRequest.deleteMany({ where: { securityOfficerName: { startsWith: "RBAC" } } });
   await prisma.transportRequest.deleteMany({ where: { requestedByName: { startsWith: "RBAC" } } });
   await prisma.contractInquiry.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
@@ -102,13 +95,6 @@ afterAll(async () => {
   await prisma.incident.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { title: { startsWith: "RBAC" } } });
   await prisma.notification.deleteMany({ where: { message: { contains: "RBAC" } } });
-  const rbacLeaves = await prisma.leaveRequest.findMany({ where: { securityOfficerName: { startsWith: "RBAC" } }, select: { id: true, approvalId: true } });
-  for (const l of rbacLeaves) {
-    if (l.approvalId) {
-      await prisma.approvalAction.deleteMany({ where: { approvalId: l.approvalId } });
-      await prisma.approval.delete({ where: { id: l.approvalId } });
-    }
-  }
   await prisma.leaveRequest.deleteMany({ where: { securityOfficerName: { startsWith: "RBAC" } } });
   await prisma.transportRequest.deleteMany({ where: { requestedByName: { startsWith: "RBAC" } } });
   await prisma.contractInquiry.deleteMany({ where: { clientName: { startsWith: "RBAC" } } });
@@ -1796,7 +1782,7 @@ describe("P6 RBAC — leave engine realignment (submit → HR Manager → option
     expect(res.status).toBe(201);
     officerLeaveId = ((await res.json()) as { id: string }).id;
     const leave = await prisma.leaveRequest.findUnique({ where: { id: officerLeaveId } });
-    expect(leave?.approvalId).toBeTruthy();
+    expect(leave?.status).toBe("Pending HR Approval");
   });
 
   it("HR Assistant is not an approver (403)", async () => {
@@ -1817,8 +1803,6 @@ describe("P6 RBAC — leave engine realignment (submit → HR Manager → option
     expect(res.status).toBe(200);
     const leave = await prisma.leaveRequest.findUnique({ where: { id: officerLeaveId } });
     expect(leave?.status).toBe("Approved");
-    const approval = await prisma.approval.findUnique({ where: { id: leave!.approvalId! }, include: { actions: true } });
-    expect(approval?.status).toBe("Approved");
   });
 
   it("staff leave (no officer record) advances HR → GM and GM approves to Approved", async () => {

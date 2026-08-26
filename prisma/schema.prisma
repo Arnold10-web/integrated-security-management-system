@@ -19,6 +19,7 @@ enum SecurityOfficerLifecycleStage {
   IN_TRAINING
   PASSED_OUT
   DEPLOYED
+  COMPLETED_CONTRACT
 }
 
 enum SecurityOfficerStatus {
@@ -230,6 +231,9 @@ model SecurityOfficer {
   bankAccount              String?
   bankName                 String?
   finishedProbation        Boolean                       @default(false)
+  probationStartDate       DateTime?
+  probationEndDate         DateTime?
+  probationStatus          String?                       // "On Probation" | "Approved Employee" | "Extended"
   status                   String                        @default("Off Duty")
   lifecycleStage           SecurityOfficerLifecycleStage @default(ENROLLED)
   isDeserter               Boolean                       @default(false)
@@ -253,6 +257,7 @@ model SecurityOfficer {
   idCardExpiryDate         String?
   idCardIssuerName         String?
   idCardIssuerSignatureUrl String?
+  clearanceChecklist       Json? // Peaceful Exit clearance items: { uniform_returned, firearms_returned, ... }
   hasSystemAccount         Boolean                       @default(false)
   linkedUserId             String?
   dateOfBirth              String?
@@ -443,6 +448,8 @@ model ClientSite {
   satisfactionRating            Int?
   deploymentStatus              String    @default("Not Deployed")
   wonBy                         String?
+  broughtInBy                   String?   // staff member who originated this client relationship
+  commissionEligible            Boolean   @default(false) // true if this is a new client (not adding a new site)
   createdAt                     DateTime  @default(now())
   updatedAt                     DateTime  @updatedAt
 
@@ -477,27 +484,29 @@ model ArmouryItem {
 }
 
 model ArmouryLog {
-  id                  String   @id @default(cuid())
-  serialNumberLog     String
-  forceNumber         String
-  securityOfficerName String
-  locationName        String
-  firearmSerialNumber String
-  assetName           String
-  assetTag            String
-  ammoRoundsOut       Int
-  dateOut             String
-  timeOut             String
-  signOutConfirmed    Boolean
-  dateIn              String?
-  timeIn              String?
-  ammoRoundsIn        Int?
-  signInConfirmed     Boolean?
-  substituteReceiver  String?
-  armourerInCharge    String
-  status              String   @default("Checked Out")
-  notes               String?
-  createdAt           DateTime @default(now())
+  id                      String   @id @default(cuid())
+  serialNumberLog         String
+  forceNumber             String
+  securityOfficerName     String
+  locationName            String
+  firearmSerialNumber     String
+  assetName               String
+  assetTag                String
+  ammoRoundsOut           Int
+  dateOut                 String
+  timeOut                 String
+  signOutConfirmed        Boolean
+  signOutFingerprintHash  String?
+  dateIn                  String?
+  timeIn                  String?
+  ammoRoundsIn            Int?
+  signInConfirmed         Boolean?
+  fingerprintHash         String?
+  substituteReceiver      String?
+  armourerInCharge        String
+  status                  String   @default("Checked Out")
+  notes                   String?
+  createdAt               DateTime @default(now())
 
   @@index([forceNumber])
   @@index([locationName])
@@ -734,6 +743,10 @@ model Incident {
   description               String
   status                    IncidentStatus @default(Open)
   evidenceAttached          Boolean        @default(false)
+  investigatedBy            String?
+  escalatedBy               String?
+  resolvedBy                String?
+  resolutionNotes           String?
   resolvedAt                DateTime?
   createdAt                 DateTime       @default(now())
   updatedAt                 DateTime       @updatedAt
@@ -755,6 +768,8 @@ model Invoice {
   amount        Float
   status        InvoiceStatus @default(Draft)
   itemsCount    Int           @default(0)
+  vatMode       String        @default("Exclusive") // §9.1 VAT toggle: "Exclusive" | "Inclusive" (18% Uganda standard)
+  vatAmount     Float         @default(0)
   approvedBy    String?
   approvedAt    DateTime?
   sentAt        DateTime?
@@ -994,6 +1009,59 @@ model RecruitTrainee {
   updatedAt           DateTime @updatedAt
 }
 
+model TrainingCurriculum {
+  id              String   @id @default(cuid())
+  cohortId        String
+  cohortCode      String
+  version         Int      @default(1)
+  title           String
+  description     String?
+  modules         Json     // array of { title, topics: string[], objectives: string[], duration: string, assessmentCriteria: string[] }
+  status          String   @default("Draft") // Draft | Active | Archived
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([cohortId])
+}
+
+model TrainingCourseOutline {
+  id              String   @id @default(cuid())
+  curriculumId    String
+  cohortId        String
+  sessionNumber   Int
+  date            String
+  topic           String
+  instructor      String
+  materials       String?
+  practicalExercises String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([curriculumId])
+  @@index([cohortId])
+}
+
+model PassOutCertificate {
+  id              String   @id @default(cuid())
+  certificateId   String   @unique // auto-generated unique ID
+  forceNumber     String
+  officerName     String
+  cohortId        String
+  cohortCode      String
+  trainingStart   String
+  trainingEnd     String
+  passOutDate     String
+  filePath        String   // PDF stored in Records Officer vault
+  fileName        String
+  generatedBy     String?  // Training Officer who triggered pass-out
+  createdAt       DateTime @default(now())
+
+  @@index([forceNumber])
+  @@index([cohortId])
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   timestamp DateTime @default(now())
@@ -1148,60 +1216,12 @@ model LeaveRequest {
   balance                   Int?
   resumptionDate            String?
   gmApprovedBy              String?
-  approvalId                String?
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 
   @@index([requesterUserId])
   @@index([category])
   @@index([status])
-}
-
-model Workflow {
-  id          String         @id @default(cuid())
-  code        String         @unique
-  name        String
-  description String?
-  module      String
-  isActive    Boolean        @default(true)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  steps       WorkflowStep[]
-}
-
-model WorkflowStep {
-  id              String   @id @default(cuid())
-  workflowId      String
-  workflow        Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  stepOrder       Int
-  name            String
-  approverRole    String
-  approverRoles   String? // JSON array of alternative approver roles; falls back to [approverRole]
-  optional        Boolean  @default(false) // skipped when the reference opts out (meta.excludeOptional / skipOptionalStepOrders)
-  regionScoped    Boolean  @default(false) // approver must belong to the approval's regionScope
-  condition       String? // JSON condition e.g. {"valueField":"amount","gte":100000000}
-  escalationHours Int?
-  createdAt       DateTime @default(now())
-}
-
-model Approval {
-  id              String           @id @default(cuid())
-  workflowId      String
-  workflowCode    String
-  referenceType   String
-  referenceId     String
-  currentStep     Int              @default(1)
-  totalSteps      Int              @default(1)
-  status          String           @default("Pending")
-  requestedBy     String
-  requestedByName String
-  regionScope     String? // required when any step is regionScoped
-  decidedBy       String?
-  decidedAt       DateTime?
-  meta            String? // JSON: { excludeOptional?: boolean, skipOptionalStepOrders?: number[] }
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  actions         ApprovalAction[]
 }
 
 model TransportRequest {
@@ -1227,22 +1247,8 @@ model TransportRequest {
   declinedReason      String?
   actedBy             String?
   actedAt             String?
-  approvalId          String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
-}
-
-model ApprovalAction {
-  id         String    @id @default(cuid())
-  approvalId String
-  approval   Approval  @relation(fields: [approvalId], references: [id], onDelete: Cascade)
-  stepOrder  Int
-  actorRole  String
-  actorName  String?
-  action     String?
-  comment    String?
-  actedAt    DateTime?
-  createdAt  DateTime  @default(now())
 }
 
 model Document {
