@@ -163,6 +163,19 @@ async function main() {
     });
   }
 
+  // §9.5 — migrated (existing) staff are all past their probationary periods:
+  // mark them as fully approved so only newly onboarded staff carry an active
+  // probation status. The probation window is back-dated to join + 3 months.
+  await prisma.user.updateMany({
+    where: { finishedProbation: null },
+    data: {
+      finishedProbation: true,
+      probationStatus: "Approved Employee",
+      probationStartDate: new Date("2024-01-01"),
+      probationEndDate: new Date("2024-04-01"),
+    },
+  });
+
   const regionDefs = [
     { name: "Kampala Central", code: "KLC" },
     { name: "Kampala East", code: "KLE" },

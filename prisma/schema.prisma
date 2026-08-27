@@ -123,6 +123,10 @@ model User {
   department               String
   region                   String?
   forceNumber              String?   @unique
+  // Persistent unique staff identifier for non-officer roles (Directors, admins,
+  // finance, etc.) who may have no biodata, ID card, or force number yet. The IT
+  // Officer auto-generates this (e.g. "USR-0001" / "DIR-0001") at provisioning.
+  uniqueId                 String?   @unique
   phone                    String?
   avatarUrl                String?
   lastActive               DateTime  @default(now())
@@ -179,6 +183,13 @@ model User {
   bankAccount              String?
   bankName                 String?
   bankBranch               String?
+  // Probation tracking (§9.5) — mirrors SecurityOfficer probation. Existing
+  // staff migrated into production are already past probation and default to
+  // an approved state; newly onboarded non-SO staff start "In Progress".
+  probationStartDate       DateTime?
+  probationEndDate         DateTime?
+  probationStatus          String? // "Approved Employee" | "Extended" | "Failed" | "In Progress"
+  finishedProbation        Boolean?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
@@ -233,7 +244,7 @@ model SecurityOfficer {
   finishedProbation        Boolean                       @default(false)
   probationStartDate       DateTime?
   probationEndDate         DateTime?
-  probationStatus          String?                       // "On Probation" | "Approved Employee" | "Extended"
+  probationStatus          String?                       // "Not Started" | "In Progress" | "Completed" | "Extended" | "Failed"
   status                   String                        @default("Off Duty")
   lifecycleStage           SecurityOfficerLifecycleStage @default(ENROLLED)
   isDeserter               Boolean                       @default(false)
@@ -1610,4 +1621,69 @@ model ContractInquiry {
   respondedAt         String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+/* ISO/IEC 19794 biometric fingerprint capture (Mantra MFS100).
+   Stores each of a person's up-to-10 fingers as:
+     - isoTemplate    : ISO/IEC 19794-2 minutiae template (base64, FMR block)
+     - isoImage       : ISO/IEC 19794-4 finger image (base64, FIR block)
+     - imageData      : displayable PNG thumbnail (base64)
+     - hash           : stable fingerprint hash for quick verification/identity
+   A subject is either a SecurityOfficer (forceNumber) or a staff User (userId).
+   captureType = "PERSONNEL" (10-finger enrolment) | "ARMOURY" (single, any finger). */
+model BiometricFingerprint {
+  id                 String   @id @default(cuid())
+  forceNumber        String?
+  userId             String?
+  captureType        String   @default("PERSONNEL") // PERSONNEL | ARMOURY
+  fingerPosition     Int      // ISO 19794-2 finger code 0..9 (RT..LT) or 99 = ANY/UNSPECIFIED
+  fingerCode         String   // e.g. "RTHUMB","RTINDEX","LTTHUMB" ... or "ANY"
+  isoTemplate        String?
+  isoImage           String?
+  imageData          String?
+  hash               String
+  qualityScore       Int      @default(0)     // 0-100 (NIST quality style)
+  deviceModel        String   @default("Mantra MFS100")
+  capturedAt         DateTime @default(now())
+  createdBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([forceNumber])
+  @@index([userId])
+  @@index([captureType])
+}
+
+/* IT automation scheduler (§9.x). A CronJob is a configurable scheduled task the
+   IT Officer can enable/disable and run from the IT console. Runs are recorded in
+   CronJobRun so the automation history is audit-able (not just front-end mocks). */
+model CronJob {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  cronExpression String
+  category      String        @default("Maintenance") // Maintenance | Security | Notifications | Finance | HR
+  enabled       Boolean       @default(true)
+  lastRunAt     DateTime?
+  nextRunAt     DateTime?
+  lastStatus    String?       // SUCCESS | FAILED | RUNNING | SKIPPED
+  lastDetail    String?
+  createdBy     String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  runs CronJobRun[]
+}
+
+model CronJobRun {
+  id         String   @id @default(cuid())
+  jobId      String
+  job        CronJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  status     String   @default("RUNNING") // RUNNING | SUCCESS | FAILED | SKIPPED
+  detail     String?
+  durationMs Int?
+
+  @@index([jobId])
 }

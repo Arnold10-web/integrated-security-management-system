@@ -33,6 +33,7 @@ import {
   MapPin,
   AlertTriangle,
   BookOpen,
+  LogOut,
 } from "lucide-react";
 import type { UserRole } from "../types";
 
@@ -408,6 +409,24 @@ export const APP_MODULES: AppModule[] = [
     badge: "Records",
   },
   {
+    id: "peaceful_exit",
+    path: "/peaceful-exit",
+    label: "Peaceful Exit",
+    department: "HR",
+    icon: LogOut,
+    group: "hr",
+    badge: "Clearance",
+  },
+  {
+    id: "employee_portal",
+    path: "/employee-portal",
+    label: "My Employment",
+    department: "HR",
+    icon: Briefcase,
+    group: "hr",
+    badge: "Portal",
+  },
+  {
     id: "records_contracts",
     path: "/records/contracts",
     label: "Contracts",
@@ -437,48 +456,48 @@ function getAllowedModuleIdsByRole(role: UserRole): string[] {
       return ["dashboard", "reports", "esign", "fleet_requests"];
 
     case "HR Manager":
-      return ["hr_register", "hr_leave", "hr_appraisals", "hr_contracts", "hr_remittances", "hr_staff", "hr_payroll", "disciplinary", "recruitment"];
+      return ["hr_register", "hr_leave", "hr_appraisals", "hr_contracts", "hr_remittances", "hr_staff", "hr_payroll", "disciplinary", "recruitment", "peaceful_exit", "employee_portal"];
     case "HR Assistant":
-      return ["hr_register", "hr_leave", "hr_appraisals", "hr_contracts", "hr_remittances", "hr_staff", "hr_payroll", "recruitment"];
+      return ["hr_register", "hr_leave", "hr_appraisals", "hr_contracts", "hr_remittances", "hr_staff", "hr_payroll", "recruitment", "employee_portal"];
 
     case "Records Officer":
-      return ["identity", "hr_register", "hr_staff", "records_contracts", "documents", "esign", "pass_out_certificates"];
+      return ["identity", "hr_register", "hr_staff", "records_contracts", "documents", "esign", "pass_out_certificates", "employee_portal"];
 
     case "Business Development Manager":
     case "Sales and Marketing Supervisor":
-      return ["marketing", "marketing_pipeline", "marketing_campaigns", "clients", "esign"];
+      return ["marketing", "marketing_pipeline", "marketing_campaigns", "clients", "esign", "employee_portal"];
 
     case "Operations Manager":
-      return ["operations", "disciplinary", "pass_out_certificates"];
+      return ["operations", "disciplinary", "pass_out_certificates", "employee_portal"];
     case "Regional Manager":
-      return ["operations", "disciplinary"];
+      return ["operations", "disciplinary", "employee_portal"];
     case "Fleet Manager":
-      return ["fleet", "fleet_requests", "fleet_register", "fleet_trips", "fleet_fuel", "fleet_maintenance", "fleet_drivers", "fleet_inspections", "fleet_breakdowns", "fleet_gps"];
+      return ["fleet", "fleet_requests", "fleet_register", "fleet_trips", "fleet_fuel", "fleet_maintenance", "fleet_drivers", "fleet_inspections", "fleet_breakdowns", "fleet_gps", "employee_portal"];
     case "Training Officer":
-      return ["operations", "training_curriculum", "pass_out_certificates"];
+      return ["operations", "training_curriculum", "pass_out_certificates", "employee_portal"];
     case "Armorer":
-      return ["operations"];
+      return ["operations", "employee_portal"];
     case "Investigations Officer":
-      return ["investigations", "disciplinary"];
+      return ["investigations", "disciplinary", "employee_portal"];
     case "K9 Supervisor":
     case "K9 Handler":
-      return ["operations"];
+      return ["operations", "employee_portal"];
 
     case "Security Officer":
-      return ["security_officer_portal"];
+      return ["security_officer_portal", "employee_portal"];
 
     case "Finance Manager":
     case "Accountant":
     case "Assistant Accountant":
     case "Internal Auditor":
     case "Cashier":
-      return ["finance", "finance_invoices", "finance_expenses", "finance_cashier", "finance_contracts"];
+      return ["finance", "finance_invoices", "finance_expenses", "finance_cashier", "finance_contracts", "employee_portal"];
 
     case "Administrative Officer":
-      return ["administration"];
+      return ["administration", "employee_portal"];
 
     case "IT Officer":
-      return ["it", "identity", "esign"];
+      return ["it", "identity", "esign", "employee_portal"];
 
     default:
       return ["dashboard"];

@@ -63,6 +63,14 @@ export async function issueStaffIdApi(userId: string, idCardNumber: string): Pro
   return api.put<User>(`/auth/users/${userId}/issue-id`, { idCardNumber });
 }
 
+/* §9.5 staff probation — HR Manager finalizes a non-SO staff member's probation. */
+export async function finalizeUserProbationApi(
+  userId: string,
+  data: { outcome: "Approved Employee" | "Extended" | "Failed"; consequence?: "Terminate" | "Reassign"; notes?: string }
+): Promise<User> {
+  return api.put<User>(`/auth/users/${userId}/probation`, data);
+}
+
 export async function revokeActingPrivilegeApi(userId: string): Promise<User> {
   return api.delete<User>(`/auth/users/${userId}/acting`);
 }

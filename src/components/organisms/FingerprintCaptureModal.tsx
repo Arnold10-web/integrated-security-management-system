@@ -73,7 +73,7 @@ export const FingerprintCaptureModal: React.FC<FingerprintCaptureModalProps> = (
                 <Fingerprint className="w-12 h-12 text-indigo-400" />
               </div>
               <p className="text-sm text-slate-600 font-medium text-center">
-                Place finger on the scanner to authenticate
+                Place your finger on the scanner. Thumb recommended — any finger accepted.
               </p>
               <button
                 onClick={handleStartScan}
@@ -98,7 +98,7 @@ export const FingerprintCaptureModal: React.FC<FingerprintCaptureModalProps> = (
                 <p className="text-sm text-slate-700 font-semibold">Scanning fingerprint...</p>
               </div>
               <p className="text-xs text-slate-400 text-center">
-                Hold finger steady on the Mantra MFS100 sensor
+                Hold finger steady on the Mantra MFS100 sensor — thumb recommended, any finger accepted
               </p>
             </div>
           )}

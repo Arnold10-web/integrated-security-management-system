@@ -96,6 +96,16 @@ export interface User {
   bankAccount?: string;
   bankName?: string;
   bankBranch?: string;
+  // Probation tracking (§9.5) — mirrors SecurityOfficer probation. Existing
+  // staff migrated to production are already past probation (Approved Employee);
+  // newly onboarded non-SO staff start "In Progress".
+  probationStatus?: string; // "Approved Employee" | "Extended" | "Failed" | "In Progress"
+  probationStartDate?: string;
+  probationEndDate?: string;
+  finishedProbation?: boolean;
+  terminationReason?: string;
+  terminationDate?: string;
+  terminationCategory?: string;
 }
 
 /** §11 — HR-initiated acting-privilege request, executed by the IT Officer.
@@ -186,6 +196,9 @@ export interface SecurityOfficer {
   bankName?: string; // BANK NAME
   monthlySalaryUgx?: number;
   finishedProbation?: boolean; // FINISHED PROBATION
+  probationStatus?: string; // Not Started | In Progress | Completed | Extended | Failed
+  probationStartDate?: string;
+  probationEndDate?: string;
   status: "On Duty" | "Off Duty" | "On Leave" | "Suspended" | "Deserted" | "Archived";
   lifecycleStage?: SecurityOfficerLifecycleStage;
   isDeserter?: boolean;
@@ -1279,3 +1292,42 @@ export interface SystemModule {
   items: string[];
   description?: string;
 }
+
+/* ISO/IEC 19794 biometric fingerprint capture (Mantra MFS100).
+   One row per captured finger (up to 10 for personnel enrolment). */
+export interface BiometricFingerprint {
+  id: string;
+  forceNumber?: string;
+  userId?: string;
+  captureType: "PERSONNEL" | "ARMOURY";
+  fingerPosition: number; // ISO 19794-2 finger code 0..9
+  fingerCode: string; // e.g. "RTHUMB","RTINDEX","LTTHUMB" ...
+  isoTemplate?: string | null; // 19794-2 minutiae (base64)
+  isoImage?: string | null; // 19794-4 image (base64)
+  imageData?: string | null; // displayable thumbnail (base64 data URL)
+  hash: string;
+  qualityScore: number;
+  deviceModel: string;
+  capturedAt: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const FINGER_POSITIONS: { code: number; label: string; short: string }[] = [
+  { code: 0, label: "Right Thumb", short: "RT" },
+  { code: 1, label: "Right Index", short: "RI" },
+  { code: 2, label: "Right Middle", short: "RM" },
+  { code: 3, label: "Right Ring", short: "RR" },
+  { code: 4, label: "Right Little", short: "RL" },
+  { code: 5, label: "Left Thumb", short: "LT" },
+  { code: 6, label: "Left Index", short: "LI" },
+  { code: 7, label: "Left Middle", short: "LM" },
+  { code: 8, label: "Left Ring", short: "LR" },
+  { code: 9, label: "Left Little", short: "LL" },
+];
+
+export const FINGER_CODE_BY_POSITION: Record<number, string> = {
+  0: "RTHUMB", 1: "RTINDEX", 2: "RTMIDDLE", 3: "RTRING", 4: "RTLITTLE",
+  5: "LTHUMB", 6: "LTINDEX", 7: "LTMIDDLE", 8: "LTRING", 9: "LTLITTLE",
+};

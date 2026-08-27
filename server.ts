@@ -20,6 +20,8 @@ import digitalContractRoutes from "./src/routes/digitalContracts.ts";
 import digitalSigningRoutes from "./src/routes/digitalSigning.ts";
 // Modular server factory (see src/server/*) — still re-exported via legacy server.ts for backward compat
 import { nextForceNumber as modularNextForceNumber } from "./src/server/services/forceNumber.ts";
+// ISO/IEC 19794 fingerprint serialization (CBEFF/ISO-19785-1)
+import { serializeIsoExport, fingerprintHash, FINGER_CODES, cbeffContentType } from "./src/server/services/isoFingerprint.ts";
 dotenv.config();
 
 const envSchema = z.object({
@@ -1123,6 +1125,88 @@ app.put("/api/auth/users/:id", authenticateToken, requireModuleAccess("it", "ful
   res.json(user);
 });
 
+/* §9.5 staff probation — HR Manager finalizes a non-security-officer's
+   probation (Approve / Extend / Fail). Existing migrated staff are already
+   past probation; this is used for newly onboarded staff going forward. */
+app.put("/api/auth/users/:id/probation", authenticateToken, async (req, res) => {
+  const me = (req as any).user as JwtPayload | undefined;
+  if (!me || !hasEffectiveRole(me, "HR Manager")) {
+    res.status(403).json({ error: "Access denied: only the HR Manager can finalize a staff member's probation" });
+    return;
+  }
+  const parsed = z.object({
+    outcome: z.enum(["Approved Employee", "Extended", "Failed"]),
+    notes: z.string().optional(),
+    consequence: z.enum(["Terminate", "Reassign"]).optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const { id } = req.params;
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) {
+    res.status(404).json({ error: "Staff member not found" });
+    return;
+  }
+  if (target.finishedProbation && target.probationStatus === "Approved Employee") {
+    res.status(409).json({ error: `${target.name} already completed probation` });
+    return;
+  }
+  if (parsed.data.outcome === "Failed" && !parsed.data.consequence) {
+    res.status(400).json({ error: "A 'Failed' outcome requires a consequence: 'Terminate' or 'Reassign'" });
+    return;
+  }
+  const approved = parsed.data.outcome === "Approved Employee";
+  const failed = parsed.data.outcome === "Failed";
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
+  const data: {
+    finishedProbation: boolean | null;
+    probationStatus: string;
+    probationEndDate: Date;
+    status?: string;
+    terminationReason?: string;
+    terminationDate?: string;
+    terminationCategory?: string;
+  } = {
+    finishedProbation: approved || failed,
+    probationStatus: parsed.data.outcome,
+    probationEndDate: approved || failed ? now : new Date(now.getFullYear(), now.getMonth() + 3, now.getDate()),
+  };
+  if (failed && parsed.data.consequence === "Terminate") {
+    data.status = "Inactive";
+    data.terminationReason = parsed.data.notes || "Probation not passed";
+    data.terminationDate = today;
+    data.terminationCategory = "Probation Failed";
+  }
+  const updated = await prisma.user.update({ where: { id }, data });
+  await prisma.auditLog.create({
+    data: {
+      timestamp: now,
+      userName: me.userId,
+      userRole: actorRoleLabel(me),
+      action: `Probation ${approved ? "Completed" : failed ? "Failed" : "Extended"}`,
+      module: "HR",
+      details: `${target.name} (${target.forceNumber ?? target.email}) — probation ${parsed.data.outcome.toLowerCase()} by ${actorRoleLabel(me)}${parsed.data.consequence ? ` (consequence: ${parsed.data.consequence})` : ""}${parsed.data.notes ? `. Notes: ${parsed.data.notes}` : ""}.`,
+    },
+  });
+  await prisma.notification.create({
+    data: {
+      targetRole: "Operations Manager",
+      type: approved ? "success" : "warning",
+      title: approved ? "Probation Completed" : failed ? "Probation Failed" : "Probation Extended",
+      message: approved
+        ? `${target.name} completed probation and is now an Approved Employee.`
+        : failed
+        ? `${target.name} failed probation${parsed.data.consequence === "Terminate" ? " and has been deactivated (probation not passed)" : " and has been reassigned/demoted under new terms"}.`
+        : `${target.name}'s probation was extended by 3 month(s).`,
+      module: "HR",
+    },
+  });
+  res.json(updated);
+});
+
 /* ── Time-bound acting-privileges delegation (§11) ────────────────────────
    HR Manager initiates the request — who needs coverage, for which role, and
    why. IT Officer executes the grant on that request and does not decide
@@ -1587,8 +1671,9 @@ app.put("/api/security-officers/:id/probation", authenticateToken, async (req, r
     return;
   }
   const parsed = z.object({
-    outcome: z.enum(["Approved Employee", "Extended"]),
+    outcome: z.enum(["Approved Employee", "Extended", "Failed"]),
     notes: z.string().optional(),
+    consequence: z.enum(["Terminate", "Reassign"]).optional(),
   }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
@@ -1603,6 +1688,11 @@ app.put("/api/security-officers/:id/probation", authenticateToken, async (req, r
     res.status(409).json({ error: `${officer.fullName} already completed probation` });
     return;
   }
+  // A "Failed" outcome requires a consequence to be specified.
+  if (parsed.data.outcome === "Failed" && !parsed.data.consequence) {
+    res.status(400).json({ error: "A 'Failed' outcome requires a consequence: 'Terminate' or 'Reassign'" });
+    return;
+  }
   const contract = await prisma.securityOfficerEmploymentContract.findFirst({
     where: { forceNumber: officer.forceNumber },
     orderBy: { createdAt: "desc" },
@@ -1611,36 +1701,58 @@ app.put("/api/security-officers/:id/probation", authenticateToken, async (req, r
   const start = officer.probationStartDate ?? officer.joinDate;
   const now = new Date();
   const approved = parsed.data.outcome === "Approved Employee";
-  // Extension sets a fresh window from today; approval closes probation for good.
-  const end = approved
+  const failed = parsed.data.outcome === "Failed";
+  // Extension sets a fresh window from today; approval/failure closes probation for good.
+  const end = approved || failed
     ? now
     : new Date(now.getFullYear(), now.getMonth() + months, now.getDate());
+  const updateData: {
+    finishedProbation: boolean;
+    probationStartDate: string | Date | null;
+    probationEndDate: string | Date | null;
+    probationStatus: string;
+    lifecycleStage?: "COMPLETED_CONTRACT";
+    status?: "Archived";
+    terminationReason?: string;
+    terminationDate?: string;
+    terminationCategory?: string;
+  } = {
+    finishedProbation: approved || failed,
+    probationStartDate: start,
+    probationEndDate: end,
+    probationStatus: parsed.data.outcome,
+  };
+  // Failure with Terminate consequence: mark the officer terminated with a mandatory reason.
+  if (failed && parsed.data.consequence === "Terminate") {
+    updateData.lifecycleStage = "COMPLETED_CONTRACT";
+    updateData.status = "Archived";
+    updateData.terminationReason = parsed.data.notes || "Probation not passed";
+    updateData.terminationDate = now.toISOString().split("T")[0];
+    updateData.terminationCategory = "Probation Failed";
+  }
   const updated = await prisma.securityOfficer.update({
     where: { forceNumber: officer.forceNumber },
-    data: {
-      finishedProbation: approved,
-      probationStartDate: start,
-      probationEndDate: end,
-      probationStatus: parsed.data.outcome,
-    },
+    data: updateData,
   });
   await prisma.auditLog.create({
     data: {
       timestamp: new Date(),
       userName: user.userId,
       userRole: actorRoleLabel(user),
-      action: `Probation ${parsed.data.outcome === "Extended" ? "Extended" : "Completed"}`,
+      action: `Probation ${parsed.data.outcome === "Extended" ? "Extended" : parsed.data.outcome === "Failed" ? "Failed" : "Completed"}`,
       module: "HR",
-      details: `${officer.fullName} (${officer.forceNumber}) — probation ${parsed.data.outcome.toLowerCase()} by ${actorRoleLabel(user)}${parsed.data.notes ? `. Notes: ${parsed.data.notes}` : ""}.`,
+      details: `${officer.fullName} (${officer.forceNumber}) — probation ${parsed.data.outcome.toLowerCase()} by ${actorRoleLabel(user)}${parsed.data.consequence ? ` (consequence: ${parsed.data.consequence})` : ""}${parsed.data.notes ? `. Notes: ${parsed.data.notes}` : ""}.`,
     },
   });
   await prisma.notification.create({
     data: {
       targetRole: "Operations Manager",
       type: approved ? "success" : "warning",
-      title: approved ? "Probation Completed" : "Probation Extended",
+      title: approved ? "Probation Completed" : failed ? "Probation Failed" : "Probation Extended",
       message: approved
         ? `${officer.fullName} (${officer.forceNumber}) completed the ${months}-month probation and is now an Approved Employee.`
+        : failed
+        ? `${officer.fullName} (${officer.forceNumber}) failed probation${parsed.data.consequence === "Terminate" ? " and has been terminated (probation not passed)" : " and has been reassigned/demoted"}.`
         : `${officer.fullName} (${officer.forceNumber})'s probation was extended by ${months} month(s).`,
       module: "HR",
     },
@@ -6523,10 +6635,6 @@ app.put("/api/security-officers/:key/employment-contract/hr-sign", authenticateT
 
 app.get("/api/employee-portal", authenticateToken, async (req, res) => {
   const user = (req as any).user as JwtPayload;
-  if (!hasEffectiveRole(user, "Security Officer")) {
-    res.status(403).json({ error: "Access denied: this endpoint is only available to Security Officers" });
-    return;
-  }
   const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
   if (!dbUser) {
     res.status(404).json({ error: "User not found" });
@@ -6535,45 +6643,54 @@ app.get("/api/employee-portal", authenticateToken, async (req, res) => {
   const officer = await prisma.securityOfficer.findFirst({
     where: { OR: [{ linkedUserId: user.userId }, { fullName: dbUser.name }] },
   });
-  if (!officer) {
-    res.json({ officer: null, contract: null });
-    return;
-  }
-  const contract = await prisma.securityOfficerEmploymentContract.findFirst({
-    where: { forceNumber: officer.forceNumber },
-    orderBy: { createdAt: "desc" },
-  });
+  let contract = null;
   let contractPdfUrl: string | null = null;
-  if (contract?.pdfPath) {
-    contractPdfUrl = `/uploads/${encodeURIComponent(contract.pdfPath)}`;
+  if (officer) {
+    const c = await prisma.securityOfficerEmploymentContract.findFirst({
+      where: { forceNumber: officer.forceNumber },
+      orderBy: { createdAt: "desc" },
+    });
+    if (c) {
+      contractPdfUrl = c.pdfPath ? `/uploads/${encodeURIComponent(c.pdfPath)}` : null;
+      contract = {
+        contractCode: c.contractCode,
+        status: c.status,
+        startDate: c.startDate,
+        probationMonths: c.probationMonths,
+        monthlySalaryUgx: c.monthlySalaryUgx,
+        pdfPath: c.pdfPath,
+        pdfUrl: contractPdfUrl,
+        officerSignedAt: c.officerSignedAt,
+        hrSignedAt: c.hrSignedAt,
+      };
+    }
   }
   res.json({
-    officer: {
-      forceNumber: officer.forceNumber,
-      fullName: officer.fullName,
-      designation: unmapSecurityOfficerDesignation(officer.designation),
-      assignedSite: officer.assignedSite,
-      region: officer.region,
-      zone: officer.zone,
-      joinDate: officer.joinDate,
-      status: officer.status,
-      lifecycleStage: officer.lifecycleStage,
-      probationStatus: officer.probationStatus,
-      monthlySalaryUgx: officer.monthlySalaryUgx,
+    user: {
+      id: dbUser.id,
+      name: dbUser.name,
+      email: dbUser.email,
+      role: dbUser.role,
+      forceNumber: dbUser.forceNumber,
+      region: dbUser.region,
+      department: dbUser.department,
     },
-    contract: contract
+    officer: officer
       ? {
-          contractCode: contract.contractCode,
-          status: contract.status,
-          startDate: contract.startDate,
-          probationMonths: contract.probationMonths,
-          monthlySalaryUgx: contract.monthlySalaryUgx,
-          pdfPath: contract.pdfPath,
-          pdfUrl: contractPdfUrl,
-          officerSignedAt: contract.officerSignedAt,
-          hrSignedAt: contract.hrSignedAt,
+          forceNumber: officer.forceNumber,
+          fullName: officer.fullName,
+          designation: unmapSecurityOfficerDesignation(officer.designation),
+          assignedSite: officer.assignedSite,
+          region: officer.region,
+          zone: officer.zone,
+          joinDate: officer.joinDate,
+          status: officer.status,
+          lifecycleStage: officer.lifecycleStage,
+          probationStatus: officer.probationStatus,
+          monthlySalaryUgx: officer.monthlySalaryUgx,
         }
       : null,
+    contract,
   });
 });
 
@@ -6883,8 +7000,153 @@ app.delete("/api/notifications/:id", authenticateToken, async (req, res) => {
 
 /* ─────────────── Health ─────────────── */
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+ app.get("/api/health", (_req, res) => {
+   res.json({ status: "ok", timestamp: new Date().toISOString() });
+ });
+
+/* ─────────────── Biometrics (ISO/IEC 19794 fingerprint capture & export) ─────────────── */
+
+// List captured fingerprints for a subject (by forceNumber or userId).
+app.get("/api/biometrics", authenticateToken, async (req, res) => {
+  const { forceNumber, userId, captureType } = req.query as { forceNumber?: string; userId?: string; captureType?: string };
+  if (!forceNumber && !userId) {
+    res.status(400).json({ error: "Specify forceNumber or userId" });
+    return;
+  }
+  const records = await prisma.biometricFingerprint.findMany({
+    where: {
+      ...(forceNumber ? { forceNumber } : {}),
+      ...(userId ? { userId } : {}),
+      ...(captureType ? { captureType } : {}),
+    },
+    orderBy: { fingerPosition: "asc" },
+  });
+  res.json(records);
+});
+
+// Save captured fingerprints (bulk) from the capture UI.
+app.post("/api/biometrics", authenticateToken, async (req, res) => {
+  const me = (req as any).user as JwtPayload | undefined;
+  const parsed = z.object({
+    forceNumber: z.string().optional(),
+    userId: z.string().optional(),
+    captureType: z.enum(["PERSONNEL", "ARMOURY"]).default("PERSONNEL"),
+    fingers: z.array(z.object({
+      fingerPosition: z.number().int().min(0).max(9),
+      fingerCode: z.string().min(1),
+      isoTemplate: z.string().nullable().optional(),
+      isoImage: z.string().nullable().optional(),
+      imageData: z.string().nullable().optional(),
+      hash: z.string(),
+      qualityScore: z.number().int().min(0).max(100).optional(),
+      capturedAt: z.string().optional(),
+    })).min(1),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const d = parsed.data;
+  if (!d.forceNumber && !d.userId) {
+    res.status(400).json({ error: "A biometric enrollment requires a forceNumber or userId" });
+    return;
+  }
+  // Verify the subject exists so we never attach fingerprints to a bogus key.
+  const subjectExists = d.forceNumber
+    ? await prisma.securityOfficer.findUnique({ where: { forceNumber: d.forceNumber } })
+    : await prisma.user.findUnique({ where: { id: d.userId } });
+  if (!subjectExists) {
+    res.status(404).json({ error: "Subject not found" });
+    return;
+  }
+  // Replace any existing set for the subject+type with the newly captured one.
+  const created: any[] = [];
+  await prisma.biometricFingerprint.deleteMany({
+    where: {
+      captureType: d.captureType,
+      ...(d.forceNumber ? { forceNumber: d.forceNumber } : {}),
+      ...(d.userId ? { userId: d.userId } : {}),
+    },
+  });
+  for (const f of d.fingers) {
+    const row = await prisma.biometricFingerprint.create({
+      data: {
+        forceNumber: d.forceNumber,
+        userId: d.userId,
+        captureType: d.captureType,
+        fingerPosition: f.fingerPosition,
+        fingerCode: f.fingerCode,
+        isoTemplate: f.isoTemplate,
+        isoImage: f.isoImage,
+        imageData: f.imageData,
+        hash: f.hash,
+        qualityScore: f.qualityScore ?? 80,
+        createdBy: me?.userId,
+        capturedAt: f.capturedAt ? new Date(f.capturedAt) : new Date(),
+      },
+    });
+    created.push(row);
+  }
+  await prisma.auditLog.create({
+    data: {
+      timestamp: new Date(),
+      userName: me?.userId ?? "system",
+      userRole: me ? actorRoleLabel(me) : "system",
+      action: `Fingerprint ${d.captureType === "ARMOURY" ? "Verified (armoury)" : "Enrollment"}`,
+      module: "Biometrics",
+      details: `${d.fingers.length} finger(s) captured for ${d.forceNumber ? `force number ${d.forceNumber}` : `user ${d.userId}`} on Mantra MFS100.`,
+    },
+  });
+  res.status(201).json({ count: created.length, records: created });
+});
+
+// Export one or more subjects as a combined ISO/IEC 19794 CBEFF (.bir) file.
+app.get("/api/biometrics/export", authenticateToken, async (req, res) => {
+  const q = req.query as { forceNumbers?: string; userIds?: string; captureType?: string };
+  const forceNumbers = (q.forceNumbers ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const userIds = (q.userIds ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const captureType = q.captureType ?? "PERSONNEL";
+  if (forceNumbers.length === 0 && userIds.length === 0) {
+    res.status(400).json({ error: "Specify at least one forceNumber or userId to export" });
+    return;
+  }
+  const where: any = {
+    captureType,
+    OR: [
+      ...(forceNumbers.length ? [{ forceNumber: { in: forceNumbers } }] : []),
+      ...(userIds.length ? [{ userId: { in: userIds } }] : []),
+    ],
+  };
+  if (forceNumbers.length === 0) delete where.OR;
+  const records = await prisma.biometricFingerprint.findMany({ where });
+  if (records.length === 0) {
+    res.status(404).json({ error: "No captured fingerprints found for the selected subject(s)" });
+    return;
+  }
+  // Group by subject.
+  const bySubject = new Map<string, typeof records>();
+  for (const r of records) {
+    const key = r.forceNumber ?? r.userId ?? "unknown";
+    if (!bySubject.has(key)) bySubject.set(key, []);
+    bySubject.get(key)!.push(r);
+  }
+  const subjects = Array.from(bySubject.entries()).map(([key, rows]) => ({
+    key,
+    name: key,
+    fingers: rows.map((r) => ({
+      fingerCode: r.fingerCode,
+      fingerPosition: r.fingerPosition,
+      isoTemplate: r.isoTemplate,
+      isoImage: r.isoImage,
+    })),
+  }));
+  const buffer = serializeIsoExport(subjects);
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `fingerprints_${subjects.length}_subjects_${ts}.bir`;
+  res.setHeader("Content-Type", cbeffContentType());
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.send(buffer);
 });
 
 /* ─────────────── DOCX Download ─────────────── */

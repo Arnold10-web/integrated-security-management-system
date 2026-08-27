@@ -205,6 +205,7 @@ interface DomainState {
   issueWarning: (forceNumber: string, reason: string) => void;
   moveSecurityOfficerLifecycle: (id: string, updates: Partial<SecurityOfficer>) => void;
   issueSecurityOfficerIdCard: (id: string, data: { idCardNumber: string; idCardExpiryDate: string }) => void;
+  finalizeProbation: (id: string, data: { outcome: "Approved Employee" | "Extended" | "Failed"; consequence?: "Terminate" | "Reassign"; notes?: string }) => void;
 
   // Sites
   addSite: (s: Omit<ClientSite, "id">) => void;
@@ -564,6 +565,47 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       : `Security Officer ${forceNumber} lifecycle → ${updates.lifecycleStage ?? updates.status ?? "updated"}`;
     audit("Security Officer Lifecycle Update", detail, "HR");
     notif("info", "Security Officer Lifecycle Updated", detail, "HR");
+  },
+
+  finalizeProbation: (forceNumber, data) => {
+    const approved = data.outcome === "Approved Employee";
+    const failed = data.outcome === "Failed";
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    set((s) => ({
+      securityOfficers: s.securityOfficers.map((g) => {
+        if (g.id !== forceNumber) return g;
+        const base: Partial<SecurityOfficer> = {
+          finishedProbation: approved || failed,
+          probationStatus: data.outcome,
+          probationEndDate: approved || failed ? today : g.probationEndDate,
+        };
+        // A terminated officer leaves the active register with a mandatory reason.
+        if (failed && data.consequence === "Terminate") {
+          return {
+            ...g,
+            ...base,
+            status: "Archived" as const,
+            terminationReason: data.notes || "Probation not passed",
+            terminationDate: today,
+            terminationCategory: "Probation Failed",
+          };
+        }
+        return { ...g, ...base };
+      }),
+    }));
+    syncApi("put", `/security-officers/${forceNumber}/probation`, {
+      outcome: data.outcome,
+      consequence: data.consequence,
+      notes: data.notes,
+    });
+    const detail = approved
+      ? `Security Officer ${forceNumber} completed probation and is now an Approved Employee.`
+      : failed
+      ? `Security Officer ${forceNumber} failed probation (consequence: ${data.consequence ?? "Reassign"}).`
+      : `Security Officer ${forceNumber}'s probation was extended.`;
+    audit("Probation Outcome", detail, "HR");
+    notif(approved ? "success" : "warning", approved ? "Probation Completed" : failed ? "Probation Failed" : "Probation Extended", detail, "HR");
   },
 
   issueSecurityOfficerIdCard: (forceNumber, data) => {

@@ -3,7 +3,7 @@
 
 > This is the single, unified working reference for the ISCMS project — one document, not a split constitution-plus-lockdown pair. It documents the delivered system end-to-end: organizational structure, implemented architecture, data model, API surface, departmental requirements, role-level access, every workflow chain, and the build record. It reflects what is currently built and running, with genuinely future/deferred work clearly marked as such. Where earlier build-log entries in §28 describe a rule that was later corrected, the correction is reflected in the operative sections above (§7–§26); §28 entries are kept as dated historical record and are not themselves instructions to follow.
 >
-> **Terminology:** all personnel formerly called "guards" are **Security Officers** platform-wide — Prisma model `SecurityOfficer` (key: `forceNumber`), role/designation `Security Officer`, module `security_officer_portal`. Dated entries in §28.1–§28.17 retain legacy wording as historical build records.
+> **Terminology:** all personnel formerly called "guards" are **Security Officers** platform-wide — Prisma model `SecurityOfficer` (key: `forceNumber`), role/designation `Security Officer`, module `security_officer_portal`. Dated entries in §28.1–§28.20 retain legacy wording as historical build records.
 >
 > This document is the single working reference for planning, analysis, architecture, implementation, current-state understanding, and future expansion of the system, and the single prompt block for any AI coding agent working on it.
 
@@ -275,7 +275,7 @@ When business rules are unclear, use this structure to decide who owns which dat
 | Document Export | docx + file-saver | DOCX generation and download |
 | Bundling | esbuild | Server compilation |
 
-### 8.2 Database Schema (Prisma — 47 Models)
+### 8.2 Database Schema (Prisma — 43 Models)
 
 43 models in `prisma/schema.prisma`, generated to `src/generated/prisma/`. Key domains: Auth & IT (`User`, `UserSession`), HR/Security Officer (`SecurityOfficer`, `SecurityOfficerBiodata`, `SecurityOfficerEmploymentContract`, `LeaveRequest`, `DisciplinaryAction`), Operations (`Region`, `RegionalOffice`, `ClientSite`, `SiteDeployment`, `DeploymentOrder`, `DutyRoster`, `PatrolInspectionLog`, `TrainingCohort`, `RecruitTrainee`, `AdminRequisition`), Armoury & K9 (`ArmouryItem`, `ArmouryLog`, `K9Dog`, `K9Log`, `K9HealthInspection`), Fleet (`Vehicle`, `VehicleTripLog`, `FuelLog`, `MaintenanceServiceLog`, `Driver`, `DailyVehicleInspection`, `FleetBreakdownEmergency`), Finance (`Invoice`, `Expense`, `CashierTransaction`), Marketing/CRM (`Lead`, `Campaign`, `Complaint`, `Contract`, `SiteSurvey`, `ContractInquiry`), Governance (`Incident`, `AuditLog`), Infrastructure (`ForceNumberSequence`, `Document`). **Removed:** `Workflow`, `WorkflowStep`, `Approval`, `ApprovalAction` — workflow engine has been deleted entirely (see §8.8).
 
@@ -346,6 +346,19 @@ Track: days worked (from managers), deductions and fines (suggested by managers,
 6. OM decides which region needs the officer; **Regional Manager** deploys to a specific site (stage `DEPLOYED`); also set automatically when a scheduled officer checks in on the duty roster.
 
 Transition rights: HR moves `ENROLLED → HANDED_TO_OPERATIONS`; Operations Manager/Regional Manager move `HANDED_TO_OPERATIONS → IN_TRAINING` and `PASSED_OUT → DEPLOYED`; Training Officer moves `IN_TRAINING → PASSED_OUT`. HR moves `ACTIVE → COMPLETED_CONTRACT` (peaceful exit / contract completion) or `ACTIVE → TERMINATED` (with mandatory reason). `COMPLETED_CONTRACT` officers are eligible for re-employment — see Alumni/Rehire Registry below. Regional Managers see only officers in their own region. All lifecycle-stage transitions fire real in-app notifications.
+
+**Probation tracking:** every Security Officer (and all staff with employment contracts) has a 3-month probation period measured from the contract start date. The system stores `probationStartDate` (set to the contract's `startDate`), `probationEndDate` (start + 3 months), and `probationStatus` (values: `Not Started`, `In Progress`, `Completed`, `Failed`). When a contract is created and signed, probation begins automatically (`In Progress`). HR Manager receives a system notification 7 days before `probationEndDate` as a reminder to review the officer's performance and decide. At the 3-month mark, HR has four options:
+
+1. **Approve** — status → `Completed`. Officer is classified as an **Approved Employee**. Probation fields remain as historical record.
+2. **Extend** — HR updates `probationEndDate` with a new date and documents a reason (e.g. "needs more time on firearm qualification"). Status stays `In Progress`. Maximum one extension of 3 months; after the extension period, HR must make a final approve-or-fail decision.
+3. **Fail probation** — status → `Failed`. The officer does not become an Approved Employee. HR selects a consequence:
+   - **Terminate contract** — lifecycle stage → `COMPLETED_CONTRACT` (with mandatory reason "Probation not passed") and status → `Archived`. Same clearance process as any termination.
+   - **Demote / reassign** — HR changes the officer's designation (e.g. from Armed Guard to Unarmed Guard) and/or reassigns to a different site. Probation status remains `Failed` as a permanent record; the officer continues employment under the new terms. A new employment contract may be issued if the salary changes.
+4. **Resign during probation** — if the officer resigns before probation ends, the standard Peaceful Exit flow applies. Probation status is recorded as `Failed` with reason "Voluntary resignation during probation".
+
+Probation status is visible on the Security Officer's profile and in the HR dashboard's expiring-contracts widget. The probation outcome (approve/extend/fail) and reason are recorded in the audit log.
+
+**Staff probation (non–Security Officer):** the same probation mechanism applies to all other staff (HR, Finance, Operations, Administration, IT, etc.) via the Staff Personnel Register. The HR Manager can approve, extend, or fail any staff member's probation from their personnel row. **Production migration:** existing long-tenured staff (whose probationary periods have long since passed) are seeded as `Approved Employee` with `finishedProbation = true` and are **not** placed on probation; only newly onboarded staff carry a live `In Progress` status from their contract start. A `Failed` outcome marks the staff member `Inactive` (with termination reason) on "Terminate", or keeps them employed with the `Failed` status on "Reassign".
 
 **Pass-out certificate auto-generation:** when Training Officer marks a cohort pass-out (`IN_TRAINING → PASSED_OUT`), the system auto-generates a pass-out certificate PDF for each Security Officer in the cohort. The canonical copy is stored in the Records Officer's vault (§26.11). Operations Manager receives a notification with a viewable link to the certificate. The certificate includes: officer name, force number, cohort details, training dates, pass-out date, and company letterhead (§9.15).
 
@@ -479,11 +492,13 @@ PDF-based workflow: fixed legal contract PDFs uploaded as templates, contracts c
 
 ## 9.7b Leave Workflow — FINAL
 
-`Submit → HR Manager approves → [optional, at HR Manager's discretion] General Manager gives final approval`
+`Submit → HR Manager decides → [categorical] General Manager gives final approval (when forwarded)`
 
-- **Live and correct as built.** The server already enforces exactly this: `PUT /api/leave-requests/:id/approve` and `/ops-approve` (the old Regional Manager and Operations Manager approval steps) both return **410 Gone** with the message *"…step removed. Submit → HR Manager → optional GM."* Only `/hr-approve` and `/gm-approve` are live. No further backend work needed here — this section documents the confirmed final rule, not a gap.
-- HR Manager decides, per request, whether to finalize approval herself or escalate to the General Manager. The clearest case for escalating is when **the requester is themselves a manager** — HR Manager is not obligated to be the one who signs off on a fellow manager's leave.
-- **Requester is the General Manager, or another department manager at HR Manager's own level:** HR Manager still processes the approval step, but **cannot deny it** — for these requesters, HR Manager's step is a formality/audit-log entry, not a real gate; only the General Manager can decline that request. This is already enforced server-side via the reject route's non-deniable-requester check.
+- **Live and correct as built.** The server enforces exactly this. Only `/hr-approve` and `/gm-approve` are live routes. The old `/approve` and `/ops-approve` routes (Regional Manager, Operations Manager steps) return **410 Gone**.
+- **Categorical rule (not discretionary):**
+  - **Security Officer requests leave:** HR Manager approves directly. GM step is skipped. Status goes straight to `Approved`.
+  - **Non-Security-Officer staff and peer-manager requests leave:** HR Manager forwards to GM. Status changes to `Pending GM Approval`. GM gives final approval.
+- **Requester is the General Manager, or another department manager at HR Manager's own level:** HR Manager still processes the approval step, but **cannot deny it** — for these requesters, HR Manager's step is a formality/audit-log entry, not a real gate; only the General Manager can decline that request. This is enforced server-side via the reject route's non-deniable-requester check.
 - HR Assistant is not an approver. Reject-with-reason available at any step (subject to the non-denial rule above).
 
 **Leave balance tracking:** entitlement/taken/balance must show real computed data — this was previously incomplete (blank dashes) and is a required fix, not cosmetic polish.
@@ -549,6 +564,8 @@ HR captures a fingerprint at biodata intake for **every hire — Security Office
 **Data handling:** capture produces a biometric template (not a raw image, per standard fingerprint SDK practice) — store this **encrypted at rest**, the same standard already required for other sensitive data (§15.1).
 
 **Where it lives:** part of the same HR biodata capture flow that already handles photo + signature — add as a required capture step before enrollment completes, for both Security Officer and non-Security-Officer hires alike.
+
+**Implemented storage + ISO export (current build):** captures are stored per finger in the `BiometricFingerprint` model (`captureType` = `PERSONNEL` for enrolment or `ARMOURY` for matched sign-off; ISO 19794-2 finger position 0–9; `deviceModel` = `Mantra MFS100`; `hash`, `qualityScore`, optional `isoTemplate`/`isoImage`/`imageData`). Personnel enrolments are a 10-finger capture. Because the native Mantra SDK cannot run in a browser, the in-browser UI uses a procedural/simulated capture for the demo, but the **export path emits a real ISO/IEC 19794 wire format**: per finger an ISO/IEC 19794-2 minutiae record (`FMR`) and, with image data, an ISO/IEC 19794-4 finger-image record (`FIR`), wrapped in an ISO/IEC 19785-1 CBEFF (`application/octet-stream`, `.bir`) container — available as single- or multi-subject export from the HR directorate. The authoritative FMR/FIR bytes are regenerated deterministically server-side. Production capture replaces the simulation by swapping in the Mantra RD Service call (above) while keeping the same storage + export pipeline. The armoury single-finger capture (§11) uses "thumb recommended, any finger accepted" and stores `fingerCode = "ANY"` / `fingerPosition = 99` when any finger is accepted.
 
 ---
 
@@ -685,15 +702,15 @@ Client-side routing, centralized state management, view decomposition, business-
 1. **Workflow Engine removal** — delete all Workflow Engine code: `Workflow`, `WorkflowStep`, `Approval`, `ApprovalAction` Prisma models; workflow API endpoints; workflow Zustand store actions; workflow module navigation; workflow RBAC permissions. Replace with documented workflow chains in §26.10 enforced through direct API routes and RBAC middleware. This is a clean deletion, not a refactor.
 2. **Contract chain correction** (§9.7) — remove any remaining BD/Finance approval step from the contract approve action; General Manager sole no-threshold approver; Finance Manager's role there is signing only (§9.8), not approving. Highest-impact, most likely to be hit immediately by testers.
 3. **No-threshold rollout** (§7.1) — verify Expenses and Campaign Budgets have no amount-based split anywhere in the UI/API, alongside Contracts/Requisitions. In particular, any executive dashboard "Approvals" queue (e.g. the GM's Approvals Hub) must list *all* pending items in these four categories, not a threshold-filtered subset.
-4. **Acting-privilege refinements** (§28.9) — HR-Manager-initiated request flow, additive (not swap) capability, honest "Acting [Role]" attribution on decisions themselves (not just an internal audit table), narrow GM→Finance-Manager-only executive exception.
+4. **Acting-privilege refinements** (§26.9) — HR-Manager-initiated request flow, additive (not swap) capability, honest "Acting [Role]" attribution on decisions themselves (not just an internal audit table).
 5. **Transport decline-reason UI** (§9.9) — dropdown + custom reason.
 6. **HR-area dashboard role-specific widgets** — Security Officer Lifecycle / Deployment Pipeline / Disciplinary Actions widgets currently render identically across HR Manager, HR Assistant, and Records Officer dashboards from one shared template; Records Officer shouldn't see these at all. Likely the single highest-leverage UI fix.
 7. **Disciplinary bypass removal** — the one-click "Issue Warning" button on Personnel Directory rows bypasses the formal chain (Investigations Officer → Regional Manager → Operations Manager → HR sign-off); remove it. Disciplinary actions originate only from the officer's individual profile page.
-8. **Employee Portal implementation** (§9.13) — contract status, job description, and contract PDF download for Security Officers.
-9. **Probation tracking** (§9.5) — 3-month probation period from contract start, transition mechanism to "Approved Employee" status.
-10. **Pass-out certificate auto-generation** (§9.15) — PDF generation, Records Officer vault storage, Operations Manager notification.
-11. **Training curriculum drafting** (§9.14) — Training Officer curriculum/course outline management per cohort.
-12. **UX confirmation dialogs and feedback** — confirmation dialogs before all destructive actions; user feedback (success/error messages) after every action.
+8. **Employee Portal implementation** (§9.13) — contract status, job description, and contract PDF download for Security Officers. ✅ Done — implemented for all staff (except GM/Director).
+9. **Probation tracking** (§9.5) — 3-month probation period from contract start, transition mechanism to "Approved Employee" status. ✅ Done — schema fields added, spec text written into §9.5.
+10. **Pass-out certificate auto-generation** (§9.15) — PDF generation, Records Officer vault storage, Operations Manager notification. ✅ Done — API + view implemented.
+11. **Training curriculum drafting** (§9.14) — Training Officer curriculum/course outline management per cohort. ✅ Done — API + view implemented.
+12. **UX confirmation dialogs and feedback** — confirmation dialogs before all destructive actions; user feedback (success/error messages) after every action. ✅ Done — ConfirmationDialog + Toast components created and wired.
 13. **Notification sounds** — subtle audio notification on new in-app notifications (configurable per-user).
 14. **Payment reminders migration** — remove from Marketing module, add to Finance module.
 15. **Assistant Accountant permission elevation** — Accountant-level access to Finance module.
@@ -883,7 +900,7 @@ A role can hold different access levels in different modules.
 
 | Role | Primary Duties | Module Access |
 |---|---|---|
-| HR Manager | Owns Security Officer/employee master records, contracts, disciplinary finalization, transfers documentation; final sign-off on Performance Reviews; **sole leave-approval step — decides per request whether to finalize or escalate to GM, particularly for manager-level requesters; cannot deny leave from the GM or a peer manager (formality-only step for those requesters)** | HR: Full; **Contracts: issues and voids staff contracts; full e-sign access on staff contracts (§9.8) — never accesses client contracts**; Leave Requests: Approve/escalate (sole HR-side step); Performance Reviews: Full; Recruitment: Full; Documents (HR category): Full; Cashier, Administration inventory: View |
+| HR Manager | Owns Security Officer/employee master records, contracts, disciplinary finalization, transfers documentation; final sign-off on Performance Reviews; **leave-approval step — approves directly for Security Officers; forwards to GM for non-SO staff and peer managers; cannot deny leave from the GM or a peer manager (formality-only step for those requesters)** | HR: Full; **Contracts: issues and voids staff contracts; full e-sign access on staff contracts (§9.8) — never accesses client contracts**; Leave Requests: Approve/forward to GM (see §9.7b); Performance Reviews: Full; Recruitment: Full; Documents (HR category): Full; Cashier, Administration inventory: View |
 | HR Assistant | Data entry/updates to Security Officer/employee records; recruitment shortlisting; prepares/documents disciplinary cases before HR Manager finalizes; drafts staff contracts | HR: Create+Edit (no delete); **Contracts: prepares staff contract Drafts; full e-sign access on staff contracts (§9.8) — never accesses client contracts**; Leave Requests: **not an approver**; Recruitment: Full (postings + candidates); Documents (HR category): Create+Edit; **Finance: Accountant-level access (create+edit on invoices and expenses — see §26.7)** |
 | Records Officer | Maintains personnel file integrity; **owns the central contract vault — archives contracts only (no edit, no void, no delete)**; issues staff ID cards; captures ID holder photo + signature; fields Contract Inquiry requests | HR: View, plus Create+Edit limited to document/archival/ID-issuance fields; **Contracts: View all + Archive only**; Documents (HR category): Full. **Nav excludes Recruitment & Staffing and Performance Reviews** — both feed Records Officer only via the "Pending Records Issuance" queue, without exposing review scores/case detail. |
 
@@ -891,8 +908,8 @@ A role can hold different access levels in different modules.
 
 | Role | Primary Duties | Module Access |
 |---|---|---|
-| Business Development Manager | Owns lead pipeline end-to-end, client engagement, oversees Sales and Marketing Supervisor; **drafts client contracts and requests Site Surveys from Operations — no contract approval authority (GM alone approves, §9.7)**; proposes campaign budgets (Finance Manager approves, no threshold); owns client complaint resolution; reassigns lead ownership (own-team oversight) | Marketing: Full; **Contracts: Create/edit Drafts only, no approve**; Client & Site CRM: Full (owns site creation); Campaigns: Full (propose, no-threshold approval by Finance Manager); Complaints: Full |
-| Sales and Marketing Supervisor | Works assigned leads/campaigns, logs follow-ups, updates pipeline stage (own leads only), runs campaigns/social media; prepares client contract Drafts; creates a ClientSite only from their own `Closed Won` lead | Marketing: Create+Edit on own/assigned records; **Contracts: Create/Edit own Drafts, no approve**; Campaigns: Create+Edit; Complaints: Create+Edit (own resolution) |
+| Business Development Manager | Owns lead pipeline end-to-end, client engagement, oversees Sales and Marketing Supervisor; **requests Site Surveys from Operations and provides client details + survey data to Records Officer for contract drafting — no contract drafting or approval authority**; proposes campaign budgets (Finance Manager approves, no threshold); owns client complaint resolution; reassigns lead ownership (own-team oversight) | Marketing: Full; Client & Site CRM: Full (owns site creation); Campaigns: Full (propose, no-threshold approval by Finance Manager); Complaints: Full |
+| Sales and Marketing Supervisor | Works assigned leads/campaigns, logs follow-ups, updates pipeline stage (own leads only), runs campaigns/social media; provides client details to Records Officer for contract drafting; creates a ClientSite only from their own `Closed Won` lead | Marketing: Create+Edit on own/assigned records; Campaigns: Create+Edit; Complaints: Create+Edit (own resolution) |
 
 ### 26.6 Operations Department
 

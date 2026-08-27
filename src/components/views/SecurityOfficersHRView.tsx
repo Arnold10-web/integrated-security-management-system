@@ -13,10 +13,12 @@ import { SecurityOfficer, User, UserRole, ContractRecord, HRRemittanceRecord, Le
 import { initialContractRecords, initialHRRemittanceRecords } from "../../data/mockData";
 import { HR_STAFF_ROLES, HR_APPROVER_ROLES, EXECUTIVE_ROLES, SECURITY_OFFICER_APPRAISAL_ROLES } from "../../services/rbacService";
 import { EmploymentContractModal } from "../organisms/EmploymentContractModal";
+import { ProbationModal } from "../organisms/ProbationModal";
+import { BiometricsManager } from "../organisms/BiometricsManager";
 
-interface Props { securityOfficers: SecurityOfficer[]; activeRole?: UserRole; initialTab?: "securityOfficers"|"leave"|"appraisals"|"contracts"|"remittances"|"staff"|"payroll"; onAddSecurityOfficer: (g: Omit<SecurityOfficer, "id">) => void; onUpdateSecurityOfficer?: (id: string, updates: Partial<SecurityOfficer>) => void; onMoveLifecycle?: (id: string, updates: Partial<SecurityOfficer>) => void; leaveRequests: LeaveRequest[]; performanceReviews: PerformanceReviewRecord[]; onAddLeaveRequest?: (r: Omit<LeaveRequest, "id">) => void;   onUpdateLeaveRequest?: (id: string, updates: Partial<LeaveRequest>) => void; onHrApproveLeave?: (id: string, verification?: { entitlement?: number; taken?: number; balance?: number; resumptionDate?: string }) => void; onGmApproveLeave?: (id: string) => void; onDeleteLeaveRequest?: (id: string) => void; contracts: ContractRecord[]; onAddContract?: (c: Omit<ContractRecord, "id">) => void; onUpdateContract?: (id: string, updates: Partial<ContractRecord>) => void; onIssueContract?: (id: string) => void; onArchiveContract?: (id: string) => void; onVoidContract?: (id: string, reason: string) => void; onAdvanceApproval?: (id: string) => void; onArchiveSecurityOfficer?: (id: string) => void; staff?: User[]; onUpdateUser?: (id: string, updates: Partial<User>) => void; onIssueStaffId?: (userId: string, idCardNumber: string) => void; }
+interface Props { securityOfficers: SecurityOfficer[]; activeRole?: UserRole; initialTab?: "securityOfficers"|"leave"|"appraisals"|"contracts"|"remittances"|"staff"|"payroll"; onAddSecurityOfficer: (g: Omit<SecurityOfficer, "id">) => void; onUpdateSecurityOfficer?: (id: string, updates: Partial<SecurityOfficer>) => void; onMoveLifecycle?: (id: string, updates: Partial<SecurityOfficer>) => void; leaveRequests: LeaveRequest[]; performanceReviews: PerformanceReviewRecord[]; onAddLeaveRequest?: (r: Omit<LeaveRequest, "id">) => void;   onUpdateLeaveRequest?: (id: string, updates: Partial<LeaveRequest>) => void; onHrApproveLeave?: (id: string, verification?: { entitlement?: number; taken?: number; balance?: number; resumptionDate?: string }) => void; onGmApproveLeave?: (id: string) => void; onDeleteLeaveRequest?: (id: string) => void; contracts: ContractRecord[]; onAddContract?: (c: Omit<ContractRecord, "id">) => void; onUpdateContract?: (id: string, updates: Partial<ContractRecord>) => void; onIssueContract?: (id: string) => void; onArchiveContract?: (id: string) => void; onVoidContract?: (id: string, reason: string) => void; onAdvanceApproval?: (id: string) => void; onArchiveSecurityOfficer?: (id: string) => void; onFinalizeProbation?: (id: string, data: { outcome: "Approved Employee" | "Extended" | "Failed"; consequence?: "Terminate" | "Reassign"; notes?: string }) => void; onFinalizeStaffProbation?: (userId: string, data: { outcome: "Approved Employee" | "Extended" | "Failed"; consequence?: "Terminate" | "Reassign"; notes?: string }) => void; staff?: User[]; onUpdateUser?: (id: string, updates: Partial<User>) => void; onIssueStaffId?: (userId: string, idCardNumber: string) => void; }
 
-export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, activeRole, initialTab, onAddSecurityOfficer, onMoveLifecycle, leaveRequests, performanceReviews, onAddLeaveRequest,   onUpdateLeaveRequest, onHrApproveLeave, onGmApproveLeave, onDeleteLeaveRequest, contracts: contractsProp, onAddContract, onUpdateContract, onIssueContract, onArchiveContract, onVoidContract, onAdvanceApproval, onArchiveSecurityOfficer, staff = [], onUpdateUser, onIssueStaffId }) => {
+export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, activeRole, initialTab, onAddSecurityOfficer, onMoveLifecycle, leaveRequests, performanceReviews, onAddLeaveRequest,   onUpdateLeaveRequest, onHrApproveLeave, onGmApproveLeave, onDeleteLeaveRequest, contracts: contractsProp, onAddContract, onUpdateContract, onIssueContract, onArchiveContract, onVoidContract, onAdvanceApproval, onArchiveSecurityOfficer, onFinalizeProbation, onFinalizeStaffProbation, staff = [], onUpdateUser, onIssueStaffId }) => {
   const gf = useSecurityOfficerForm(onAddSecurityOfficer, securityOfficers.map((g) => g.forceNumber));
 
   const ENROLL_ROLES: UserRole[] = HR_APPROVER_ROLES;
@@ -37,6 +39,7 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
   const [selWarn, setSelWarn] = useState<SecurityOfficer | null>(null);
   const [selBio, setSelBio] = useState<SecurityOfficer | null>(null);
   const [selContract, setSelContract] = useState<SecurityOfficer | null>(null);
+  const [selProbation, setSelProbation] = useState<SecurityOfficer | null>(null);
 
   const contracts = contractsProp ?? initialContractRecords;
   const [cf, setCf] = useState<"ALL"|"Staff Contract"|"Client Contract">("ALL");
@@ -103,6 +106,7 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
   const [selStaff, setSelStaff] = useState<User | null>(null);
   const [selStaffCard, setSelStaffCard] = useState<User | null>(null);
   const [showStaffCard, setShowStaffCard] = useState(false);
+  const [selStaffProbation, setSelStaffProbation] = useState<User | null>(null);
 
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -275,6 +279,7 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
         </div>
         <div className="flex items-center gap-2">
           {activeRole && ENROLL_ROLES.includes(activeRole) && <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-2 bg-green-700 hover:bg-green-800 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"><Plus className="w-4 h-4" />Enroll New Security Officer</button>}
+          {activeRole && EXPORT_ROLES.includes(activeRole) && <BiometricsManager subjects={securityOfficers.map((g) => ({ key: g.forceNumber, label: g.fullName, kind: "officer" }))} />}
           {activeRole && EXPORT_ROLES.includes(activeRole) && <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"><Download className="w-4 h-4" />Export CSV</button>}
         </div>
       </div>
@@ -303,7 +308,7 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
           )}
           <SecurityOfficersTable securityOfficers={fg} viewMode={vm} onViewModeChange={setVm}
             searchTerm={search} onSearchChange={setSearch} statusFilter={sf} onStatusFilterChange={setSf}
-            onViewBiodata={(g) => setSelBio(g)} onEmploymentContract={(g) => setSelContract(g)} onArchiveSecurityOfficer={wrappedOnArchiveSecurityOfficer} />
+            onViewBiodata={(g) => setSelBio(g)} onEmploymentContract={(g) => setSelContract(g)} onProbation={(g) => setSelProbation(g)} onArchiveSecurityOfficer={wrappedOnArchiveSecurityOfficer} />
         </div>
       )}
       {tab === "leave" && (
@@ -345,6 +350,7 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
                   <th className="p-3">Force Number</th>
                   <th className="p-3">Role</th>
                   <th className="p-3">Department</th>
+                  <th className="p-3">Probation</th>
                   <th className="p-3">ID Card</th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
@@ -370,6 +376,18 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
                     <td className="p-3 text-slate-600 font-semibold">{u.department}</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                        u.probationStatus === "Failed"
+                          ? "bg-rose-50 text-rose-800 border-rose-200"
+                          : (u.finishedProbation || u.probationStatus === "Approved Employee")
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : "bg-amber-50 text-amber-800 border-amber-200"
+                      }`}>
+                        {u.probationStatus || (u.finishedProbation ? "Approved Employee" : "In Progress")}
+                      </span>
+                      {u.terminationDate && <span className="block text-[10px] text-rose-500 font-semibold mt-0.5">terminated {u.terminationDate}</span>}
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
                         u.idCardStatus === "Issued & Active"
                           ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                           : "bg-amber-50 text-amber-800 border-amber-200"
@@ -380,6 +398,9 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
                     </td>
                     <td className="p-3 text-right space-x-1.5 whitespace-nowrap">
                       <button onClick={() => setSelStaff(u)} className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold cursor-pointer">Personnel File</button>
+                      {activeRole === "HR Manager" && (
+                        <button onClick={() => setSelStaffProbation(u)} className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[10px] font-bold cursor-pointer">Probation</button>
+                      )}
                       {isRecordsOfficer ? (
                         <button onClick={() => { setSelStaffCard(u); setShowStaffCard(true); }} className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold cursor-pointer">Issue / Print Card</button>
                       ) : (
@@ -427,6 +448,17 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
       {showAdd && <SecurityOfficerEnrollModal form={gf.state} setForm={gf.set} onSubmit={gf.handleAddSubmit} onClose={() => { setShowAdd(false); gf.reset(); }} />}
       <SecurityOfficerBiodataModal securityOfficer={selBio} onClose={() => setSelBio(null)} />
       <EmploymentContractModal show={!!selContract} securityOfficer={selContract} onClose={() => setSelContract(null)} />
+      <ProbationModal
+        subject={selProbation ? { id: selProbation.id, name: selProbation.fullName, identifier: selProbation.forceNumber } : null}
+        onClose={() => setSelProbation(null)}
+        onSubmit={(data) => onFinalizeProbation?.(selProbation!.id, data)}
+      />
+      <ProbationModal
+        label="Staff Probation"
+        subject={selStaffProbation ? { id: selStaffProbation.id, name: selStaffProbation.name, identifier: selStaffProbation.forceNumber ?? selStaffProbation.email } : null}
+        onClose={() => setSelStaffProbation(null)}
+        onSubmit={(data) => onFinalizeStaffProbation?.(selStaffProbation!.id, data)}
+      />
       <SecurityOfficerLeaveModal securityOfficers={securityOfficers} show={showLeave} onClose={() => setShowLeave(false)}
         leaveForceNumber={lForceNumber} setLeaveForceNumber={setLForceNumber} leaveType={lType} setLeaveType={setLType}
         leaveStartDate={lStart} setLeaveStartDate={setLStart} leaveEndDate={lEnd} setLeaveEndDate={setLEnd}

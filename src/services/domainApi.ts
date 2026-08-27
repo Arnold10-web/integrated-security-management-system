@@ -12,6 +12,7 @@ import type {
   ContractInquiry,
   DocumentRecord, JobPosting, Candidate, PerformanceReviewRecord, ContractRecord,
   NotificationRecord, SecurityOfficerEmploymentContract,
+  BiometricFingerprint,
 } from "../types";
 
 export interface MyLeaveSummary {
@@ -39,6 +40,29 @@ export const domainApi = {
       hrSign: (key: string, payload: { signatureUrl: string; signerName?: string; witnessName?: string; witnessDesignation?: string }) =>
         api.put<SecurityOfficerEmploymentContract>(`/security-officers/${encodeURIComponent(key)}/employment-contract/hr-sign`, payload),
     },
+  },
+  biometrics: {
+    listForForce: (forceNumber: string, captureType?: "PERSONNEL" | "ARMOURY") =>
+      api.get<BiometricFingerprint[]>(`/biometrics?forceNumber=${encodeURIComponent(forceNumber)}${captureType ? `&captureType=${captureType}` : ""}`),
+    listForUser: (userId: string, captureType?: "PERSONNEL" | "ARMOURY") =>
+      api.get<BiometricFingerprint[]>(`/biometrics?userId=${encodeURIComponent(userId)}${captureType ? `&captureType=${captureType}` : ""}`),
+    save: (data: {
+      forceNumber?: string;
+      userId?: string;
+      captureType: "PERSONNEL" | "ARMOURY";
+      fingers: {
+        fingerPosition: number;
+        fingerCode: string;
+        isoTemplate?: string | null;
+        isoImage?: string | null;
+        imageData?: string | null;
+        hash: string;
+        qualityScore?: number;
+        capturedAt?: string;
+      }[];
+    }) => api.post("/biometrics", data),
+    exportPersonnel: (forceNumbers: string[], captureType: "PERSONNEL" | "ARMOURY" = "PERSONNEL") =>
+      api.getBlob(`/biometrics/export?forceNumbers=${encodeURIComponent(forceNumbers.join(","))}&captureType=${captureType}`),
   },
   sites: {
     list: () => api.get<ClientSite[]>("/sites"),
@@ -320,6 +344,6 @@ export const domainApi = {
   },
   seed: () => api.post<any>("/auth/seed"),
   employeePortal: {
-    get: () => api.get<{ officer: any; contract: any }>("/employee-portal"),
+    get: () => api.get<{ user: any; officer: any; contract: any }>("/employee-portal"),
   },
 };

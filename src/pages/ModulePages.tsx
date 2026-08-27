@@ -49,6 +49,7 @@ import { TrainingCurriculumView } from "../components/views/TrainingCurriculumVi
 import { PassOutCertificatesView } from "../components/views/PassOutCertificatesView";
 import { TransportRequestSelfService } from "../components/views/TransportRequestSelfService";
 import { PeacefulExitView } from "../components/views/PeacefulExitView";
+import { EmployeePortalView } from "../components/views/EmployeePortalView";
 import type { UserRole } from "../types";
 import { getEffectiveRole } from "../services/rbacService";
 
@@ -281,6 +282,7 @@ function HRSecurityOfficersViewWithTab({ initialTab }: { initialTab: "securityOf
   const staffUsers = useAuthStore((s) => s.users);
   const updateUser = useAuthStore((s) => s.updateUser);
   const issueStaffId = useAuthStore((s) => s.issueStaffId);
+  const finalizeUserProbation = useAuthStore((s) => s.finalizeUserProbation);
   return (
     <div className="space-y-6">
       <SecurityOfficersHRView
@@ -305,6 +307,8 @@ function HRSecurityOfficersViewWithTab({ initialTab }: { initialTab: "securityOf
       onVoidContract={domain.voidContract}
       onAdvanceApproval={domain.advanceContractApproval}
       onArchiveSecurityOfficer={domain.archiveSecurityOfficer}
+      onFinalizeProbation={domain.finalizeProbation}
+      onFinalizeStaffProbation={finalizeUserProbation}
       staff={staffUsers}
       onUpdateUser={updateUser}
       onIssueStaffId={issueStaffId}
@@ -319,6 +323,7 @@ export const HRPage: React.FC = () => {
   const staffUsers = useAuthStore((s) => s.users);
   const updateUser = useAuthStore((s) => s.updateUser);
   const issueStaffId = useAuthStore((s) => s.issueStaffId);
+  const finalizeUserProbation = useAuthStore((s) => s.finalizeUserProbation);
   return (
     <div className="space-y-6">
       <ActingRequestPanel />
@@ -344,6 +349,8 @@ export const HRPage: React.FC = () => {
       onVoidContract={domain.voidContract}
       onAdvanceApproval={domain.advanceContractApproval}
       onArchiveSecurityOfficer={domain.archiveSecurityOfficer}
+      onFinalizeProbation={domain.finalizeProbation}
+      onFinalizeStaffProbation={finalizeUserProbation}
       staff={staffUsers}
       onUpdateUser={updateUser}
       onIssueStaffId={issueStaffId}
@@ -786,4 +793,8 @@ export const PeacefulExitPage: React.FC = () => {
       activeRole={activeRole}
     />
   );
+};
+
+export const EmployeePortalPage: React.FC = () => {
+  return <EmployeePortalView />;
 };

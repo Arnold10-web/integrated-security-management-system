@@ -50,6 +50,8 @@ import {
   RecordsContractsPage,
   TrainingCurriculumPage,
   PassOutCertificatesPage,
+  PeacefulExitPage,
+  EmployeePortalPage,
 } from "./pages/ModulePages";
 
 export default function App() {
@@ -123,6 +125,8 @@ export default function App() {
         <Route path="/disciplinary" element={<DisciplinaryPage />} />
         <Route path="/training-curriculum" element={<TrainingCurriculumPage />} />
         <Route path="/pass-out-certificates" element={<PassOutCertificatesPage />} />
+        <Route path="/peaceful-exit" element={<PeacefulExitPage />} />
+        <Route path="/employee-portal" element={<EmployeePortalPage />} />
       </Route>
     </Routes>
   );

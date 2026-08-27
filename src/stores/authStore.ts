@@ -8,7 +8,7 @@ import {
   persistSessionUserId,
   readPersistedSessionUserId,
 } from "../services/authService";
-import { loginApi, logoutApi, updateUserApi, fetchUsers, issueStaffIdApi, revokeActingPrivilegeApi, createActingRequestApi, fetchActingRequestsApi, executeActingRequestApi, denyActingRequestApi } from "../services/authApi";
+import { loginApi, logoutApi, updateUserApi, fetchUsers, issueStaffIdApi, finalizeUserProbationApi, revokeActingPrivilegeApi, createActingRequestApi, fetchActingRequestsApi, executeActingRequestApi, denyActingRequestApi } from "../services/authApi";
 import type { ActingPrivilegeRequest } from "../types";
 import { useAuditStore } from "./auditStore";
 import { useDomainStore } from "./domainStore";
@@ -37,6 +37,7 @@ interface AuthState {
   deleteUser: (userId: string) => void;
   toggleSuspendUser: (userId: string) => void;
   issueStaffId: (userId: string, idCardNumber: string) => Promise<void>;
+  finalizeUserProbation: (userId: string, data: { outcome: "Approved Employee" | "Extended" | "Failed"; consequence?: "Terminate" | "Reassign"; notes?: string }) => Promise<void>;
   addCustomRole: (role: CustomRoleDefinition) => void;
   deleteCustomRole: (id: string) => void;
   setCurrentUserRole: (role: UserRole) => void;
@@ -267,6 +268,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     );
   },
 
+  finalizeUserProbation: async (userId, data) => {
+    const { useApi } = get();
+    const approved = data.outcome === "Approved Employee";
+    const failed = data.outcome === "Failed";
+    const today = new Date().toISOString().split("T")[0];
+    if (useApi) {
+      try {
+        await finalizeUserProbationApi(userId, data);
+      } catch {
+        /* keep local mirror */
+      }
+    }
+    set((s) => ({
+      users: s.users.map((u) => {
+        if (u.id !== userId) return u;
+        const next: Partial<User> = {
+          finishedProbation: approved || failed,
+          probationStatus: data.outcome,
+          probationEndDate: approved || failed ? today : u.probationEndDate,
+        };
+        if (failed && data.consequence === "Terminate") {
+          return { ...u, ...next, status: "Inactive", terminationReason: data.notes || "Probation not passed", terminationDate: today, terminationCategory: "Probation Failed" };
+        }
+        return { ...u, ...next };
+      }),
+      currentUser:
+        s.currentUser?.id === userId
+          ? { ...s.currentUser, finishedProbation: approved || failed, probationStatus: data.outcome, probationEndDate: approved || failed ? today : s.currentUser.probationEndDate }
+          : s.currentUser,
+    }));
+    const target = get().users.find((u) => u.id === userId);
+    const detail = approved
+      ? `Staff member ${target?.name || userId} completed probation and is now an Approved Employee.`
+      : failed
+      ? `Staff member ${target?.name || userId} failed probation (consequence: ${data.consequence ?? "Reassign"}).`
+      : `Staff member ${target?.name || userId}'s probation was extended.`;
+    useAuditStore.getState().addLog(approved ? "Probation Completed" : failed ? "Probation Failed" : "Probation Extended", detail, "HR", get().currentUser);
+  },
+
   addCustomRole: (role) => {
     set((s) => ({ customRoles: [...s.customRoles, role] }));
     useAuditStore.getState().addLog(
@@ -275,9 +315,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       "RBAC Security",
       get().currentUser
     );
-  },
-
-  deleteCustomRole: (id) => {
+  },  deleteCustomRole: (id) => {
     const target = get().customRoles.find((r) => r.id === id);
     set((s) => ({ customRoles: s.customRoles.filter((r) => r.id !== id) }));
     useAuditStore.getState().addLog(

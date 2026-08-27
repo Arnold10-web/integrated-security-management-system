@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, MapPin, Table, Grid, FolderArchive, FileText } from "lucide-react";
+import { AlertTriangle, MapPin, Table, Grid, FolderArchive, FileText, ClipboardCheck } from "lucide-react";
 import type { SecurityOfficer } from "../../types";
 import { StatusBadge } from "../atoms/StatusBadge";
 import { Pagination } from "../molecules";
@@ -11,6 +11,7 @@ interface SecurityOfficersTableProps {
   onViewBiodata: (securityOfficer: SecurityOfficer) => void;
   onArchiveSecurityOfficer?: (id: string) => void;
   onEmploymentContract?: (securityOfficer: SecurityOfficer) => void;
+  onProbation?: (securityOfficer: SecurityOfficer) => void;
   viewMode: "spreadsheet" | "grid";
   onViewModeChange: (mode: "spreadsheet" | "grid") => void;
   searchTerm: string;
@@ -24,6 +25,7 @@ export const SecurityOfficersTable: React.FC<SecurityOfficersTableProps> = ({
   onViewBiodata,
   onArchiveSecurityOfficer,
   onEmploymentContract,
+  onProbation,
   viewMode,
   onViewModeChange,
   searchTerm,
@@ -238,9 +240,9 @@ export const SecurityOfficersTable: React.FC<SecurityOfficersTableProps> = ({
                       <td className="p-3 font-semibold text-slate-800 border-r border-slate-200 whitespace-nowrap">{g.bankName || "N/A"}</td>
                       <td className="p-3 text-center border-r border-slate-200 whitespace-nowrap font-bold">
                         {g.finishedProbation ? (
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px]">YES</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] ${g.probationStatus === "Failed" ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`}>{g.probationStatus || "YES"}</span>
                         ) : (
-                          <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px]">NO</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] ${g.probationStatus === "Failed" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>{g.probationStatus || "In Progress"}</span>
                         )}
                       </td>
                       <td className="p-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{g.assignedSite}</td>
@@ -263,6 +265,15 @@ export const SecurityOfficersTable: React.FC<SecurityOfficersTableProps> = ({
                             >
                               <FileText className="w-3 h-3 text-emerald-700" />
                               <span>Contract</span>
+                            </button>
+                          )}
+                          {onProbation && (
+                            <button
+                              onClick={() => onProbation(g)}
+                              className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-bold text-[10px] rounded-lg cursor-pointer transition-all flex items-center gap-1"
+                            >
+                              <ClipboardCheck className="w-3 h-3 text-sky-700" />
+                              <span>Probation</span>
                             </button>
                           )}
                           {onArchiveSecurityOfficer && (
@@ -345,6 +356,15 @@ export const SecurityOfficersTable: React.FC<SecurityOfficersTableProps> = ({
                     >
                       <FileText className="w-3.5 h-3.5 inline mr-1" />
                       Contract
+                    </button>
+                  )}
+                  {onProbation && (
+                    <button
+                      onClick={() => onProbation(securityOfficer)}
+                      className="py-2 px-3 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      <ClipboardCheck className="w-3.5 h-3.5 inline mr-1" />
+                      Probation
                     </button>
                   )}
                   {onArchiveSecurityOfficer && (
