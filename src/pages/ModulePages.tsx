@@ -451,6 +451,8 @@ function FinanceViewWithTab({ initialTab }: { initialTab: "invoices" | "expenses
       onUpdateContract={domain.updateContract}
       onAdvanceApproval={domain.advanceContractApproval}
       onVoidContract={domain.voidContract}
+      collections={domain.collections}
+      onSendReminder={domain.sendReminder}
     />
   );
 }
@@ -476,8 +478,6 @@ export const MarketingPage: React.FC = () => {
         onReassignLead={domain.reassignLead}
         onUpdateCampaign={domain.updateCampaign}
         onDeleteCampaign={domain.deleteCampaign}
-        collections={domain.collections}
-        onSendReminder={domain.sendReminder}
         contracts={domain.contracts}
         onAddContract={domain.addContract}
         onUpdateContract={domain.updateContract}
@@ -503,8 +503,6 @@ function MarketingViewWithTab({ initialTab }: { initialTab?: "pipeline" | "campa
       onReassignLead={domain.reassignLead}
       onUpdateCampaign={domain.updateCampaign}
       onDeleteCampaign={domain.deleteCampaign}
-      collections={domain.collections}
-      onSendReminder={domain.sendReminder}
       contracts={domain.contracts}
       onAddContract={domain.addContract}
       onUpdateContract={domain.updateContract}

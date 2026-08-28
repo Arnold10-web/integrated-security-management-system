@@ -1,12 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Bell, X, CheckCheck, Info, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Bell, X, CheckCheck, Info, AlertCircle, CheckCircle2, AlertTriangle, Volume2, VolumeX } from "lucide-react";
 import { useNotificationStore } from "../../stores/notificationStore";
+import { isNotificationSoundEnabled, setNotificationSoundEnabled } from "../../utils/notificationSound";
 
 export const NotificationBell: React.FC = () => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { notifications, markAsRead, markAllAsRead, clearNotification, clearAll } = useNotificationStore();
   const unread = notifications.filter((n) => !n.read).length;
+  const [soundEnabled, setSoundEnabled] = useState(isNotificationSoundEnabled());
+
+  const toggleSound = () => {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    setNotificationSoundEnabled(next);
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -49,6 +57,14 @@ export const NotificationBell: React.FC = () => {
               Notifications {notifications.length > 0 && `(${notifications.length})`}
             </span>
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={toggleSound}
+                className={`p-1.5 hover:bg-slate-100 rounded-lg cursor-pointer ${soundEnabled ? "text-slate-500 hover:text-slate-700" : "text-slate-300 hover:text-slate-500"}`}
+                title={soundEnabled ? "Notification sounds on — click to mute" : "Notification sounds muted — click to enable"}
+              >
+                {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+              </button>
               {unread > 0 && (
                 <button
                   type="button"

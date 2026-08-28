@@ -5,7 +5,6 @@ import { useDomainStore } from "../../stores/domainStore";
 import { IdentityCardPanel } from "../organisms/IdentityCardPanel";
 import { IdentityCardPrintModal } from "../organisms/IdentityCardPrintModal";
 import { ContractInquiryPanel } from "./ContractInquiryPanel";
-import { RecordsOfficerWorkspace } from "./WorkspaceStrips";
 
 export const RecordsIdentityView: React.FC = () => {
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -19,7 +18,6 @@ export const RecordsIdentityView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      <RecordsOfficerWorkspace />
       <IdentityCardPanel
         securityOfficers={securityOfficers}
         idCardFilter={idCardFilter}

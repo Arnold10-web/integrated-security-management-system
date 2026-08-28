@@ -2,6 +2,7 @@ import React from "react";
 import { Download, Pencil, ShieldCheck, FolderArchive, Ban } from "lucide-react";
 import type { ContractRecord, UserRole } from "../../types";
 import { toast } from "../../stores/toastStore";
+import { useAuthStore } from "../../stores/authStore";
 import {
   canAdvanceApproval,
   canArchiveContract,
@@ -34,6 +35,10 @@ export const ContractsPanel: React.FC<ContractsPanelProps> = ({
   onVoidContract,
   onAdvanceApproval,
 }) => {
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const baseRole = currentUser?.role;
+  const isActing = Boolean(baseRole && activeRole && baseRole !== activeRole);
+
   const filterOptions: { label: string; value: "ALL" | "Staff Contract" | "Client Contract"; color: string }[] = [
     { label: `All Contracts (${contracts.length})`, value: "ALL", color: "bg-slate-900 text-white" },
     {
@@ -102,7 +107,7 @@ export const ContractsPanel: React.FC<ContractsPanelProps> = ({
           <p className="text-xs text-slate-500 mt-1">
             Official depository of Staff Employment SLA Contracts and Commercial Client Service Agreements.
           </p>
-          {activeRole && (
+          {isActing && (
             <p className="text-[10px] font-bold text-indigo-600 mt-1 uppercase tracking-wide">
               Acting as {activeRole}
             </p>

@@ -171,7 +171,7 @@ export const RecordsOfficerWorkspace: React.FC = () => {
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KPI icon={Users} label="Personnel ( SecurityOfficer)" value={domain.securityOfficers.length} tone="bg-sky-100 text-sky-700" />
+        <KPI icon={Users} label="Personnel (Security Officers)" value={domain.securityOfficers.length} tone="bg-sky-100 text-sky-700" />
         <KPI icon={Users} label="Staff Accounts" value={staff.filter((u) => u.status === "Active").length} tone="bg-indigo-100 text-indigo-700" />
         <KPI icon={CreditCard} label="Pending ID Issuance" value={pendingIds} tone="bg-amber-100 text-amber-700" />
         <KPI icon={FolderOpen} label="Open Inquiries" value={openInquiries} tone="bg-rose-100 text-rose-700" />

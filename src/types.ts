@@ -38,6 +38,8 @@ export interface User {
   avatarUrl?: string;
   department: string;
   forceNumber?: string; // Unique Force Number
+  uniqueId?: string; // Role-prefixed identifier (DIR-####, USR-####, ...) unique across the org
+  passwordResetRequired?: boolean; // True when provisioned via IT console
   region?: string; // e.g. "Central (Kampala HQ)", "Western (Mbarara Station)", "Northern (Gulu Station)", "Eastern (Jinja Station)"
   lastActive: string;
   status: "Active" | "Suspended" | "Inactive";

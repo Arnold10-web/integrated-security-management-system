@@ -1,349 +1,412 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Cpu,
   ShieldCheck,
   Database,
   Clock,
-  ShieldAlert,
   RefreshCw,
   Zap,
-  Users,
-  Sparkles,
-  Key,
-  Copy,
+  Play,
+  Plus,
+  Trash2,
+  Power,
 } from "lucide-react";
+import { domainApi } from "../../services/domainApi";
 
-interface AutomationLog {
+interface CronJobRecord {
   id: string;
-  jobName: string;
-  frequency: string;
-  lastRun: string;
+  name: string;
+  description?: string | null;
+  cronExpression: string;
+  category?: string | null;
+  enabled: boolean;
+  lastRunAt?: string | null;
+  lastStatus?: string | null;
+  lastDetail?: string | null;
+  nextRunAt?: string | null;
+  _count?: { runs?: number };
+}
+
+interface CronRunRecord {
+  id: string;
+  jobId: string;
   status: string;
-  details: string;
+  detail?: string | null;
+  durationMs?: number | null;
+  startedAt?: string;
+  finishedAt?: string | null;
+  createdAt?: string;
 }
 
-interface AutomationEnginePanelProps {
-  scanOutput: string | null;
-  isScanning: boolean;
-  backupStatus: string | null;
-  dormantAuditOutput: string | null;
-  slaEscalationMsg: string | null;
-  selectedResetUser: string;
-  generatedResetToken: string | null;
-  copiedToken: boolean;
-  automationLogs: AutomationLog[];
-  users: { id: string; name: string; role: string; department: string }[];
-  onRunVulnerabilityScan: () => void;
-  onRunBackup: () => void;
-  onRunDormantAudit: () => void;
-  onRunSLAEscalation: () => void;
-  onGenerateResetToken: () => void;
-  onSetSelectedResetUser: (val: string) => void;
-  onSetCopiedToken: (val: boolean) => void;
-}
+const CATEGORY_STYLES: Record<string, string> = {
+  Maintenance: "bg-amber-100 text-amber-800 border-amber-300",
+  Security: "bg-cyan-100 text-cyan-800 border-cyan-300",
+  Notifications: "bg-blue-100 text-blue-800 border-blue-300",
+  Finance: "bg-emerald-100 text-emerald-800 border-emerald-300",
+};
 
-export const AutomationEnginePanel: React.FC<AutomationEnginePanelProps> = ({
-  scanOutput,
-  isScanning,
-  backupStatus,
-  dormantAuditOutput,
-  slaEscalationMsg,
-  selectedResetUser,
-  generatedResetToken,
-  copiedToken,
-  automationLogs,
-  users,
-  onRunVulnerabilityScan,
-  onRunBackup,
-  onRunDormantAudit,
-  onRunSLAEscalation,
-  onGenerateResetToken,
-  onSetSelectedResetUser,
-  onSetCopiedToken,
-}) => {
+export const AutomationEnginePanel: React.FC = () => {
+  const [jobs, setJobs] = useState<CronJobRecord[]>([]);
+  const [runs, setRuns] = useState<CronRunRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    cronExpression: "0 0 * * *",
+    category: "Maintenance",
+  });
+
+  const load = useCallback(async () => {
+    try {
+      const j = await domainApi.cronJobs.list();
+      setJobs(j);
+      let all: CronRunRecord[] = [];
+      for (const job of j) {
+        if ((job._count?.runs ?? 0) > 0) {
+          try {
+            const rr = await domainApi.cronJobs.runs(job.id);
+            all = all.concat(rr);
+          } catch {
+            /* skip jobs without runs */
+          }
+        }
+      }
+      all.sort((a, b) => (b.createdAt || b.startedAt || "").localeCompare(a.createdAt || a.startedAt || ""));
+      setRuns(all.slice(0, 50));
+    } catch (e: any) {
+      setNotice(`Could not load automation jobs: ${e?.message || String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!autoRefresh) return undefined;
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, [autoRefresh, load]);
+
+  const flash = (msg: string) => {
+    setNotice(msg);
+    setTimeout(() => setNotice(null), 4000);
+  };
+
+  const runNow = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await domainApi.cronJobs.runNow(id);
+      flash(`Job executed → ${res.ok ? res.detail : "failed"}`);
+      await load();
+    } catch (e: any) {
+      flash(`Run failed: ${e?.message || String(e)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggle = async (job: CronJobRecord) => {
+    try {
+      const res = await domainApi.cronJobs.update(job.id, { enabled: !job.enabled });
+      flash(`${job.name} ${res.enabled ? "enabled" : "paused"}.`);
+      await load();
+    } catch (e: any) {
+      flash(`Update failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const remove = async (id: string, name: string) => {
+    try {
+      await domainApi.cronJobs.remove(id);
+      flash(`Permanently removed "${name}".`);
+      await load();
+    } catch (e: any) {
+      flash(`Remove failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const create = async () => {
+    if (!form.name.trim()) return;
+    try {
+      await domainApi.cronJobs.create({
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        cronExpression: form.cronExpression.trim(),
+        category: form.category,
+        enabled: true,
+      });
+      setShowCreate(false);
+      setForm({ name: "", description: "", cronExpression: "0 0 * * *", category: "Maintenance" });
+      flash("Custom automation routine created and registered with the scheduler.");
+      await load();
+    } catch (e: any) {
+      flash(`Create failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const enabled = jobs.filter((j) => j.enabled).length;
+  const failures = jobs.filter((j) => j.lastStatus === "FAILED").length;
+
   return (
     <div className="space-y-6 animate-fadeIn">
+      {notice && (
+        <div className="px-4 py-3 rounded-2xl bg-slate-900 text-cyan-100 border border-cyan-500/30 text-xs font-semibold">
+          {notice}
+        </div>
+      )}
+
       {/* Header Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 shadow-lg">
           <div className="flex items-center justify-between text-cyan-400 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Active Routines</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Registered Routines</span>
             <Cpu className="w-5 h-5" />
           </div>
-          <div className="text-2xl font-black">4 Active Jobs</div>
-          <p className="text-[11px] text-slate-400 mt-1">100% Scheduled Operations Active</p>
+          <div className="text-2xl font-black">{jobs.length} Jobs</div>
+          <p className="text-[11px] text-slate-400 mt-1">{enabled} Active • {jobs.length - enabled} Paused</p>
         </div>
 
         <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 shadow-lg">
           <div className="flex items-center justify-between text-emerald-400 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Security Shield</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Execution History</span>
             <ShieldCheck className="w-5 h-5" />
           </div>
-          <div className="text-2xl font-black">0 Flaws</div>
-          <p className="text-[11px] text-slate-400 mt-1">SSL Encrypted & API Hardened</p>
+          <div className="text-2xl font-black">{runs.length}</div>
+          <p className="text-[11px] text-slate-400 mt-1">Persisted audit run records</p>
         </div>
 
         <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 shadow-lg">
           <div className="flex items-center justify-between text-amber-400 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Auto DB Snapshot</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Last Failures</span>
             <Database className="w-5 h-5" />
           </div>
-          <div className="text-2xl font-black">42.8 MB</div>
-          <p className="text-[11px] text-slate-400 mt-1">Daily @ 00:00 UTC (AES-256 Vault)</p>
+          <div className="text-2xl font-black">{failures}</div>
+          <p className="text-[11px] text-slate-400 mt-1">Jobs with failed last run</p>
         </div>
 
         <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 shadow-lg">
           <div className="flex items-center justify-between text-purple-400 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Helpdesk SLAs</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Auto-Refresh</span>
             <Clock className="w-5 h-5" />
           </div>
-          <div className="text-2xl font-black">100% Met</div>
-          <p className="text-[11px] text-slate-400 mt-1">Auto-escalates overdue vouchers</p>
-        </div>
-      </div>
-
-      {/* Interactive Automation Routine Action Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Card 1: Vulnerability Scanner */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-cyan-100 text-cyan-800">
-                <ShieldAlert className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-slate-900">System Endpoint Vulnerability Scan</h3>
-                <p className="text-[11px] text-slate-500">Auto-scans every 6 hours for unauthorized access & CORS leaks</p>
-              </div>
-            </div>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
-              Active Routine
-            </span>
-          </div>
-
-          {scanOutput && (
-            <div className="p-3 bg-slate-900 text-cyan-300 font-mono text-[11px] rounded-xl border border-slate-800">
-              {scanOutput}
-            </div>
-          )}
-
           <button
             type="button"
-            onClick={onRunVulnerabilityScan}
-            disabled={isScanning}
-            className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            onClick={() => setAutoRefresh((v) => !v)}
+            className={`mt-2 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all cursor-pointer ${autoRefresh ? "bg-emerald-500 text-slate-950" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}
           >
-            {isScanning ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
-                <span>Executing Diagnostic Scan...</span>
-              </>
-            ) : (
-              <>
-                <Zap className="w-4 h-4 text-cyan-400" />
-                <span>⚡ Execute Instant On-Demand Diagnostic Scan</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Card 2: Database Backup Engine */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-amber-100 text-amber-800">
-                <Database className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-slate-900">Encrypted DB Snapshot & Retention</h3>
-                <p className="text-[11px] text-slate-500">Automated nightly snapshot at 00:00 UTC with 30-day rotation</p>
-              </div>
-            </div>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
-              Active Routine
-            </span>
-          </div>
-
-          {backupStatus && (
-            <div className="p-3 bg-emerald-950 text-emerald-300 font-mono text-[11px] rounded-xl border border-emerald-800">
-              {backupStatus}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={onRunBackup}
-            className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Database className="w-4 h-4 text-slate-950" />
-            <span>💾 Execute Instant Encrypted DB Backup</span>
-          </button>
-        </div>
-
-        {/* Card 3: Dormant Account Audit */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-purple-100 text-purple-800">
-                <Users className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-slate-900">Dormant Account & Session Audit</h3>
-                <p className="text-[11px] text-slate-500">Automated weekly scan to detect accounts inactive &gt; 30 days</p>
-              </div>
-            </div>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
-              Active Routine
-            </span>
-          </div>
-
-          {dormantAuditOutput && (
-            <div className="p-3 bg-slate-900 text-purple-300 font-mono text-[11px] rounded-xl border border-slate-800">
-              {dormantAuditOutput}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={onRunDormantAudit}
-            className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span>🔍 Execute Dormant Account Security Audit</span>
-          </button>
-        </div>
-
-        {/* Card 4: Support Ticket SLA Escalator */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-blue-100 text-blue-800">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-slate-900">Helpdesk Ticket SLA Auto-Escalator</h3>
-                <p className="text-[11px] text-slate-500">Checks open IT tickets every 15 mins & escalates overdue items</p>
-              </div>
-            </div>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
-              Active Routine
-            </span>
-          </div>
-
-          {slaEscalationMsg && (
-            <div className="p-3 bg-blue-950 text-blue-300 font-mono text-[11px] rounded-xl border border-blue-800">
-              {slaEscalationMsg}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={onRunSLAEscalation}
-            className="w-full py-2.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Clock className="w-4 h-4 text-cyan-300" />
-            <span>⏱️ Run SLA Escalation Compliance Check</span>
+            {autoRefresh ? "Live · 15s on" : "Off · click to enable"}
           </button>
         </div>
       </div>
 
-      {/* Automated Reset Token Generator Box */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-sm font-black text-slate-900">Automated One-Time Passcode (OTP) Token Generator</h3>
-            <p className="text-xs text-slate-500">Generate a temporary, encrypted single-use access link for staff credential reset.</p>
-          </div>
-          <Key className="w-5 h-5 text-cyan-600" />
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-end gap-3">
-          <div className="flex-1">
-            <label className="text-xs font-bold text-slate-700 block mb-1">Select User Account</label>
-            <select
-              value={selectedResetUser}
-              onChange={(e) => onSetSelectedResetUser(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-none"
-            >
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.role} - {u.department})
-                </option>
-              ))}
-            </select>
-          </div>
-
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        {!showCreate ? (
           <button
             type="button"
-            onClick={onGenerateResetToken}
-            className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer shrink-0"
+            onClick={() => setShowCreate(true)}
+            className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer"
           >
-            ⚡ Generate 15-Min One-Time OTP Token
+            <Plus className="w-4 h-4" /> Register Custom Routine
           </button>
-        </div>
-
-        {generatedResetToken && (
-          <div className="p-3.5 bg-slate-900 text-white rounded-2xl flex items-center justify-between gap-3 text-xs font-mono">
-            <span className="text-cyan-300 truncate">{generatedResetToken}</span>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(generatedResetToken);
-                onSetCopiedToken(true);
-                setTimeout(() => onSetCopiedToken(false), 2000);
-              }}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <Copy className="w-3.5 h-3.5 text-cyan-400" />
-              <span>{copiedToken ? "Copied!" : "Copy Token"}</span>
-            </button>
+        ) : (
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 w-full">
+            <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Register New Automation Routine</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Routine name"
+                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none"
+              />
+              <input
+                value={form.cronExpression}
+                onChange={(e) => setForm((f) => ({ ...f, cronExpression: e.target.value }))}
+                placeholder="Cron expression (5-field) e.g. 0 9 * * 1"
+                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none"
+              />
+              <input
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Description"
+                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none"
+              />
+              <select
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+              >
+                {["Maintenance", "Security", "Notifications", "Finance"].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={create}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-black text-xs rounded-xl cursor-pointer"
+              >
+                Register Routine
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black text-xs rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Automated System Jobs Execution Table */}
+      {/* Live jobs table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
         <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-black">Automated System Jobs Execution Log</h3>
-            <p className="text-xs text-slate-400">Audit trail of scheduled system tasks and on-demand triggers</p>
+            <h3 className="text-sm font-black">Registered Automation Routines</h3>
+            <p className="text-xs text-slate-400">Real scheduler backed by the IT cron engine — run, pause, resume or remove routines</p>
           </div>
           <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-black uppercase">
-            Audit Active
+            {loading ? "Loading..." : `${jobs.length} Routines`}
           </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-[11px] font-extrabold text-slate-600 uppercase border-b border-slate-200">
-                <th className="p-3.5">Job ID</th>
-                <th className="p-3.5">Routine Name</th>
-                <th className="p-3.5">Trigger Schedule</th>
-                <th className="p-3.5">Last Run</th>
-                <th className="p-3.5">Status</th>
-                <th className="p-3.5">Execution Summary</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 text-xs text-slate-700 font-medium">
-              {automationLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3.5 font-mono font-bold text-slate-900">{log.id}</td>
-                  <td className="p-3.5 font-black text-slate-900">{log.jobName}</td>
-                  <td className="p-3.5 text-slate-600 font-semibold">{log.frequency}</td>
-                  <td className="p-3.5 font-mono text-slate-500">{log.lastRun}</td>
-                  <td className="p-3.5">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      {log.status}
-                    </span>
-                  </td>
-                  <td className="p-3.5 text-slate-600 max-w-xs truncate">{log.details}</td>
+          {loading ? (
+            <div className="p-10 text-center text-xs font-semibold text-slate-400">Loading scheduler state…</div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-[11px] font-extrabold text-slate-600 uppercase border-b border-slate-200">
+                  <th className="p-3.5">Routine</th>
+                  <th className="p-3.5">Category</th>
+                  <th className="p-3.5">Cron Schedule</th>
+                  <th className="p-3.5">Last Run</th>
+                  <th className="p-3.5">State</th>
+                  <th className="p-3.5 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-xs text-slate-700 font-medium">
+                {jobs.map((job) => (
+                  <tr key={job.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-3.5">
+                      <div className="font-black text-slate-900">{job.name}</div>
+                      {job.description && <div className="text-[11px] text-slate-500 max-w-xs truncate">{job.description}</div>}
+                    </td>
+                    <td className="p-3.5">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${CATEGORY_STYLES[job.category || ""] || "bg-slate-100 text-slate-700 border-slate-300"}`}>
+                        {job.category || "General"}
+                      </span>
+                    </td>
+                    <td className="p-3.5 font-mono text-slate-600 font-bold">{job.cronExpression}</td>
+                    <td className="p-3.5 font-mono text-slate-500">
+                      {job.lastRunAt ? new Date(job.lastRunAt).toLocaleString() : "—"}
+                      {job.lastStatus && (
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-black ${job.lastStatus === "SUCCESS" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+                          {job.lastStatus}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3.5">
+                      <button
+                        type="button"
+                        onClick={() => toggle(job)}
+                        className={`px-3 py-1 rounded-full text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 ${job.enabled ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-slate-200 text-slate-600 border border-slate-300"}`}
+                      >
+                        <Power className="w-3 h-3" /> {job.enabled ? "Active" : "Paused"}
+                      </button>
+                    </td>
+                    <td className="p-3.5">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => runNow(job.id)}
+                          disabled={busyId === job.id}
+                          className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-black text-[11px] rounded-lg flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {busyId === job.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                          Run Now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => remove(job.id, job.name)}
+                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-all cursor-pointer"
+                          title="Remove routine"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
+      </div>
+
+      {/* Live runs table */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-black">Automation Execution Audit Trail</h3>
+            <p className="text-xs text-slate-400">Persisted results of every scheduled & on-demand run</p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase">
+            {runs.length} Runs
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          {runs.length === 0 ? (
+            <div className="p-10 text-center text-xs font-semibold text-slate-400">
+              No runs recorded yet — use <span className="font-black">Run Now</span> or wait for the next scheduled tick.
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-[11px] font-extrabold text-slate-600 uppercase border-b border-slate-200">
+                  <th className="p-3.5">When</th>
+                  <th className="p-3.5">Routine</th>
+                  <th className="p-3.5">Status</th>
+                  <th className="p-3.5">Duration</th>
+                  <th className="p-3.5">Result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-xs text-slate-700 font-medium">
+                {runs.map((r) => {
+                  const job = jobs.find((j) => j.id === r.jobId);
+                  return (
+                    <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-3.5 font-mono text-slate-500">{new Date(r.createdAt || r.startedAt || "").toLocaleString()}</td>
+                      <td className="p-3.5 font-black text-slate-900">{job?.name || r.jobId}</td>
+                      <td className="p-3.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${r.status === "SUCCESS" ? "bg-emerald-100 text-emerald-800" : r.status === "FAILED" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-mono text-slate-500">{r.durationMs != null ? `${(r.durationMs / 1000).toFixed(2)}s` : "—"}</td>
+                      <td className="p-3.5 text-slate-600 max-w-sm truncate">{r.detail || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+        <Zap className="w-3.5 h-3.5 text-amber-500" />
+        Routines here run through the real IT cron scheduler — paused jobs remain registered but are not triggered until resumed.
       </div>
     </div>
   );

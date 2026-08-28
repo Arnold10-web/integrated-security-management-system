@@ -95,7 +95,7 @@ export const ExecutiveDashboardView: React.FC<{ activeRole: UserRole }> = ({ act
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                Decisions first · company posture at a glance · {headerSummary.officers} officers ·{" "}
+                Company posture at a glance · {headerSummary.officers} officers ·{" "}
                 {headerSummary.staff} staff · {headerSummary.clients} clients
               </p>
             </div>

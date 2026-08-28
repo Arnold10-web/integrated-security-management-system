@@ -422,7 +422,8 @@ export const SecurityOfficersHRView: React.FC<Props> = ({ securityOfficers, acti
           <div className="mx-auto w-16 h-16 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
             <Banknote className="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-black text-slate-800">Payroll & Remuneration — Coming Soon</h3>
+          <h3 className="text-lg font-black text-slate-800">Payroll & Remuneration</h3>
+          <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wide mt-1">Scheduled for rollout</p>
           <p className="text-xs text-slate-500 font-semibold max-w-md mx-auto mt-2">
             The payroll module is under construction. When live, {activeRole || "HR staff"} will be able to prepare the monthly
             salary sheet, compute NSSF & PAYE deductions from the statutory fields already captured on each personnel file, and

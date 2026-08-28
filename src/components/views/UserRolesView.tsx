@@ -55,7 +55,7 @@ export const UserRolesView: React.FC<UserRolesViewProps> = ({
           name: "HR Assistant",
           title: "HR Assistant",
           desc: "Assists with security officer attendance tracking, leave requests, and initial document verification.",
-          modules: ["Security Officer Directory", "Attendance Tracking", "Leave Log"],
+          modules: ["Personnel Directory", "Attendance Tracking", "Leave Log"],
         },
         {
           name: "Records Officer",

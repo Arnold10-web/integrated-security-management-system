@@ -64,6 +64,29 @@ export const domainApi = {
     exportPersonnel: (forceNumbers: string[], captureType: "PERSONNEL" | "ARMOURY" = "PERSONNEL") =>
       api.getBlob(`/biometrics/export?forceNumbers=${encodeURIComponent(forceNumbers.join(","))}&captureType=${captureType}`),
   },
+  cronJobs: {
+    list: () => api.get<any[]>("/cron-jobs"),
+    create: (data: { name: string; description?: string; cronExpression: string; category?: string; enabled?: boolean }) =>
+      api.post<any>("/cron-jobs", data),
+    update: (id: string, data: Partial<{ name: string; description: string; cronExpression: string; category: string; enabled: boolean }>) =>
+      api.put<any>(`/cron-jobs/${id}`, data),
+    remove: (id: string) => api.delete(`/cron-jobs/${id}`),
+    runNow: (id: string) => api.post<{ ok: boolean; detail: string }>(`/cron-jobs/${id}/run`),
+    runs: (id: string) => api.get<any[]>(`/cron-jobs/${id}/runs`),
+    summary: () => api.get<any>("/cron-jobs/summary"),
+  },
+  users: {
+    provision: (data: {
+      name: string;
+      email: string;
+      phone?: string;
+      role: string;
+      department?: string;
+      region?: string;
+      forceNumber?: string | null;
+      initialPassword?: string;
+    }) => api.post<any>("/users", data),
+  },
   sites: {
     list: () => api.get<ClientSite[]>("/sites"),
     create: (data: Omit<ClientSite, "id">) => api.post<ClientSite>("/sites", data),

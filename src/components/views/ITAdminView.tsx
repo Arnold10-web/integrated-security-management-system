@@ -7,6 +7,7 @@ import { AuditLogsView } from "./AuditLogsView";
 import { ActingRequestsITQueue } from "./ActingRequestsITQueue";
 import { SystemMaintenancePanel, AutomationEnginePanel, IdentityCardPanel, ITAssetPanel, ITAdminTabNav, ITAdminUsersToolbar, DeviceSessionsPanel } from "../organisms";
 import { AddAssetModal, AddUserModal, ActingPrivilegeModal, EditUserModal, IdentityCardPrintModal, PermissionOverridesModal, ProvisionUserModal, RegionalOfficesGrid, ServerHealthGrid, UserTable } from "../organisms";
+import { domainApi } from "../../services/domainApi";
 
 type SubTab = "users" | "id_cards" | "roles" | "it_assets" | "regions" | "servers" | "devices" | "audit" | "automation" | "maintenance";
 
@@ -175,15 +176,37 @@ export const ITAdminView: React.FC<ITAdminViewProps> = ({
       {subTab === "servers" && <ServerHealthGrid servers={servers} tickets={tickets} onUpdateServer={onUpdateServer} onDeleteServer={onDeleteServer} onAddTicket={onAddTicket} onUpdateTicket={onUpdateTicket} onDeleteTicket={onDeleteTicket} />}
       {subTab === "devices" && <DeviceSessionsPanel />}
       {subTab === "audit" && <AuditLogsView logs={auditLogs} />}
-      {subTab === "automation" && (
-        <AutomationEnginePanel scanOutput={scanOutput} isScanning={isScanning} backupStatus={backupStatus} dormantAuditOutput={dormantAuditOutput} slaEscalationMsg={slaEscalationMsg} selectedResetUser={selectedResetUser} generatedResetToken={generatedResetToken} copiedToken={copiedToken} automationLogs={automationLogs} users={users} onRunVulnerabilityScan={handleRunVulnerabilityScan} onRunBackup={handleRunBackup} onRunDormantAudit={handleRunDormantAudit} onRunSLAEscalation={handleRunSLAEscalation} onGenerateResetToken={handleGenerateResetToken} onSetSelectedResetUser={setSelectedResetUser} onSetCopiedToken={setCopiedToken} />
-      )}
+      {subTab === "automation" && <AutomationEnginePanel />}
       {subTab === "maintenance" && (
         <SystemMaintenancePanel backupArchives={backupArchives} integrityLogs={integrityLogs} isCreatingBackup={isCreatingBackup} backupProgress={backupProgress} backupStepMsg={backupStepMsg} isVerifyingIntegrity={isVerifyingIntegrity} integrityVerifyToast={integrityVerifyToast} integrityCategory={integrityCategory} integritySearch={integritySearch} activeRole={activeRole} onInitiateManualBackup={handleInitiateManualBackup} onVerifyAllIntegrityLogs={handleVerifyAllIntegrityLogs} onVerifySingleIntegrityLog={handleVerifySingleIntegrityLog} onSetIntegrityCategory={setIntegrityCategory} onSetIntegritySearch={setIntegritySearch} />
       )}
 
       <AddAssetModal show={showAddAssetModal} onClose={() => setShowAddAssetModal(false)} onSubmit={(asset) => { if (onAddITAsset) onAddITAsset(asset); setShowAddAssetModal(false); }} />
-      <AddUserModal show={showAddUserModal} onClose={() => setShowAddUserModal(false)} onSubmit={(user) => { onAddUser(user); setShowAddUserModal(false); }} />
+      <AddUserModal show={showAddUserModal} onClose={() => setShowAddUserModal(false)} onSubmit={async (user) => {
+        try {
+          const created = await domainApi.users.provision({
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            role: user.role,
+            department: user.department,
+            region: user.region,
+            forceNumber: user.forceNumber,
+          });
+          onAddUser({
+            ...user,
+            uniqueId: created.uniqueId,
+            passwordResetRequired: created.passwordResetRequired,
+          });
+          const identifier = user.role === "Director"
+            ? `unique identifier ${created.uniqueId}`
+            : `force number ${user.forceNumber || created.forceNumber || "assigned"}`;
+          alert(`Account provisioned (${user.role}) with ${identifier}. Credentials dispatched to ${user.email}.`);
+        } catch (e: any) {
+          alert(`Provisioning failed: ${e?.message || String(e)}`);
+        }
+        setShowAddUserModal(false);
+      }} />
       <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSubmit={(userId, updates) => { onUpdateUser(userId, updates); setEditingUser(null); }} />
       <PermissionOverridesModal user={permissionsUser} onClose={() => setPermissionsUser(null)} onSubmit={(userId, updates) => { onUpdateUser(userId, updates); setPermissionsUser(null); }} />
       <ActingPrivilegeModal user={actingUser} onClose={() => setActingUser(null)} onRevoke={async (userId) => { if (onRevokeActingPrivilege) await onRevokeActingPrivilege(userId); }} />

@@ -1303,11 +1303,11 @@ export const useDomainStore = create<DomainState>((set, get) => ({
 
   sendReminder: (invoiceId, recipient) => {
     api.post(`/invoices/${invoiceId}/remind`, recipient ? { recipient } : {}).then(() => {
-      notif("success", "Payment Reminder Sent", `Reminder triggered for invoice ${invoiceId}`, "Marketing");
+      notif("success", "Payment Reminder Sent", `Reminder queued for invoice ${invoiceId} (Finance-led; complements the automated Payment Reminder Dispatch job)`, "Finance");
     }).catch((e) => {
-      notif("warning", "Reminder Skipped", e instanceof Error ? e.message : "Could not send reminder", "Marketing");
+      notif("warning", "Reminder Skipped", e instanceof Error ? e.message : "Could not send reminder", "Finance");
     });
-    audit("Payment Reminder", `Marketing-led payment reminder triggered for invoice ${invoiceId}`, "Marketing & Sales");
+    audit("Payment Reminder", `Finance-led payment reminder triggered for invoice ${invoiceId}`, "Finance");
   },
 
   addRequisition: (newReq) => {

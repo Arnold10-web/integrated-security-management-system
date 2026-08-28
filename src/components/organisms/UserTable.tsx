@@ -31,6 +31,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onToggleSus
           <thead>
             <tr className="bg-slate-100 text-[11px] font-extrabold text-slate-600 uppercase border-b border-slate-200">
               <th className="p-3.5">User Identity & Contact</th>
+              <th className="p-3.5">Unique Identifier</th>
               <th className="p-3.5">Department</th>
               <th className="p-3.5">Region Attachment</th>
               <th className="p-3.5">Assigned Role</th>
@@ -42,7 +43,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onToggleSus
             <tbody className="divide-y divide-slate-200 text-xs text-slate-700 font-medium">
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-6 text-center text-slate-400 italic text-xs">No users found matching the filters.</td>
+                  <td colSpan={8} className="p-6 text-center text-slate-400 italic text-xs">No users found matching the filters.</td>
                 </tr>
               ) : (users.map((u) => {
               const isSuspended = u.status === "Suspended";
@@ -52,6 +53,13 @@ export const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onToggleSus
                     <div className="font-bold text-slate-900">{u.name}</div>
                     <div className="text-[10px] text-slate-500">{u.email}</div>
                     <div className="text-[10px] text-slate-400 font-mono">{u.phone}</div>
+                  </td>
+                  <td className="p-3.5">
+                    <span className={`px-2.5 py-1 rounded-lg font-mono font-bold border text-[11px] ${u.role === "Director" && u.uniqueId ? "bg-indigo-50 text-indigo-800 border-indigo-200" : "bg-slate-50 text-slate-700 border-slate-200"}`}>
+                      {u.role === "Director"
+                        ? (u.uniqueId || u.forceNumber || "—")
+                        : (u.forceNumber ? `FN:${u.forceNumber}` : (u.uniqueId || "—"))}
+                    </span>
                   </td>
                   <td className="p-3.5">
                     <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-200">

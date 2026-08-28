@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { AppNotification, NotificationRecord } from "../types";
 import { domainApi } from "../services/domainApi";
 import { getAccessToken } from "../services/apiClient";
+import { playNotificationSound } from "../utils/notificationSound";
 
 interface NotificationState {
   notifications: AppNotification[];
@@ -44,6 +45,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         ...s.notifications,
       ],
     }));
+    playNotificationSound();
     if (persisted()) {
       domainApi.notifications.create(n).catch(() => {});
     }
